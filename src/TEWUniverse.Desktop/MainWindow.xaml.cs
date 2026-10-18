@@ -97,9 +97,10 @@ public partial class MainWindow : Window
 
     private bool MayLeave()
     {
-        if (!HasEdits()) return true;
+        if (!HasEdits() && !HasUnappliedWorkerExtraForm()) return true;
         return MessageBox.Show(this,
-            "Discard unsaved changes? Select Save Changes first if you want to keep them.",
+            "Discard unsaved changes? Use Save Changes for worker fields, or " +
+            "Add / Save Selected for attributes and employment history first.",
             "Unsaved changes", MessageBoxButton.YesNo,
             MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
@@ -116,7 +117,8 @@ public partial class MainWindow : Window
     {
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null && (_activeModule == "Workers"
-            ? _worker != null : _selectedExisting != null);
+            ? _worker != null && _currentTab is not ("Attributes" or "Employment")
+            : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
         WorkingText.Text = _session == null ? "No active database" :
@@ -539,7 +541,16 @@ public partial class MainWindow : Window
 
     private void Tab_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button button && button.Tag is string tab) ShowSection(tab);
+        if (sender is not Button button || button.Tag is not string tab) return;
+        if (tab != _currentTab && HasUnappliedWorkerExtraForm() &&
+            MessageBox.Show(this,
+                "Discard edits to this attribute or employment form? " +
+                "These linked records use their own Add / Save Selected buttons.",
+                "Unapplied Worker Changes", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        ShowSection(tab);
+        RefreshDirty();
     }
 
     private void ShowSection(string tab)
