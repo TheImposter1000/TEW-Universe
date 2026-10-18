@@ -9,6 +9,39 @@ internal sealed record WorkerItem(int Id, string Name, bool? IsActive, string? P
     public override string ToString() => $"{Name}  |  ID {Id}";
 }
 
+internal sealed record ExistingRecordItem(int Id, string Name)
+{
+    public override string ToString() => $"{Name}  |  ID {Id}";
+}
+
+/// <summary>
+/// Only existing records can be edited. Allowed fields intentionally exclude
+/// UIDs and foreign keys (company ownership, title holders, stable members).
+/// Additional tables/fields must be validated against TEW IX before enabling.
+/// </summary>
+internal sealed record ExistingEditorSpec(
+    string Section, string Table, string[] EditableColumns);
+
+internal static class ExistingEditors
+{
+    private static readonly Dictionary<string, ExistingEditorSpec> Registry =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Companies"] = new("Companies", "tblFed",
+                new[] { "Name", "Initials", "URL", "Logo", "Backdrop", "Banner", "Prestige",
+                    "Influence", "Money", "Momentum" }),
+            ["Titles"] = new("Titles", "tblBelt",
+                new[] { "Name", "Picture", "Profile", "Prestige", "Active" }),
+            ["Events"] = new("Events", "tblCard",
+                new[] { "Name", "Logo", "Dormant" }),
+            ["Stables"] = new("Stables", "tblStable",
+                new[] { "Name", "Logo", "Backdrop", "Profile", "Active", "Important" })
+        };
+
+    public static bool TryGet(string section, out ExistingEditorSpec spec)
+        => Registry.TryGetValue(section, out spec!);
+}
+
 internal sealed record FieldEdit(string Table, string Key, string Field, Type FieldType, string NewText);
 internal sealed record RecordSection(string Table, string Key, DataTable Data)
 {
@@ -141,6 +174,57 @@ internal sealed class DatabaseSession : IDisposable
         return items;
     }
 
+    public List<ExistingRecordItem> ListExistingRecords(string section)
+    {
+        if (!ExistingEditors.TryGet(section, out var spec))
+            throw new InvalidOperationException("This module has no verified existing-record editor.");
+
+        // Table and columns come from our fixed allowlist, not from user input.
+        using var cmd = new OleDbCommand(
+            $"SELECT [UID], [Name] FROM [{spec.Table}] ORDER BY [Name]", _connection);
+        using var reader = cmd.ExecuteReader();
+        var records = new List<ExistingRecordItem>();
+        if (reader == null) return records;
+        while (reader.Read())
+        {
+            if (reader.IsDBNull(0)) continue;
+            records.Add(new ExistingRecordItem(
+                Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture),
+                reader.IsDBNull(1) ? "(unnamed)" :
+                Convert.ToString(reader.GetValue(1), CultureInfo.InvariantCulture) ?? "(unnamed)"));
+        }
+        return records;
+    }
+
+    public RecordSection ReadExistingRecord(string section, int id)
+    {
+        if (!ExistingEditors.TryGet(section, out var spec))
+            throw new InvalidOperationException("Unsupported editor section.");
+        return ReadSection(spec.Table, id);
+    }
+
+    public int SaveExistingRecord(string section, int id, IReadOnlyCollection<FieldEdit> edits)
+    {
+        if (!ExistingEditors.TryGet(section, out var spec))
+            throw new InvalidOperationException("Unsupported editor section.");
+        if (id <= 0) throw new InvalidOperationException("Invalid existing record ID.");
+        if (edits.Count == 0) return 0;
+
+        var allowed = new HashSet<string>(spec.EditableColumns, StringComparer.OrdinalIgnoreCase);
+        var sectionData = ReadSection(spec.Table, id);
+        if (!sectionData.Exists || sectionData.Data.Rows.Count != 1)
+            throw new InvalidOperationException("The existing record could not be found.");
+        if (edits.Any(x => !x.Table.Equals(spec.Table, StringComparison.OrdinalIgnoreCase)
+            || !x.Key.Equals("UID", StringComparison.OrdinalIgnoreCase)
+            || !allowed.Contains(x.Field)
+            || !sectionData.Data.Columns.Contains(x.Field)
+            || sectionData.Data.Columns[x.Field]!.DataType != x.FieldType))
+            throw new InvalidOperationException("Editing an ID, linked relationship, or unapproved field is blocked.");
+
+        // Reuse the established parameterized transaction without generating records.
+        return Save(id, edits);
+    }
+
     // Table and key are resolved from this hardcoded, small allowlist, never arbitrary UI text.
     private static readonly Dictionary<string, string> SectionKeys = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -148,7 +232,11 @@ internal sealed class DatabaseSession : IDisposable
         ["tblWorkerSkill"] = "WorkerUID",
         ["tblWorkerOver"] = "WorkerUID",
         ["tblWorkerPhysical"] = "WorkerUID",
-        ["tblWorkerBio"] = "UID"
+        ["tblWorkerBio"] = "UID",
+        ["tblFed"] = "UID",
+        ["tblBelt"] = "UID",
+        ["tblCard"] = "UID",
+        ["tblStable"] = "UID"
     };
 
     public RecordSection ReadSection(string table, int workerId)
