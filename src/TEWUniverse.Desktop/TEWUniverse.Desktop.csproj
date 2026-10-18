@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\TEWUniverse.Studio\DatabaseSession.cs" Link="Services\DatabaseSession.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\WorkerExtrasSession.cs" Link="Services\WorkerExtrasSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\AppSettings.cs" Link="Services\AppSettings.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CredentialStore.cs" Link="Services\CredentialStore.cs"/>
     <Compile Include="..\TEWUniverse.Studio\UpdateService.cs" Link="Services\UpdateService.cs"/>
