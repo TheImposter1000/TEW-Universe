@@ -130,18 +130,32 @@
       <Border x:Name="Outer" CornerRadius="5"
         Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
         BorderThickness="1"/>
-      <Grid Margin="10,0,9,0" IsHitTestVisible="False">
+      <Grid Margin="10,0,9,0">
        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/></Grid.ColumnDefinitions>
-       <ContentPresenter Grid.Column="0" Content="{TemplateBinding SelectionBoxItem}"
+       <ContentPresenter x:Name="SelectedContent" Grid.Column="0"
+        Content="{TemplateBinding SelectionBoxItem}"
         ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
         ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-        VerticalAlignment="Center" HorizontalAlignment="Left"/>
+        VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False"/>
+       <!-- WPF needs PART_EditableTextBox to display and search editable
+            selections; non-editable controls retain SelectedContent. -->
+       <TextBox x:Name="PART_EditableTextBox" Grid.Column="0" Visibility="Collapsed"
+        Background="Transparent" BorderThickness="0" Padding="0"
+        Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}"
+        FontSize="{TemplateBinding FontSize}" CaretBrush="#EEF5FF"
+        SelectionBrush="#397DCE" VerticalContentAlignment="Center"
+        HorizontalContentAlignment="Left" IsReadOnly="{TemplateBinding IsReadOnly}"
+        FocusVisualStyle="{x:Null}"/>
        <Path Grid.Column="1" Data="M 1,3 L 5,7 L 9,3" Stroke="#9EC4ED"
-        StrokeThickness="1.5" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        StrokeThickness="1.5" Stretch="None" HorizontalAlignment="Center"
+        VerticalAlignment="Center" IsHitTestVisible="False"/>
       </Grid>
-      <ToggleButton Background="Transparent" BorderThickness="0" Focusable="False"
+      <!-- On editable controls only the arrow toggles the dropdown,
+           so the text field remains clickable and accepts keyboard input. -->
+      <ToggleButton x:Name="DropDownToggle" Background="Transparent"
+       BorderThickness="0" Focusable="False"
        IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
-       <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+      <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
         <Border Background="Transparent"/>
        </ControlTemplate></ToggleButton.Template>
       </ToggleButton>
@@ -157,6 +171,12 @@
       </Popup>
      </Grid>
      <ControlTemplate.Triggers>
+      <Trigger Property="IsEditable" Value="True">
+       <Setter TargetName="SelectedContent" Property="Visibility" Value="Collapsed"/>
+       <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+       <Setter TargetName="DropDownToggle" Property="HorizontalAlignment" Value="Right"/>
+       <Setter TargetName="DropDownToggle" Property="Width" Value="31"/>
+      </Trigger>
       <Trigger Property="IsKeyboardFocusWithin" Value="True">
        <Setter TargetName="Outer" Property="BorderBrush" Value="#318DFA"/>
       </Trigger>
