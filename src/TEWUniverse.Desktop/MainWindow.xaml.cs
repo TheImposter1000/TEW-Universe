@@ -26,6 +26,11 @@ public partial class MainWindow : Window
     private bool _syncBio;
     private bool _loading;
     private string _currentTab = "Profile";
+    private string _activeModule = "Workers";
+    private readonly List<FieldDraft> _existingFields = new();
+    private List<ExistingRecordItem> _availableExistingRecords = new();
+    private ExistingRecordItem? _selectedExisting;
+    private bool _suppressExistingSelection;
     private DateTime? _lastSaved;
     private string _sortMode = "Name A to Z";
     private WorkerPortraitConverter Portraits => (WorkerPortraitConverter)FindResource("WorkerPictureConverter");
@@ -55,14 +60,15 @@ public partial class MainWindow : Window
         ShowSection("Profile");
     }
 
-    private bool HasEdits() =>
-        _fields.Any(x => x.Dirty) || (_bioExists && BioEditor.Text != _originalBio);
+    private bool HasEdits() => _activeModule == "Workers"
+        ? (_fields.Any(x => x.Dirty) || (_bioExists && BioEditor.Text != _originalBio))
+        : _existingFields.Any(x => x.Dirty);
 
     private bool MayLeave()
     {
         if (!HasEdits()) return true;
         return MessageBox.Show(this,
-            "Discard unsaved worker changes? Save Changes first to keep them.",
+            "Discard unsaved changes? Select Save Changes first if you want to keep them.",
             "Unsaved changes", MessageBoxButton.YesNo,
             MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
@@ -78,7 +84,8 @@ public partial class MainWindow : Window
     private void RefreshDirty()
     {
         bool dirty = HasEdits();
-        SaveButton.IsEnabled = _session != null && _worker != null;
+        SaveButton.IsEnabled = _session != null && (_activeModule == "Workers"
+            ? _worker != null : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
         WorkingText.Text = _session == null ? "No working copy" :
@@ -552,6 +559,11 @@ public partial class MainWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeModule != "Workers")
+        {
+            SaveExisting();
+            return;
+        }
         if (_session == null || _worker == null) return;
         try
         {
@@ -721,6 +733,9 @@ public partial class MainWindow : Window
             WorkerPortraitEllipse.Fill = Brushes.Transparent;
             WorkerPortraitPlaceholder.Visibility = Visibility.Visible;
             _fields.Clear();
+            _selectedExisting = null;
+            _existingFields.Clear();
+            _availableExistingRecords.Clear();
             _originalBio = "";
             _bioExists = false;
             _syncBio = true;
@@ -735,6 +750,7 @@ public partial class MainWindow : Window
             _lastSaved = null;
             SearchBox.Text = "";
             FilterWorkers();
+            if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
             SetStatus($"Loaded {list.Count:N0} existing workers");
             if (_settings.RememberDatabasePassword)
@@ -773,6 +789,9 @@ public partial class MainWindow : Window
                 _sessionPassword = null;
                 _worker = null;
                 _fields.Clear();
+                _existingFields.Clear();
+                _availableExistingRecords.Clear();
+                _selectedExisting = null;
                 _allWorkers.Clear();
                 FilterWorkers();
                 BackupButton.IsEnabled = SaveAsButton.IsEnabled = SaveButton.IsEnabled = false;
@@ -788,14 +807,24 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(DatabaseSession.ProjectRoot) { UseShellExecute = true });
     }
 
-    private void WorkersNav_Click(object sender, RoutedEventArgs e) => ShowSection("Profile");
+    private void WorkersNav_Click(object sender, RoutedEventArgs e)
+    {
+        SelectModule("Workers");
+        ShowSection(_currentTab);
+    }
 
     private void FutureNav_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button b)
-            MessageBox.Show(this, $"{b.Tag} is reserved for the next data editor module.\n" +
-                "The current release edits existing workers only.",
-                "Module not yet implemented", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (sender is not Button button || button.Tag is not string section) return;
+        if (ExistingEditors.TryGet(section, out _))
+        {
+            SelectModule(section);
+            return;
+        }
+        MessageBox.Show(this,
+            $"{section} is not yet available for editing. Existing records only; " +
+            "new record creation and unverified linked-record changes remain disabled.",
+            "Module not implemented", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void Error(Exception ex)
