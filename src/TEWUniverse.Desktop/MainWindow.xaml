@@ -211,37 +211,53 @@
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Background="#17283E" Padding="16" Margin="0,0,0,9">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="83"/>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Border Width="69" Height="69" CornerRadius="35" Background="#2C486D" VerticalAlignment="Center">
-              <TextBlock Text="●" Foreground="#A6C5EF" FontSize="43"
-                         VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        <!-- Profile banner with live facts, no fabricated metadata -->
+        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="17" Margin="0,0,0,9">
+         <Border.Background>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+           <GradientStop Color="#19324A" Offset="0"/>
+           <GradientStop Color="#133D67" Offset="0.73"/>
+           <GradientStop Color="#202D60" Offset="1"/>
+          </LinearGradientBrush>
+         </Border.Background>
+         <Grid>
+          <Grid.ColumnDefinitions>
+           <ColumnDefinition Width="96"/>
+           <ColumnDefinition Width="*"/>
+           <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <Border Width="79" Height="79" CornerRadius="40" Background="#2E4C70"
+            BorderBrush="#91AECC" BorderThickness="1" VerticalAlignment="Center">
+           <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="46"
+             Foreground="#BFD7F3" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+           <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="WorkerNameText" Text="Choose an existing worker"
+             FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+            <Border Background="#1B426B" BorderBrush="#47729C" BorderThickness="1"
+             CornerRadius="5" Margin="13,4,0,0" Padding="10,5">
+             <TextBlock x:Name="WorkerIdBadge" Text="Worker ID —" FontSize="11" Foreground="#BBD8F8"/>
             </Border>
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-              <TextBlock x:Name="WorkerNameText" Text="Choose an existing worker"
-                         FontSize="24" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-              <TextBlock x:Name="WorkerSummaryText" Text="Search on the left to open a worker profile."
-                         Foreground="{StaticResource TextBrushMuted}" Margin="0,9,0,0" FontSize="13"
-                         TextWrapping="Wrap"/>
-            </StackPanel>
-            <Border Grid.Column="2" Background="#173F50" CornerRadius="15"
-                    VerticalAlignment="Top" Padding="12,6">
-              <TextBlock x:Name="WorkerStatusText" Text="No record" Foreground="#6DE6C1" FontSize="12"/>
-            </Border>
-          </Grid>
+           </StackPanel>
+           <WrapPanel x:Name="HeaderFactsPanel" Margin="0,12,0,0">
+            <TextBlock x:Name="WorkerSummaryText" Text="Select a worker to view verified database details."
+              FontSize="12" Foreground="#C3D8F2"/>
+           </WrapPanel>
+          </StackPanel>
+          <Border Grid.Column="2" Background="#0D4B52" BorderBrush="#149E98"
+            BorderThickness="1" CornerRadius="18" Padding="13,7" VerticalAlignment="Top">
+           <TextBlock x:Name="WorkerStatusText" Text="No record" Foreground="#70F2D6" FontSize="12"/>
+          </Border>
+         </Grid>
         </Border>
 
         <UniformGrid Grid.Row="1" Columns="5" Margin="0,0,0,9">
-          <Button x:Name="ProfileTab" Style="{StaticResource BlueButton}" Content="Profile" Tag="Profile" Click="Tab_Click" Margin="0,0,5,0"/>
-          <Button x:Name="SkillsTab" Style="{StaticResource ActionButton}" Content="Skills" Tag="Skills" Click="Tab_Click" Margin="0,0,5,0"/>
-          <Button x:Name="PopularityTab" Style="{StaticResource ActionButton}" Content="Popularity" Tag="Popularity" Click="Tab_Click" Margin="0,0,5,0"/>
-          <Button x:Name="PhysicalTab" Style="{StaticResource ActionButton}" Content="Physical" Tag="Physical" Click="Tab_Click" Margin="0,0,5,0"/>
-          <Button x:Name="BiographyTab" Style="{StaticResource ActionButton}" Content="Biography" Tag="Biography" Click="Tab_Click"/>
+          <Button x:Name="ProfileTab" Style="{StaticResource BlueButton}" Content="▣   Profile" Tag="Profile" Click="Tab_Click" Margin="0,0,5,0"/>
+          <Button x:Name="SkillsTab" Style="{StaticResource ActionButton}" Content="▥   Skills" Tag="Skills" Click="Tab_Click" Margin="0,0,5,0"/>
+          <Button x:Name="PopularityTab" Style="{StaticResource ActionButton}" Content="★   Popularity" Tag="Popularity" Click="Tab_Click" Margin="0,0,5,0"/>
+          <Button x:Name="PhysicalTab" Style="{StaticResource ActionButton}" Content="⚑   Physical" Tag="Physical" Click="Tab_Click" Margin="0,0,5,0"/>
+          <Button x:Name="BiographyTab" Style="{StaticResource ActionButton}" Content="▣   Biography" Tag="Biography" Click="Tab_Click"/>
         </UniformGrid>
 
         <Grid Grid.Row="2">
@@ -253,7 +269,7 @@
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,6,0">
               <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Basic Information" Margin="17,15,10,12"
+                <TextBlock DockPanel.Dock="Top" Text="●   Basic Information" Margin="17,15,10,12"
                            FontWeight="Bold" FontSize="16"/>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                   <StackPanel x:Name="ProfileFieldsPanel" Margin="15,0,15,16"/>
@@ -268,9 +284,11 @@
               <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="14" Margin="0,0,0,8">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Top">
-                    <TextBlock Text="Biography / Notes" FontSize="16" FontWeight="Bold" Margin="2,0,0,10"/>
+                    <TextBlock Text="▣   Biography / Notes" FontSize="16" FontWeight="Bold" Margin="2,0,0,10"/>
                   </StackPanel>
-                  <TextBox x:Name="BioEditor" Style="{StaticResource FormTextBox}"
+                  <TextBlock x:Name="BioCountText" DockPanel.Dock="Bottom" HorizontalAlignment="Right"
+                   Text="0 characters" Margin="0,9,2,0" Foreground="#9CB8D9" FontSize="11"/>
+                <TextBox x:Name="BioEditor" Style="{StaticResource FormTextBox}"
                            AcceptsReturn="True" TextWrapping="Wrap"
                            VerticalScrollBarVisibility="Auto"
                            VerticalContentAlignment="Top"
@@ -278,16 +296,13 @@
                 </DockPanel>
               </Border>
               <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="15" Margin="0,8,0,0">
-                <DockPanel>
-                  <TextBlock DockPanel.Dock="Top" Text="Quick Facts" FontSize="16" FontWeight="Bold"
-                             Margin="0,0,0,11"/>
-                  <StackPanel>
-                    <TextBlock x:Name="QuickId" Text="Worker ID: —" FontSize="12" Margin="0,0,0,7"/>
-                    <TextBlock x:Name="QuickActive" Text="Status: —" FontSize="12" Margin="0,0,0,7"/>
-                    <TextBlock x:Name="QuickDatabase" Text="Current Copy: —" FontSize="12"
-                               TextTrimming="CharacterEllipsis"/>
-                  </StackPanel>
-                </DockPanel>
+               <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="▥   Quick Facts" FontSize="16"
+                 FontWeight="Bold" Margin="0,0,0,11"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                 <UniformGrid x:Name="QuickFactsPanel" Columns="2"/>
+                </ScrollViewer>
+               </DockPanel>
               </Border>
             </Grid>
           </Grid>
