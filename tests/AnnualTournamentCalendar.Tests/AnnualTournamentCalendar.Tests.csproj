@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/TEWUniverse.Desktop/AnnualTournamentCalendar.cs" Link="AnnualTournamentCalendar.cs" />
+    <Compile Include="../../src/TEWUniverse.Desktop/ChampionshipWinScheduler.cs" Link="ChampionshipWinScheduler.cs" />
   </ItemGroup>
 </Project>
