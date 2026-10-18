@@ -70,6 +70,9 @@ internal sealed class MainForm : Form
         _updatesButton.Text = "Check for updates";
         _updatesButton.Click += async (_, _) => await CheckForUpdatesAsync(true);
         bar.Controls.Add(_updatesButton);
+        var logButton = MakeButton("Update log", 115);
+        logButton.Click += (_, _) => OpenUpdateLog();
+        bar.Controls.Add(logButton);
 
         var split = new SplitContainer {
             Dock = DockStyle.Fill, Width = 1200, SplitterDistance = 325, FixedPanel = FixedPanel.Panel1,
@@ -485,27 +488,69 @@ internal sealed class MainForm : Form
     private void ShowError(Exception ex) =>
         MessageBox.Show(this, ex.Message, "TEW Universe Studio", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
+    private void OpenUpdateLog()
+    {
+        var path = UpdateService.LogPath;
+        if (!File.Exists(path))
+        {
+            MessageBox.Show(this, "No update log has been created yet. Try Check for updates first.",
+                "Updater diagnostics", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = "notepad.exe", UseShellExecute = true,
+                Arguments = "\"" + path.Replace("\"", "") + "\"" });
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
     private async Task CheckForUpdatesAsync(bool manual)
     {
+        if (!_updatesButton.Enabled) return;
         _updatesButton.Enabled = false;
         try
         {
+            if (manual) SetStatus("Checking GitHub Releases for updates...");
             var update = await UpdateService.FindUpdateAsync();
             if (update == null)
             {
-                if (manual) MessageBox.Show(this, "You are running the latest available release or no release is published yet.", "Updates");
+                if (manual)
+                    MessageBox.Show(this, "No newer release was found. The update log records the installed " +
+                        "version and the latest available release.", "Updates",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             if (MessageBox.Show(this,
-                $"TEW Universe Studio {update.Version} is available.\nDownload the verified installer and install it when the editor closes?",
-                "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                $"TEW Universe Studio {update.Version} is available.\nDownload and verify the installer, then install it after the application closes?",
+                "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            // Closing the editor for an update must never discard unsaved worker edits.
+            if (!MayReplaceProject()) return;
+
+            UpdateService.Log($"Update {update.Version} accepted by user.");
             SetStatus("Downloading update. Please wait...");
-            var installer = await UpdateService.DownloadVerifiedAsync(update);
+            var progress = new Progress<UpdateProgress>(state =>
+            {
+                double mb = state.BytesReceived / 1048576.0;
+                if (state.TotalBytes is long total && total > 0)
+                {
+                    SetStatus($"Downloading update: {mb:N1} / {total / 1048576.0:N1} MB " +
+                        $"({state.BytesReceived * 100.0 / total:N0}%).");
+                }
+                else SetStatus($"Downloading update: {mb:N1} MB received.");
+            });
+            var installer = await UpdateService.DownloadVerifiedAsync(update, progress);
             var updater = Path.Combine(AppContext.BaseDirectory, "TEWUniverse.Updater.exe");
             if (!File.Exists(updater))
-                throw new InvalidOperationException("Updater executable not found. Install a published GitHub Release build.");
-            // Run the updater from outside the installation directory, so its installed EXE can be replaced.
-            var stagedUpdater = Path.Combine(Path.GetDirectoryName(installer)!, "TEWUniverse.Updater.exe");
+                throw new InvalidOperationException(
+                    "Updater executable not found. The full GitHub installer is required.");
+
+            // The agent must execute outside its installation folder so the
+            // installer can replace that folder without locking the agent file.
+            var stagedUpdater = Path.Combine(Path.GetDirectoryName(installer)!,
+                "TEWUniverse.Updater.exe");
             File.Copy(updater, stagedUpdater, overwrite: true);
             var info = new ProcessStartInfo { FileName = stagedUpdater, UseShellExecute = false };
             info.ArgumentList.Add("--waitpid");
@@ -513,14 +558,21 @@ internal sealed class MainForm : Form
             info.ArgumentList.Add("--installer");
             info.ArgumentList.Add(installer);
             info.ArgumentList.Add("--restart");
-            info.ArgumentList.Add(Environment.ProcessPath ?? "");
+            info.ArgumentList.Add(Environment.ProcessPath ??
+                throw new InvalidOperationException("Cannot determine installed EXE location."));
             Process.Start(info);
+            UpdateService.Log("External updater launched. Closing editor.");
             Close();
         }
         catch (Exception ex)
         {
-            if (manual) ShowError(ex);
-            else SetStatus("Automatic update check unavailable. The editor can still be used offline.");
+            UpdateService.Log("UI update check or download failed: " +
+                ex.GetType().Name + ": " + ex.Message);
+            if (manual)
+                MessageBox.Show(this,
+                    ex.Message + "\n\nMore detail is available using the Update log button.",
+                    "Update failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            else SetStatus("Automatic update check failed. Click Check for updates to see details.");
         }
         finally { if (!IsDisposed) _updatesButton.Enabled = true; }
     }
