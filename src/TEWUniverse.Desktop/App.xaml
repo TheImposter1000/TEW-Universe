@@ -28,12 +28,13 @@
    <Setter Property="FontSize" Value="13"/>
    <Setter Property="FontWeight" Value="SemiBold"/>
    <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="HorizontalContentAlignment" Value="Center"/>
    <Setter Property="Template">
     <Setter.Value><ControlTemplate TargetType="Button">
      <Border x:Name="Surface" Background="{TemplateBinding Background}"
        BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
        CornerRadius="7" SnapsToDevicePixels="True">
-      <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+      <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"
        Margin="{TemplateBinding Padding}" RecognizesAccessKey="True"/>
      </Border>
      <ControlTemplate.Triggers>
@@ -61,6 +62,7 @@
   </Style>
   <Style TargetType="Button" x:Key="NavigationButton" BasedOn="{StaticResource ActionButton}">
    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="Padding" Value="16,13"/>
    <Setter Property="Margin" Value="9,2"/>
    <Setter Property="Background" Value="Transparent"/>
