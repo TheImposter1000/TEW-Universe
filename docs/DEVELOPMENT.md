@@ -10,6 +10,12 @@ This feature has Windows WPF build validation but cannot be considered TEW IX-co
 
 
 
+## Cross-title championship chronology
+
+The Advanced Generator has a checked-by-default **Schedule title wins after the wrestler's recorded tournament victories** setting for regular championships. The app reads existing `tblBeltPreHistory` for OTHER titles in the current scenario that the user has classified locally as `AnnualTournament`. It only matches positive `Holder1` worker UIDs and the same calendar year as a linked worker's exact requested championship-winning year, using `BeltCaptured` as the tournament-winning date. A historical alias remains safe because matching is by worker UID, not display name. The selected title's generated date cannot fall on or before the prior tournament win. If several Cup wins occur that year, the latest wins. The underlying scheduler preserves chronological order and at least seven days between fixed wins, reporting infeasible year-end constraints rather than omitting them.
+
+This is an **opt-in/out creative chronology assumption**, not a statement of game rules. Classifications are app-local, so unclassified tournaments and name-only NPCs (`Holder1=-1`) are not used. Other championship histories are read but **never written** by this feature. Preview shows the tournament name and original date for affected wins; turning the option off allows the usual unconstrained generated dates. The rule has no effect on the annual tournament generator itself or on title wins pinned to different years. Test import in a disposable TEW IX scenario as usual.
+
 ## Annual tournament calendar dates and lineage import
 
 For an **Annual Tournament / Cup** title, the Advanced Generator no longer asks for a fixed winning day number. Choose a month (1–12), week of month (First, Second, Third, Fourth, or Last), and weekday (Sunday through Saturday). Every historical year resolves its own valid date, allowing events that always occur on a given weekday. For example, First Sunday of March produces **1994-03-06** and **1997-03-02**. The first four occurrences always exist, and Last selects the last matching weekday of the month. Changing the calendar controls invalidates the current preview.

@@ -634,6 +634,17 @@
               <TextBlock Text="Enter one year for each reign. For a single-year wrestler, the win year is filled automatically when added. Select a row and press Delete to remove it."
                          FontSize="11" Foreground="#ADC9E8" TextWrapping="Wrap"
                          Margin="0,7,0,0"/>
+               <CheckBox x:Name="AdvancedRespectTournamentDates"
+                         Content="Schedule title wins after the wrestler's recorded tournament victories"
+                         IsChecked="True" Margin="0,10,0,0"
+                         Foreground="#E8F5FF" FontSize="12"
+                         Checked="AdvancedChronologyChanged"
+                         Unchecked="AdvancedChronologyChanged"
+                         ToolTip="Uses other titles classified as Annual Tournament / Cup in this scenario. Matches existing worker UIDs and winning years."/>
+               <TextBlock x:Name="AdvancedChronologyHelp"
+                          Text="Matches linked workers by UID. Only tournament wins recorded in the same year constrain championship dates; this does not change existing history."
+                          FontSize="11" Foreground="#ADC9E8" TextWrapping="Wrap"
+                          Margin="20,4,0,0"/>
              </StackPanel>
             </Border>
 
