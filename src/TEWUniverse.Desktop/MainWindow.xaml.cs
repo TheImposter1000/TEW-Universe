@@ -91,8 +91,8 @@ public partial class MainWindow : Window
             ? _worker != null : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
-        WorkingText.Text = _session == null ? "No working copy" :
-            "Working Copy: " + Path.GetFileName(_session.PathOnDisk);
+        WorkingText.Text = _session == null ? "No active database" :
+            "Active Database: " + Path.GetFileName(_session.PathOnDisk);
         SaveStateText.Text = dirty ? "● Unsaved changes" :
             _lastSaved is DateTime saved ? "Saved " + saved.ToString("HH:mm", CultureInfo.CurrentCulture) :
             "No unsaved edits";
@@ -575,7 +575,7 @@ public partial class MainWindow : Window
                 edits.Add(new FieldEdit("tblWorkerBio", "UID", "Profile", typeof(string), BioEditor.Text));
             if (edits.Count == 0) { SetStatus("No changes to save"); return; }
             if (MessageBox.Show(this,
-                    $"Save {edits.Count} changed field(s) to the current working database?\n" +
+                    $"Save {edits.Count} changed field(s) directly to the active MDB?\n" +
                     "No backup will be created.",
                     "Save Changes", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
                 return;
@@ -586,7 +586,7 @@ public partial class MainWindow : Window
             var refreshed = _allWorkers.FirstOrDefault(x => x.Id == savedId);
             if (refreshed != null) LoadWorker(refreshed);
             FilterWorkers(savedId);
-            SetStatus($"Saved {count} field(s) to working copy. No backup created.");
+            SetStatus($"Saved {count} field(s) to active MDB. No backup created.");
         }
         catch (Exception ex) { Error(ex); }
     }
@@ -611,7 +611,7 @@ public partial class MainWindow : Window
     private void SaveAs_Click(object sender, RoutedEventArgs e)
     {
         if (_session == null || _sessionPassword == null) return;
-        if (HasEdits()) { MessageBox.Show(this, "Save or discard changes before saving a new copy."); return; }
+        if (HasEdits()) { MessageBox.Show(this, "Save or discard changes before exporting a copy."); return; }
         var dialog = new SaveFileDialog {
             Filter = "Access database (*.mdb)|*.mdb", FileName =
             Path.GetFileNameWithoutExtension(_session.PathOnDisk) + "-copy.mdb",
@@ -620,11 +620,8 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) != true) return;
         try
         {
-            _session.CopyTo(dialog.FileName, _settings.DefaultDatabasePath);
-            var opened = DatabaseSession.OpenWorkingCopy(
-                dialog.FileName, _sessionPassword, _settings.DefaultDatabasePath);
-            SetSession(opened, _sessionPassword);
-            SetStatus("Created and opened new working copy");
+            _session.CopyTo(dialog.FileName);
+            SetStatus("Exported an independent copy. The active database has NOT changed.");
         }
         catch (Exception ex) { Error(ex); }
     }
@@ -646,74 +643,69 @@ public partial class MainWindow : Window
     private void Import_Click(object sender, RoutedEventArgs e)
     {
         if (!MayLeave()) return;
-        var original = new OpenFileDialog { Title = "Choose original TEW IX database",
-            Filter = "Access database (*.mdb)|*.mdb" };
-        if (File.Exists(_settings.DefaultDatabasePath)) original.FileName = _settings.DefaultDatabasePath;
-        if (original.ShowDialog(this) != true) return;
-        Directory.CreateDirectory(DatabaseSession.ProjectRoot);
-        var target = new SaveFileDialog {
-            Title = "Choose where to create your new editable working copy",
-            Filter = "Access database (*.mdb)|*.mdb", OverwritePrompt = false,
-            InitialDirectory = DatabaseSession.ProjectRoot,
-            FileName = "TEW9-working.mdb"
+        var file = new OpenFileDialog {
+            Title = "Choose the TEW IX scenario MDB to edit directly",
+            Filter = "Microsoft Access scenario (*.mdb)|*.mdb"
         };
-        if (target.ShowDialog(this) != true) return;
-        if (File.Exists(target.FileName) || AppSettings.SamePath(original.FileName, target.FileName))
-        {
-            MessageBox.Show(this, "Choose a new file name. Existing databases are never overwritten.");
-            return;
-        }
-        var password = PasswordDialog.Ask(this);
-        if (password == null) return;
+        if (File.Exists(_settings.ActiveDatabasePath))
+            file.FileName = _settings.ActiveDatabasePath;
+        if (file.ShowDialog(this) != true) return;
+        if (MessageBox.Show(this,
+                "TEW Universe Studio will EDIT this database DIRECTLY:\n\n" +
+                file.FileName +
+                "\n\nClose the TEW IX database editor before continuing. " +
+                "Create Backup is available separately. Proceed?",
+                "Confirm Direct Database Editing",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes) return;
         try
         {
-            var opened = DatabaseSession.ImportSource(original.FileName, password, target.FileName);
-            _settings.DefaultDatabasePath = original.FileName;
-            SetSession(opened, password);
-            SetStatus("Imported separate working copy at " + target.FileName);
+            var opened = OpenWithCredential(p => DatabaseSession.OpenDatabase(file.FileName, p));
+            if (opened.HasValue) SetSession(opened.Value.session, opened.Value.password);
         }
         catch (Exception ex) { Error(ex); }
     }
 
-    private void OpenProject_Click(object sender, RoutedEventArgs e)
+    private void RefreshDatabase_Click(object sender, RoutedEventArgs e)
     {
-        if (!MayLeave()) return;
-        var file = new OpenFileDialog {
-            Filter = "Access database (*.mdb)|*.mdb",
-            Title = "Open editable WORKING database, not the original scenario",
-            InitialDirectory = Directory.Exists(DatabaseSession.ProjectRoot)
-                ? DatabaseSession.ProjectRoot : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-        };
-        if (File.Exists(_settings.CurrentCopyPath)) file.FileName = _settings.CurrentCopyPath;
-        if (file.ShowDialog(this) != true) return;
-        if (AppSettings.SamePath(file.FileName, _settings.DefaultDatabasePath))
+        if (_session == null || _sessionPassword == null)
         {
-            MessageBox.Show(this, "That is your protected original database. Import a copy instead.");
+            MessageBox.Show(this, "Select a database first.");
             return;
         }
-        if (MessageBox.Show(this, "Confirm this is an editable copy and NOT your original TEW scenario.",
-                "Open working copy", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
-            return;
+        if (!MayLeave()) return;
         try
         {
-            var opened = OpenWithCredential(p =>
-                DatabaseSession.OpenWorkingCopy(file.FileName, p, _settings.DefaultDatabasePath));
-            if (opened.HasValue) SetSession(opened.Value.session, opened.Value.password);
+            var opened = DatabaseSession.OpenDatabase(_session.PathOnDisk, _sessionPassword);
+            SetSession(opened, _sessionPassword);
+            SetStatus("Refreshed active MDB. External additions and updates have been reloaded.");
         }
         catch (Exception ex) { Error(ex); }
     }
 
     private void RestoreProject()
     {
-        if (!File.Exists(_settings.CurrentCopyPath))
+        // Older settings do not automatically activate any copy as a direct-edit target.
+        if (string.IsNullOrWhiteSpace(_settings.ActiveDatabasePath))
         {
-            SetStatus("Choose Import Database or Open Project to begin.");
+            SetStatus("Select Database to choose the MDB to edit directly.");
             return;
         }
+        if (!File.Exists(_settings.ActiveDatabasePath))
+        {
+            SetStatus("Active MDB not found. Choose Select Database to locate it.");
+            return;
+        }
+        if (MessageBox.Show(this,
+                "Reopen this MDB for DIRECT editing?\n\n" + _settings.ActiveDatabasePath +
+                "\n\nDo not edit it simultaneously in TEW IX.",
+                "Open Active Database", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
         try
         {
             var opened = OpenWithCredential(p =>
-                DatabaseSession.OpenWorkingCopy(_settings.CurrentCopyPath, p, _settings.DefaultDatabasePath));
+                DatabaseSession.OpenDatabase(_settings.ActiveDatabasePath, p));
             if (opened.HasValue) SetSession(opened.Value.session, opened.Value.password);
         }
         catch (Exception ex) { Error(ex); }
@@ -725,7 +717,7 @@ public partial class MainWindow : Window
         {
             var list = opened.ListWorkers();
             var copy = _settings.Copy();
-            copy.CurrentCopyPath = opened.PathOnDisk;
+            copy.ActiveDatabasePath = opened.PathOnDisk;
             copy.Save();
             _session?.Dispose();
             _session = opened;
@@ -774,8 +766,8 @@ public partial class MainWindow : Window
         var dialog = new SettingsWindow(_settings) { Owner = this };
         if (dialog.ShowDialog() != true || dialog.ResultSettings == null) return;
         var next = dialog.ResultSettings;
-        bool changed = !AppSettings.SamePath(next.CurrentCopyPath, _settings.CurrentCopyPath) &&
-            !(string.IsNullOrWhiteSpace(next.CurrentCopyPath) && string.IsNullOrWhiteSpace(_settings.CurrentCopyPath));
+        bool changed = !AppSettings.SamePath(next.ActiveDatabasePath, _settings.ActiveDatabasePath) &&
+            !(string.IsNullOrWhiteSpace(next.ActiveDatabasePath) && string.IsNullOrWhiteSpace(_settings.ActiveDatabasePath));
         if (changed && !MayLeave()) return;
         try
         {
@@ -806,8 +798,12 @@ public partial class MainWindow : Window
 
     private void ProjectsFolder_Click(object sender, RoutedEventArgs e)
     {
-        Directory.CreateDirectory(DatabaseSession.ProjectRoot);
-        Process.Start(new ProcessStartInfo(DatabaseSession.ProjectRoot) { UseShellExecute = true });
+        if (_session == null)
+        {
+            MessageBox.Show(this, "Select a database first.");
+            return;
+        }
+        Process.Start(new ProcessStartInfo(_session.ProjectFolder) { UseShellExecute = true });
     }
 
     private void WorkersNav_Click(object sender, RoutedEventArgs e)
@@ -1171,7 +1167,7 @@ public partial class MainWindow : Window
                 $"Replace ALL {_generatedTitleReigns.Count} existing reigns for " +
                 $"{_selectedExisting.Name} (ID {_selectedExisting.Id})?\n\n" +
                 "This changes historical holders, capture dates, loss dates and defences " +
-                "in your current working MDB. It cannot be undone without a backup.\n\n" +
+                "in your active MDB. It cannot be undone without a backup.\n\n" +
                 "No new history records are created. Please make a backup first.",
                 "Replace Championship Lineage", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
@@ -1351,7 +1347,7 @@ public partial class MainWindow : Window
         var edits = _existingFields.Where(x => x.Dirty).Select(x => x.ToEdit()).ToList();
         if (edits.Count == 0) { SetStatus("No changes to save"); return; }
         if (MessageBox.Show(this,
-                $"Update {edits.Count} field(s) of {_selectedExisting.Name} in the current working copy?\n\n" +
+                $"Update {edits.Count} field(s) of {_selectedExisting.Name} directly in the active MDB?\n\n" +
                 "The record UID stays the same. No backup is created automatically.",
                 "Confirm Existing Record Update", MessageBoxButton.YesNo,
                 MessageBoxImage.Question) != MessageBoxResult.Yes) return;
