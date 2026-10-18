@@ -234,13 +234,13 @@
            <ColumnDefinition Width="*"/>
            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <Grid Width="79" Height="79" VerticalAlignment="Center">
+          <Grid Width="80" Height="80" VerticalAlignment="Center">
            <Border CornerRadius="40" Background="#2E4C70"
             BorderBrush="#91AECC" BorderThickness="1">
             <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="46"
              Foreground="#BFD7F3" HorizontalAlignment="Center" VerticalAlignment="Center"/>
            </Border>
-           <Ellipse x:Name="WorkerPortraitEllipse" Width="79" Height="79" Fill="Transparent"
+           <Ellipse x:Name="WorkerPortraitEllipse" Width="80" Height="80" Fill="Transparent"
                     ToolTip="Worker portrait from TEW IX Picture field"/>
           </Grid>
           <StackPanel Grid.Column="1" VerticalAlignment="Center">
