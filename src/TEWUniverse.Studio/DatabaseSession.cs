@@ -11,6 +11,10 @@ internal sealed record WorkerItem(int Id, string Name, bool? IsActive, string? P
 
 internal sealed record NpcNameSeed(string Name, string? GenderCode, string? RaceCode);
 
+internal sealed record TeamCreationDraft(string Name, int Worker1, int Worker2, int CompanyId,
+    int TypeCode, string Experience, string Formed, string Finisher, string FinisherDescription,
+    bool Active);
+
 internal sealed record ExistingRecordItem(int Id, string Name)
 {
     public override string ToString() => $"{Name}  |  ID {Id}";
@@ -41,7 +45,10 @@ internal static class ExistingEditors
             ["Events"] = new("Events", "tblCard",
                 new[] { "Name", "Logo", "Dormant" }),
             ["Stables"] = new("Stables", "tblStable",
-                new[] { "Name", "Logo", "Backdrop", "Profile", "Active", "Important" })
+                new[] { "Name", "Logo", "Backdrop", "Profile", "Active", "Important" }),
+            ["Tag Teams"] = new("Tag Teams", "tblTeam",
+                new[] { "Name", "Worker1", "Worker2", "Fed", "Type", "Experience",
+                    "Formed", "Finisher", "TagFinisherDesc", "Active" })
         };
 
     public static bool TryGet(string section, out ExistingEditorSpec spec)
@@ -335,6 +342,195 @@ internal sealed class DatabaseSession : IDisposable
                 "Choose an existing record, or use a known unassigned value.");
     }
 
+
+    /// <summary>Available TEW IX codes, read from actual team records rather than guessed.</summary>
+    public List<int> ListTagTeamTypeCodes()
+    {
+        using var cmd = new OleDbCommand(
+            "SELECT DISTINCT [Type] FROM [tblTeam] WHERE [Type] IS NOT NULL ORDER BY [Type]",
+            _connection);
+        using var reader = cmd.ExecuteReader();
+        var codes = new List<int>();
+        while (reader?.Read() == true)
+            codes.Add(Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture));
+        return codes;
+    }
+
+    public List<int> ListTagTeamGlobalCompanyCodes()
+    {
+        using var cmd = new OleDbCommand(
+            "SELECT DISTINCT [Fed] FROM [tblTeam] WHERE [Fed] IN (0, -1)",
+            _connection);
+        using var reader = cmd.ExecuteReader();
+        var codes = new List<int>();
+        while (reader?.Read() == true)
+            codes.Add(Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture));
+        return codes;
+    }
+
+    private bool RecordExists(string verifiedTable, int uid)
+    {
+        // Only callers with hard-coded table names use this method.
+        using var cmd = new OleDbCommand(
+            $"SELECT COUNT(*) FROM [{verifiedTable}] WHERE [UID] = ?", _connection);
+        cmd.Parameters.Add("id", OleDbType.Integer).Value = uid;
+        return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) == 1;
+    }
+
+    private void ValidateTagTeamReferences(int worker1, int worker2, int companyId, int typeCode,
+        IReadOnlyCollection<int> availableCodes)
+    {
+        if (worker1 <= 0 || worker2 <= 0 || worker1 == worker2 ||
+            !RecordExists("tblWorker", worker1) || !RecordExists("tblWorker", worker2))
+            throw new InvalidOperationException("Select two different existing workers.");
+        if (companyId > 0)
+        {
+            if (!RecordExists("tblFed", companyId))
+                throw new InvalidOperationException("The selected company does not exist in tblFed.");
+        }
+        else if (companyId is 0 or -1)
+        {
+            if (!ListTagTeamGlobalCompanyCodes().Contains(companyId))
+                throw new InvalidOperationException(
+                    "This database has no verified game-wide team using that None/Company code. " +
+                    "Choose an existing company instead.");
+        }
+        else throw new InvalidOperationException("Invalid company reference.");
+
+        if (!availableCodes.Contains(typeCode))
+            throw new InvalidOperationException(
+                "The team type is not one of the codes observed in this database.");
+    }
+
+    private void ValidateTagTeamEdits(DataRow original, IReadOnlyCollection<FieldEdit> edits)
+    {
+        int Value(string column)
+        {
+            var edit = edits.FirstOrDefault(x => x.Field.Equals(column,
+                StringComparison.OrdinalIgnoreCase));
+            return edit == null
+                ? Convert.ToInt32(original[column], CultureInfo.InvariantCulture)
+                : int.Parse(edit.NewText, CultureInfo.InvariantCulture);
+        }
+        int a = Value("Worker1"), b = Value("Worker2"), company = Value("Fed");
+        int type = Value("Type");
+        ValidateTagTeamReferences(a, b, company, type, ListTagTeamTypeCodes());
+        var name = edits.FirstOrDefault(x => x.Field.Equals("Name",
+            StringComparison.OrdinalIgnoreCase));
+        if (name != null && string.IsNullOrWhiteSpace(name.NewText))
+            throw new InvalidOperationException("A tag team needs a name.");
+    }
+
+    /// <summary>
+    /// Create one real tblTeam entry. All linked IDs and the database's schema
+    /// are checked before entering a transaction. No other table is modified.
+    /// </summary>
+    public int CreateTagTeam(TeamCreationDraft draft)
+    {
+        var teamName = draft.Name.Trim();
+        if (teamName.Length == 0 || teamName.Any(char.IsControl))
+            throw new InvalidOperationException("Enter a valid tag team name.");
+        ValidateTagTeamReferences(draft.Worker1, draft.Worker2, draft.CompanyId,
+            draft.TypeCode, ListTagTeamTypeCodes());
+
+        // Resolve all data types from the active MDB. Unknown mandatory columns
+        // are never filled with guessed values.
+        var schema = new DataTable("tblTeam");
+        using (var cmd = new OleDbCommand("SELECT * FROM [tblTeam] WHERE 1 = 0", _connection))
+        using (var adapter = new OleDbDataAdapter(cmd))
+            adapter.FillSchema(schema, SchemaType.Source);
+        string[] mandatory = { "UID", "Recordname", "Name", "Worker1", "Worker2",
+            "Fed", "Type", "Experience", "Formed", "Finisher", "TagFinisherDesc", "Active" };
+        var missing = mandatory.Where(name => !schema.Columns.Contains(name)).ToArray();
+        if (missing.Length != 0)
+            throw new InvalidOperationException(
+                "Creating tag teams is unsupported for this MDB schema. Missing: " +
+                string.Join(", ", missing));
+        var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) {
+            ["Name"] = teamName,
+            ["Worker1"] = draft.Worker1, ["Worker2"] = draft.Worker2,
+            ["Fed"] = draft.CompanyId, ["Type"] = draft.TypeCode,
+            ["Experience"] = Parse(draft.Experience.Trim(), schema.Columns["Experience"]!.DataType),
+            ["Formed"] = Parse(draft.Formed.Trim(), schema.Columns["Formed"]!.DataType),
+            ["Finisher"] = draft.Finisher.Trim(),
+            ["TagFinisherDesc"] = draft.FinisherDescription.Trim(),
+            ["Active"] = draft.Active
+        };
+        foreach (var pair in values)
+        {
+            var column = schema.Columns[pair.Key]!;
+            if (column.MaxLength > 0 && pair.Value is string text && text.Length > column.MaxLength)
+                throw new InvalidOperationException(
+                    $"{pair.Key} exceeds its MDB limit of {column.MaxLength} characters.");
+            if (pair.Value == DBNull.Value && !column.AllowDBNull)
+                throw new InvalidOperationException(
+                    $"{pair.Key} requires a value in this database.");
+            if (!IsEditable(column.DataType))
+                throw new InvalidOperationException(
+                    $"Unsupported field type for tblTeam.{pair.Key}: {column.DataType.Name}.");
+        }
+        var used = new HashSet<string>(values.Keys, StringComparer.OrdinalIgnoreCase) {
+            "UID", "Recordname"
+        };
+        foreach (DataColumn c in schema.Columns)
+            if (!used.Contains(c.ColumnName) && !c.AutoIncrement &&
+                !c.AllowDBNull && c.DefaultValue is DBNull)
+                throw new InvalidOperationException(
+                    $"Unknown required tblTeam column '{c.ColumnName}'. " +
+                    "Creation is blocked until its TEW IX meaning is verified.");
+
+        EnsureUnchanged();
+        using var tx = _connection.BeginTransaction();
+        try
+        {
+            int id;
+            using (var next = new OleDbCommand("SELECT MAX([UID]) FROM [tblTeam]", _connection, tx))
+            {
+                var value = next.ExecuteScalar();
+                id = checked((value is null or DBNull ? 0 :
+                    Convert.ToInt32(value, CultureInfo.InvariantCulture)) + 1);
+            }
+            if (id < 1) throw new InvalidOperationException("Could not allocate a team UID.");
+            string recordName = $"TUSTEAM{id:D8}";
+            if (schema.Columns["Recordname"]!.MaxLength is > 0 and var maxName &&
+                recordName.Length > maxName)
+                throw new InvalidOperationException("Generated Recordname exceeds MDB length limit.");
+            using (var duplicate = new OleDbCommand(
+                "SELECT COUNT(*) FROM [tblTeam] WHERE [Recordname] = ?", _connection, tx))
+            {
+                duplicate.Parameters.Add("record", OleDbType.VarWChar).Value = recordName;
+                if (Convert.ToInt32(duplicate.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
+                    throw new InvalidOperationException("The generated Recordname already exists.");
+            }
+            values["Recordname"] = recordName;
+            bool autoUid = schema.Columns["UID"]!.AutoIncrement;
+            if (!autoUid) values["UID"] = id;
+            var cols = values.Keys.ToArray();
+            using var insert = new OleDbCommand(
+                "INSERT INTO [tblTeam] (" + string.Join(",", cols.Select(x => $"[{x}]")) +
+                ") VALUES (" + string.Join(",", cols.Select(_ => "?")) + ")", _connection, tx);
+            foreach (string name in cols)
+                insert.Parameters.Add(name, ToOleDbType(schema.Columns[name]!.DataType)).Value =
+                    values[name];
+            if (insert.ExecuteNonQuery() != 1)
+                throw new InvalidOperationException("The team INSERT did not write exactly one row.");
+            if (autoUid)
+            {
+                using var identity = new OleDbCommand("SELECT @@IDENTITY", _connection, tx);
+                id = Convert.ToInt32(identity.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+            if (id < 1) throw new InvalidOperationException("The new team UID was invalid.");
+            tx.Commit();
+            _openedStamp = GetStamp(PathOnDisk);
+            return id;
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { /* Preserve original exception. */ }
+            throw;
+        }
+    }
+
     public int SaveExistingRecord(string section, int id, IReadOnlyCollection<FieldEdit> edits)
     {
         if (!ExistingEditors.TryGet(section, out var spec))
@@ -366,6 +562,8 @@ internal sealed class DatabaseSession : IDisposable
             if (section == "Titles")
                 ValidateTitleReference(edit);
         }
+        if (section == "Tag Teams")
+            ValidateTagTeamEdits(sectionData.Data.Rows[0], edits);
 
         // Parameterized transactional updates to the already-selected MDB.
         return Save(id, edits);
@@ -773,7 +971,8 @@ internal sealed class DatabaseSession : IDisposable
         ["tblFed"] = "UID",
         ["tblBelt"] = "UID",
         ["tblCard"] = "UID",
-        ["tblStable"] = "UID"
+        ["tblStable"] = "UID",
+        ["tblTeam"] = "UID"
     };
 
     public RecordSection ReadSection(string table, int workerId)
