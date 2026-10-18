@@ -46,6 +46,12 @@ internal sealed record FieldEdit(string Table, string Key, string Field, Type Fi
 /// <summary>Read-only pre-game reigns linked to the selected existing belt.</summary>
 internal sealed record TitleLineageResult(DataTable Rows, string? LinkField, string? OrderField, string Message);
 
+// These are proposed modifications to existing prehistory slots, never INSERTs.
+internal sealed record GeneratedTitleReign(
+    int Order, int Holder1, string HolderName1,
+    int Holder2, string HolderName2,
+    DateTime Captured, DateTime Lost, short Defences);
+
 internal sealed record RecordSection(string Table, string Key, DataTable Data)
 {
     public bool Exists => Data.Rows.Count != 0;
@@ -281,7 +287,7 @@ internal sealed class DatabaseSession : IDisposable
             }
 
             string[] possibleOrders = {
-                "OrderNumber", "Order_Number", "OrderNo", "OrderNum",
+                "BeltOrder", "OrderNumber", "Order_Number", "OrderNo", "OrderNum",
                 "Order", "ReignNumber", "Position", "Sequence"
             };
             string? order = possibleOrders.Select(candidate => fields.FirstOrDefault(f =>
@@ -308,6 +314,120 @@ internal sealed class DatabaseSession : IDisposable
         {
             return new(result, null, null,
                 "Could not read tblBeltPreHistory from this working MDB: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Replace the holders/dates of EVERY existing history row for one belt,
+    /// keeping history UIDs, BeltUID, BeltOrder, and Recordname intact.
+    /// Never creates records, allocates UIDs, or transfers other belts' rows.
+    /// </summary>
+    public int ReplaceExistingTitleLineage(int beltId, IReadOnlyList<GeneratedTitleReign> proposed)
+    {
+        if (beltId <= 0 || proposed.Count == 0)
+            throw new InvalidOperationException("Choose a title and generate at least one reign.");
+
+        // Verify the exact known TEW IX schema before any database writes.
+        var existing = ReadTitleLineage(beltId);
+        if (!string.Equals(existing.LinkField, "BeltUID", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(existing.OrderField, "BeltOrder", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The expected TEW IX lineage schema was not found.");
+
+        string[] required = { "UID", "BeltUID", "BeltOrder", "Holder1", "Holder2",
+            "Holder3", "Holder_Name1", "Holder_Name2", "Holder_Name3",
+            "BeltCaptured", "BeltLost", "Defences" };
+        if (required.Any(name => !existing.Rows.Columns.Contains(name)))
+            throw new InvalidOperationException("Some required title-lineage columns are missing.");
+
+        var rows = existing.Rows.Rows.Cast<DataRow>().OrderBy(r =>
+            Convert.ToInt32(r["BeltOrder"], CultureInfo.InvariantCulture)).ToList();
+        if (rows.Count != proposed.Count)
+            throw new InvalidOperationException(
+                $"Championship {beltId} has {rows.Count} existing lineage slots; " +
+                $"the proposal has {proposed.Count}. Exactly one proposal per existing slot " +
+                "is required. New history records are not created.");
+
+        var orderNumbers = rows.Select(r => Convert.ToInt32(r["BeltOrder"],
+            CultureInfo.InvariantCulture)).ToArray();
+        if (orderNumbers.Distinct().Count() != rows.Count)
+            throw new InvalidOperationException("Duplicate BeltOrder values need correction in TEW IX first.");
+        if (rows.Any(r => r["Holder3"] != DBNull.Value
+            && Convert.ToInt32(r["Holder3"], CultureInfo.InvariantCulture) > 0))
+            throw new InvalidOperationException(
+                "This title has three-person reigns; automatic generation currently supports singles or tag teams.");
+
+        var workers = ListWorkers().ToDictionary(w => w.Id);
+        foreach (var reign in proposed)
+        {
+            if (!workers.TryGetValue(reign.Holder1, out var first)
+                || !string.Equals(first.Name, reign.HolderName1, StringComparison.Ordinal)
+                || (reign.Holder2 > 0 &&
+                    (!workers.TryGetValue(reign.Holder2, out var second)
+                    || !string.Equals(second.Name, reign.HolderName2, StringComparison.Ordinal)))
+                || (reign.Holder2 <= 0 && !string.IsNullOrEmpty(reign.HolderName2)))
+                throw new InvalidOperationException("Every generated holder must match an existing worker ID and name.");
+            if (reign.Captured > reign.Lost || reign.Captured.Year < 1800
+                || reign.Lost.Year > 2100 || reign.Defences < 0)
+                throw new InvalidOperationException("A generated reign has invalid dates or defences.");
+            if (reign.HolderName1.Length > 30 || reign.HolderName2.Length > 30)
+                throw new InvalidOperationException(
+                    "One of the worker names exceeds the title-history name field limit.");
+        }
+        for (int i = 0; i < proposed.Count; i++)
+        {
+            if (proposed[i].Order != i + 1)
+                throw new InvalidOperationException("Proposed reigns must be ordered consecutively.");
+            if (i > 0 && proposed[i].Captured <= proposed[i-1].Lost)
+                throw new InvalidOperationException("Generated title reign dates cannot overlap.");
+        }
+
+        using var transaction = _connection.BeginTransaction();
+        try
+        {
+            int updated = 0;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var p = proposed[i];
+                var original = rows[i];
+                // Keep no-third-holder sentinel unchanged (-1 or 0).
+                int third = original["Holder3"] is DBNull ? 0 :
+                    Convert.ToInt32(original["Holder3"], CultureInfo.InvariantCulture);
+                using var cmd = new OleDbCommand(
+                    "UPDATE [tblBeltPreHistory] SET " +
+                    "[Holder1]=?, [Holder2]=?, [Holder3]=?, " +
+                    "[Holder_Name1]=?, [Holder_Name2]=?, [Holder_Name3]=?, " +
+                    "[BeltCaptured]=?, [BeltLost]=?, [Defences]=? " +
+                    "WHERE [UID]=? AND [BeltUID]=? AND [BeltOrder]=?",
+                    _connection, transaction);
+                cmd.Parameters.Add("h1", OleDbType.Integer).Value = p.Holder1;
+                cmd.Parameters.Add("h2", OleDbType.Integer).Value = p.Holder2 > 0
+                    ? p.Holder2 : (original["Holder2"] is DBNull ? 0 :
+                        Math.Min(0, Convert.ToInt32(original["Holder2"], CultureInfo.InvariantCulture)));
+                cmd.Parameters.Add("h3", OleDbType.Integer).Value = third;
+                cmd.Parameters.Add("name1", OleDbType.VarWChar).Value = p.HolderName1;
+                cmd.Parameters.Add("name2", OleDbType.VarWChar).Value = p.Holder2 > 0
+                    ? p.HolderName2 : "";
+                cmd.Parameters.Add("name3", OleDbType.VarWChar).Value = "";
+                cmd.Parameters.Add("captured", OleDbType.Date).Value = p.Captured;
+                cmd.Parameters.Add("lost", OleDbType.Date).Value = p.Lost;
+                cmd.Parameters.Add("defences", OleDbType.SmallInt).Value = p.Defences;
+                cmd.Parameters.Add("uid", OleDbType.Integer).Value =
+                    Convert.ToInt32(original["UID"], CultureInfo.InvariantCulture);
+                cmd.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
+                cmd.Parameters.Add("order", OleDbType.SmallInt).Value = orderNumbers[i];
+                var count = cmd.ExecuteNonQuery();
+                if (count != 1)
+                    throw new InvalidOperationException(
+                        "History row identity changed during update. Transaction cancelled.");
+                updated++;
+            }
+            transaction.Commit();
+            return updated;
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { /* preserve original failure */ }
+            throw;
         }
     }
 

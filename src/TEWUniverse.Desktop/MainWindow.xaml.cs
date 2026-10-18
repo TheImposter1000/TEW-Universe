@@ -31,6 +31,9 @@ public partial class MainWindow : Window
     private List<ExistingRecordItem> _availableExistingRecords = new();
     private ExistingRecordItem? _selectedExisting;
     private bool _suppressExistingSelection;
+    private List<GeneratedTitleReign> _generatedTitleReigns = new();
+    private int? _draftTitleId;
+    private int _existingLineageSlots;
     private DateTime? _lastSaved;
     private string _sortMode = "Name A to Z";
     private WorkerPortraitConverter Portraits => (WorkerPortraitConverter)FindResource("WorkerPictureConverter");
@@ -840,6 +843,7 @@ public partial class MainWindow : Window
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+        ClearGeneratedLineage();
         TitleEditorTabs.Visibility = section == "Titles" ? Visibility.Visible : Visibility.Collapsed;
         ShowTitleDetails();
 
@@ -890,6 +894,7 @@ public partial class MainWindow : Window
         ExistingList.SelectedItem = null;
         _suppressExistingSelection = false;
         ExistingFieldsPanel.Children.Clear();
+        ClearGeneratedLineage();
         TitleLineageGrid.ItemsSource = null;
         TitleLineageSummary.Text = "Select a championship to view its lineage.";
         if (_session == null)
@@ -956,6 +961,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("The selected record is missing from the working database.");
 
             _selectedExisting = selected;
+            ClearGeneratedLineage();
             TitleLineageGrid.ItemsSource = null;
             TitleLineageSummary.Text = "Open Title Lineage to load pre-game reigns.";
             _existingFields.Clear();
@@ -993,6 +999,230 @@ public partial class MainWindow : Window
         catch (Exception ex) { Error(ex); }
     }
 
+    private void TitleLineageGrid_AutoGeneratingColumn(object sender,
+        DataGridAutoGeneratingColumnEventArgs e)
+    {
+        if (e.Column is DataGridTextColumn col)
+        {
+            col.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
+            col.MinWidth = 110;
+            col.MaxWidth = 230;
+            if (e.PropertyType == typeof(DateTime))
+                col.Binding = new System.Windows.Data.Binding(e.PropertyName) {
+                    StringFormat = "MMM d, yyyy"
+                };
+        }
+    }
+
+    private void ClearGeneratedLineage()
+    {
+        _generatedTitleReigns.Clear();
+        _draftTitleId = null;
+        _existingLineageSlots = 0;
+        if (ApplyGeneratedLineageButton != null)
+            ApplyGeneratedLineageButton.IsEnabled = false;
+        if (ExportGeneratedLineageButton != null)
+            ExportGeneratedLineageButton.IsEnabled = false;
+    }
+
+    private void UseRecordedChampions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _selectedExisting == null || _activeModule != "Titles") return;
+        var data = _session.ReadTitleLineage(_selectedExisting.Id);
+        if (data.LinkField == null) return;
+        var names = data.Rows.Rows.Cast<DataRow>().SelectMany(row =>
+            new[] { "Holder_Name1", "Holder_Name2" }
+                .Where(data.Rows.Columns.Contains)
+                .Select(field => DatabaseSession.Display(row[field])))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        LineageWorkerPool.Text = string.Join(Environment.NewLine, names);
+        GeneratorHelp.Text = $"Loaded {names.Count} recorded holder name(s). " +
+            "Only names matching an existing worker can be used for generated reigns.";
+    }
+
+    private void GenerateLineage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeModule != "Titles" || _selectedExisting == null || _session == null) return;
+        try
+        {
+            if (!int.TryParse(LineageReignCount.Text.Trim(), out int count) || count < 1 || count > 100)
+                throw new InvalidOperationException("Choose 1 to 100 reigns.");
+            if (!int.TryParse(LineageStartYear.Text.Trim(), out int startYear)
+                || !int.TryParse(LineageEndYear.Text.Trim(), out int endYear)
+                || startYear < 1800 || endYear > 2100 || startYear > endYear)
+                throw new InvalidOperationException("Choose a valid year range from 1800 to 2100.");
+            bool tag = LineageTeamType.SelectedIndex == 1;
+            var tokens = LineageWorkerPool.Text.Split(
+                new[] { '\r', '\n', ';' }, StringSplitOptions.TrimEntries
+                    | StringSplitOptions.RemoveEmptyEntries);
+            var eligible = new List<WorkerItem>();
+            foreach (var token in tokens)
+            {
+                WorkerItem? worker;
+                if (token.StartsWith("#", StringComparison.Ordinal)
+                    && int.TryParse(token[1..], out int id))
+                    worker = _allWorkers.FirstOrDefault(w => w.Id == id);
+                else
+                {
+                    var matching = _allWorkers.Where(w =>
+                        w.Name.Equals(token, StringComparison.OrdinalIgnoreCase)).ToArray();
+                    if (matching.Length > 1)
+                        throw new InvalidOperationException(
+                            $"More than one worker is named '{token}'. Use #workerID instead.");
+                    worker = matching.FirstOrDefault();
+                }
+                if (worker == null)
+                    throw new InvalidOperationException(
+                        $"'{token}' is not an existing worker. Enter an exact name or #workerID.");
+                if (worker.Name.Length > 30)
+                    throw new InvalidOperationException(
+                        $"'{worker.Name}' is longer than the TEW IX title holder name limit.");
+                if (eligible.All(w => w.Id != worker.Id)) eligible.Add(worker);
+            }
+            if (eligible.Count < (tag ? 2 : 1))
+                throw new InvalidOperationException(
+                    tag ? "Choose at least two existing workers for tag team reigns." :
+                          "Choose at least one existing worker for singles reigns.");
+
+            var start = new DateTime(startYear, 1, 1);
+            var end = new DateTime(endYear, 12, 31);
+            int days = (end - start).Days + 1;
+            if (days < count)
+                throw new InvalidOperationException("The selected date range is too short.");
+
+            var proposed = new List<GeneratedTitleReign>();
+            int previous = -1, previousPartner = -1;
+            for (int i = 0; i < count; i++)
+            {
+                var choices = eligible.Where(w => w.Id != previous).ToList();
+                if (choices.Count == 0) choices = eligible;
+                var first = choices[Random.Shared.Next(choices.Count)];
+                WorkerItem? second = null;
+                if (tag)
+                {
+                    var partners = eligible.Where(w => w.Id != first.Id
+                        && !(w.Id == previousPartner && first.Id == previous)).ToList();
+                    if (partners.Count == 0)
+                        partners = eligible.Where(w => w.Id != first.Id).ToList();
+                    second = partners[Random.Shared.Next(partners.Count)];
+                }
+                int captureDays = (int)((long)i * days / count);
+                int nextDays = (int)((long)(i + 1) * days / count);
+                DateTime captured = start.AddDays(captureDays);
+                DateTime lost = start.AddDays(nextDays - 1);
+                short defences = (short)Math.Min(short.MaxValue,
+                    Math.Max(0, (nextDays - captureDays) / 45));
+                proposed.Add(new GeneratedTitleReign(
+                    i + 1, first.Id, first.Name, second?.Id ?? 0, second?.Name ?? "",
+                    captured, lost, defences));
+                previous = first.Id;
+                previousPartner = second?.Id ?? -1;
+            }
+
+            var history = _session.ReadTitleLineage(_selectedExisting.Id);
+            _existingLineageSlots = history.LinkField == null ? 0 : history.Rows.Rows.Count;
+            _draftTitleId = _selectedExisting.Id;
+            _generatedTitleReigns = proposed;
+            var preview = new DataTable("Generated Reigns");
+            preview.Columns.Add("Reign", typeof(int));
+            preview.Columns.Add("Champion", typeof(string));
+            preview.Columns.Add("Partner", typeof(string));
+            preview.Columns.Add("Captured", typeof(DateTime));
+            preview.Columns.Add("Lost", typeof(DateTime));
+            preview.Columns.Add("Defences", typeof(short));
+            preview.Columns.Add("Worker IDs", typeof(string));
+            foreach (var reign in proposed)
+                preview.Rows.Add(reign.Order, reign.HolderName1, reign.HolderName2,
+                    reign.Captured, reign.Lost, reign.Defences,
+                    reign.Holder2 > 0 ? $"{reign.Holder1}, {reign.Holder2}" :
+                        reign.Holder1.ToString(CultureInfo.InvariantCulture));
+            TitleLineageGrid.ItemsSource = preview.DefaultView;
+            var canApply = _existingLineageSlots == count &&
+                history.LinkField?.Equals("BeltUID", StringComparison.OrdinalIgnoreCase) == true &&
+                history.OrderField?.Equals("BeltOrder", StringComparison.OrdinalIgnoreCase) == true;
+            ApplyGeneratedLineageButton.IsEnabled = canApply;
+            ExportGeneratedLineageButton.IsEnabled = true;
+            TitleLineageSummary.Text = $"GENERATED PREVIEW · {count} reign(s) · " +
+                $"{_existingLineageSlots} existing history slot(s) for this championship.";
+            GeneratorHelp.Text = canApply
+                ? "Preview only. Replace Existing Reigns will overwrite holders, captured/lost dates, " +
+                  "and defences for this title's existing history rows, after confirmation. " +
+                  "Other titles and history record IDs remain unchanged."
+                : $"This title has {_existingLineageSlots} existing lineage slot(s). " +
+                  "You can export the draft, but applying requires exactly one generated reign " +
+                  "per existing slot. No new MDB records are inserted.";
+            SetStatus($"Generated {count} draft reigns for {_selectedExisting.Name}");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void ApplyGeneratedLineage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _activeModule != "Titles" ||
+            _selectedExisting == null || _draftTitleId != _selectedExisting.Id ||
+            _generatedTitleReigns.Count == 0) return;
+        if (HasEdits())
+        {
+            MessageBox.Show(this, "Save or discard unsaved championship details before replacing lineage.");
+            return;
+        }
+        if (MessageBox.Show(this,
+                $"Replace ALL {_generatedTitleReigns.Count} existing reigns for " +
+                $"{_selectedExisting.Name} (ID {_selectedExisting.Id})?\n\n" +
+                "This changes historical holders, capture dates, loss dates and defences " +
+                "in your current working MDB. It cannot be undone without a backup.\n\n" +
+                "No new history records are created. Please make a backup first.",
+                "Replace Championship Lineage", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        try
+        {
+            int changed = _session.ReplaceExistingTitleLineage(
+                _selectedExisting.Id, _generatedTitleReigns);
+            _lastSaved = DateTime.Now;
+            ClearGeneratedLineage();
+            LoadTitleLineage();
+            RefreshDirty();
+            SetStatus($"Replaced {changed} existing lineage reign(s). Please validate in TEW IX.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void ExportGeneratedLineage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedExisting == null || _generatedTitleReigns.Count == 0 ||
+            _draftTitleId != _selectedExisting.Id) return;
+        var dialog = new SaveFileDialog {
+            Title = "Export title-lineage draft (not a verified TEW IX import file)",
+            FileName = $"title-lineage-{_selectedExisting.Id}-draft.csv",
+            Filter = "CSV document (*.csv)|*.csv", AddExtension = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            static string Csv(object? o)
+            {
+                var value = Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
+                return "\"" + value.Replace("\"", "\"\"") + "\"";
+            }
+            var lines = new List<string> {
+                "BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,BeltCaptured,BeltLost,Defences"
+            };
+            lines.AddRange(_generatedTitleReigns.Select(r => string.Join(",",
+                Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
+                Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
+                Csv(r.Captured.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Csv(r.Lost.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Csv(r.Defences))));
+            File.WriteAllLines(dialog.FileName, lines, System.Text.Encoding.UTF8);
+            SetStatus("Exported title-lineage draft CSV. Not verified for direct TEW IX import.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void ShowSavedLineage_Click(object sender, RoutedEventArgs e)
+        => LoadTitleLineage();
+
     private void TitleInfoTab_Click(object sender, RoutedEventArgs e) => ShowTitleDetails();
 
     private void TitleLineageTab_Click(object sender, RoutedEventArgs e)
@@ -1028,6 +1258,17 @@ public partial class MainWindow : Window
             TitleLineageGrid.ItemsSource = history.LinkField == null
                 ? null : history.Rows.DefaultView;
             TitleLineageSummary.Text = history.Message;
+            if (_generatedTitleReigns.Count == 0 && history.Rows.Rows.Count > 0)
+            {
+                LineageReignCount.Text = history.Rows.Rows.Count.ToString(CultureInfo.InvariantCulture);
+                if (history.Rows.Columns.Contains("Holder2"))
+                {
+                    bool tag = history.Rows.Rows.Cast<DataRow>().Any(row =>
+                        row["Holder2"] != DBNull.Value &&
+                        Convert.ToInt32(row["Holder2"], CultureInfo.InvariantCulture) > 0);
+                    LineageTeamType.SelectedIndex = tag ? 1 : 0;
+                }
+            }
             SetStatus(history.LinkField == null
                 ? "Lineage schema needs review" : $"Read {history.Rows.Rows.Count:N0} title lineage entries.");
         }
