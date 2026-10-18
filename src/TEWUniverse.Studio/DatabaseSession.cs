@@ -1104,7 +1104,7 @@ internal sealed partial class DatabaseSession : IDisposable
     public static string Display(object value)
     {
         if (value == null || value is DBNull) return "";
-        if (value is DateTime d) return d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (value is DateTime d) return StudioDateFormat.Format(d);
         return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
     }
 
@@ -1134,7 +1134,7 @@ internal sealed partial class DatabaseSession : IDisposable
             if (text == "0") return false;
             return bool.Parse(text);
         }
-        if (type == typeof(DateTime)) return DateTime.Parse(text, culture);
+        if (type == typeof(DateTime)) return StudioDateFormat.Parse(text);
         if (type == typeof(byte)) return byte.Parse(text, culture);
         if (type == typeof(short)) return short.Parse(text, culture);
         if (type == typeof(int)) return int.Parse(text, culture);

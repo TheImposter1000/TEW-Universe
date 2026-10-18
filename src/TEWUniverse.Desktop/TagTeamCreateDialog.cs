@@ -107,7 +107,7 @@ internal sealed class TagTeamCreateDialog : Window
         AddField(content, "Experience (stored numeric value)", _experience);
         _formed = Entry();
         _formed.ToolTip = formedFieldType == typeof(DateTime)
-            ? "Enter YYYY-MM-DD; use 1666-01-01 only when TEW IX treats the date as unknown."
+            ? "Enter MM/DD/YYYY; use 01/01/1666 only when TEW IX treats the date as unknown."
             : $"Enter the stored {formedFieldType.Name} value used by this database.";
         AddField(content, $"Formed ({formedFieldType.Name})", _formed);
         _finisher = Entry();

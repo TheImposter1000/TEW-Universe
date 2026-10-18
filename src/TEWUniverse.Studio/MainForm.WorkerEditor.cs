@@ -227,17 +227,16 @@ internal sealed partial class MainForm
         }
         else if (type == typeof(DateTime) &&
                  (original.Length == 0 ||
-                  (DateTime.TryParse(original, CultureInfo.InvariantCulture,
-                     DateTimeStyles.None, out var date) &&
+                  (StudioDateFormat.TryParse(original, out var date) &&
                    date >= DateTimePicker.MinDateTime && date <= DateTimePicker.MaxDateTime)))
         {
-            var originalDate = DateTime.TryParse(original, CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var parsed) ? parsed : DateTime.Today;
+            var originalDate = StudioDateFormat.TryParse(original, out var parsed)
+                ? parsed : DateTime.Today;
             var input = new DateTimePicker
             {
                 Dock = DockStyle.Fill,
                 Format = DateTimePickerFormat.Custom,
-                CustomFormat = "yyyy-MM-dd",
+                CustomFormat = StudioDateFormat.Pattern,
                 ShowCheckBox = true,
                 CalendarForeColor = Color.Black,
                 Value = originalDate,
@@ -250,7 +249,7 @@ internal sealed partial class MainForm
                 if (!input.Checked) return "";
                 if (original.Length > 0 && input.Value.Date == originalDate.Date)
                     return original;
-                return input.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                return StudioDateFormat.Format(input.Value);
             };
             editor = input;
         }
