@@ -37,7 +37,10 @@ internal static class SuperstarReignInputPlanner
             // entry leaves the year to the generator. Repeated years are valid
             // for championships, but not annual Cup editions.
             var yearTokens = request.YearsWon.Trim().Length == 0
-                ? Array.Empty<string>()
+                ? (annualTournament && request.Reigns == 1 &&
+                    request.FirstYear == request.LastYear
+                    ? new[] { request.FirstYear.ToString(CultureInfo.InvariantCulture) }
+                    : Array.Empty<string>())
                 : request.YearsWon.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' },
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (yearTokens.Length > request.Reigns)
