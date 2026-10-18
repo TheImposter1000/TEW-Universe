@@ -33,9 +33,15 @@ internal static class UpdateService
         if (version <= current) return null;
         var filename = $"TEW-Universe-Setup-{version.Major}.{version.Minor}.{version.Build}.exe";
         var assets = root.GetProperty("assets").EnumerateArray().ToArray();
-        string? Find(string name) => assets.FirstOrDefault(a =>
-            string.Equals(a.GetProperty("name").GetString(), name, StringComparison.OrdinalIgnoreCase))
-            .TryGetProperty("browser_download_url", out var url) ? url.GetString() : null;
+        string? Find(string name)
+        {
+            foreach (var asset in assets)
+            {
+                if (string.Equals(asset.GetProperty("name").GetString(), name, StringComparison.OrdinalIgnoreCase))
+                    return asset.GetProperty("browser_download_url").GetString();
+            }
+            return null;
+        }
         var installerUrl = Find(filename);
         var checksumUrl = Find(filename + ".sha256");
         if (installerUrl == null || checksumUrl == null) return null;
