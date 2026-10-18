@@ -356,6 +356,20 @@ internal sealed class DatabaseSession : IDisposable
         return codes;
     }
 
+    public Type GetTagTeamColumnType(string column)
+    {
+        if (column != "Formed")
+            throw new ArgumentException("Only the verified Formed column can be queried.");
+        using var cmd = new OleDbCommand("SELECT * FROM [tblTeam] WHERE 1 = 0", _connection);
+        using var reader = cmd.ExecuteReader(CommandBehavior.SchemaOnly);
+        if (reader == null)
+            throw new InvalidOperationException("Could not read the tblTeam schema.");
+        for (int i = 0; i < reader.FieldCount; i++)
+            if (reader.GetName(i).Equals(column, StringComparison.OrdinalIgnoreCase))
+                return reader.GetFieldType(i);
+        throw new InvalidOperationException("Missing tblTeam field: " + column);
+    }
+
     public List<int> ListTagTeamGlobalCompanyCodes()
     {
         using var cmd = new OleDbCommand(
@@ -492,8 +506,8 @@ internal sealed class DatabaseSession : IDisposable
             }
             if (id < 1) throw new InvalidOperationException("Could not allocate a team UID.");
             string recordName = $"TUSTEAM{id:D8}";
-            if (schema.Columns["Recordname"]!.MaxLength is > 0 and var maxName &&
-                recordName.Length > maxName)
+            int maxName = schema.Columns["Recordname"]!.MaxLength;
+            if (maxName > 0 && recordName.Length > maxName)
                 throw new InvalidOperationException("Generated Recordname exceeds MDB length limit.");
             using (var duplicate = new OleDbCommand(
                 "SELECT COUNT(*) FROM [tblTeam] WHERE [Recordname] = ?", _connection, tx))
