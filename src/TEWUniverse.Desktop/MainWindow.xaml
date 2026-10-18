@@ -429,7 +429,7 @@
            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
             <TextBlock x:Name="ExistingFieldsTitle" Text="Editable Information"
                        FontSize="18" FontWeight="Bold"/>
-            <TextBlock Text="Editable information above and expanded MDB fields below. Record IDs and relationships are protected."
+            <TextBlock Text="Edit supported title fields, including annual settings and raw numeric codes. Primary keys and unverified links remain protected."
                        Foreground="{StaticResource TextBrushMuted}" FontSize="12"
                        TextWrapping="Wrap" Margin="0,6,0,0"/>
             <Border x:Name="TitleClassificationOptions" Visibility="Collapsed"

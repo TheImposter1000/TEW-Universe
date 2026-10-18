@@ -36,6 +36,14 @@ In the **legacy fixed-count** generator, randomly weighted reign durations are n
 
 **Annual Tournament / Cup** is intentionally excluded from this algorithm. Tournament history still uses one winner per calendar year on its explicitly selected month/day, with `BeltLost = 1666-01-01` and `Defences = -1`. Rebuild actions remain destructive for the selected title's existing history and require the manual backup and confirmation safeguards. Verify on a disposable MDB before applying.
 
+### Editing additional championship fields
+
+All additional supported scalar `tblBelt` fields are editable in **Championship Details → Additional TEW IX title settings**. Fields are detected from the selected MDB's schema, and each field retains its stored .NET/OLE DB type. Boolean flags get Yes/No controls, numerical TEW IX codes remain raw editable values, and text/date fields retain their original values until the user changes them. Edits are included in the ordinary dirty-check, Save Changes, and transaction flow; no direct writes occur from typing into a control.
+
+The `UID` primary key, internal `Recordname`, unsupported/binary or calculated fields, and unknown `*UID` / `*_ID` references remain in a smaller read-only group. The two recognized references, `OriginalFed` and `CardUID`, are editable but must reference existing IDs in `tblFed` or `tblCard`, or an explicit unassigned sentinel (0 / -1). The app confirms if a linked ID is being changed; it does not create missing companies/events. This title setting editor is different from the **Title Classification** selector, which is app-only and never changes a TEW IX type column.
+
+This functionality writes to the selected active MDB. Back up before using it, and validate changes through TEW IX's Data Check where applicable.
+
 ## Championship details and presentation classification
 
 The Titles editor now exposes all additional `tblBelt` columns through an expandable **Additional TEW IX fields** inspector, with protected IDs/references read-only. Basic text/description columns from a strict allowlist are editable when present; the app does not enable arbitrary linked-field editing.
