@@ -317,20 +317,65 @@ public partial class MainWindow : Window
         }
         else if (item.ValueType == typeof(DateTime))
         {
-            var picker = new DatePicker {
-                SelectedDate = ParseStoredDate(item.Value),
-                Height = 35, FontSize = 12, BorderThickness = new Thickness(1),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#102238")!),
-                Foreground = Brushes.White,
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#426182")!),
-                ToolTip = "Stored in the Access date field."
-            };
-            picker.SelectedDateChanged += (_, _) => {
-                item.Value = picker.SelectedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
-                if (!_loading) { RefreshDirty(); BuildWorkerFacts(); }
-            };
-            Grid.SetColumn(picker, 1);
-            grid.Children.Add(picker);
+            // WPF's default DatePicker renders an OS-white text field despite setting
+            // its outer brushes. The three-part date control matches the approved UI
+            // and never changes the stored value until a complete valid date exists.
+            var initial = ParseStoredDate(item.Value);
+            var holder = new Grid { Height = 36 };
+            holder.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.6, GridUnitType.Star) });
+            holder.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
+            holder.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) });
+            var months = new[] { "Month", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+            var month = new ComboBox { Style = (Style)FindResource("DarkComboBox"),
+                ItemsSource = months, SelectedIndex = initial?.Month ?? 0,
+                Margin = new Thickness(0,0,5,0), ToolTip = "Month" };
+            var days = new List<string> { "Day" };
+            days.AddRange(Enumerable.Range(1,31).Select(x => x.ToString(CultureInfo.InvariantCulture)));
+            var day = new ComboBox { Style = (Style)FindResource("DarkComboBox"),
+                ItemsSource = days, SelectedIndex = initial?.Day ?? 0,
+                Margin = new Thickness(0,0,5,0), ToolTip = "Day" };
+            var years = new List<string> { "Year" };
+            years.AddRange(Enumerable.Range(1800,401).Reverse().Select(x => x.ToString(CultureInfo.InvariantCulture)));
+            var year = new ComboBox { Style = (Style)FindResource("DarkComboBox"),
+                ItemsSource = years, SelectedItem = initial?.Year.ToString(CultureInfo.InvariantCulture) ?? "Year",
+                ToolTip = "Year" };
+            Grid.SetColumn(day,1);
+            Grid.SetColumn(year,2);
+            holder.Children.Add(month);
+            holder.Children.Add(day);
+            holder.Children.Add(year);
+            bool selecting = false;
+            void Changed(object? sender, SelectionChangedEventArgs args)
+            {
+                if (selecting || _loading) return;
+                int mm = month.SelectedIndex;
+                int dd = day.SelectedIndex;
+                if (!int.TryParse(year.SelectedItem as string, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var yyyy))
+                {
+                    if (mm == 0 && dd == 0) item.Value = "";
+                    RefreshDirty();
+                    return;
+                }
+                if (mm == 0 || dd == 0) { RefreshDirty(); return; }
+                int last = DateTime.DaysInMonth(yyyy,mm);
+                if (dd > last)
+                {
+                    selecting = true;
+                    day.SelectedIndex = last;
+                    selecting = false;
+                    dd = last;
+                }
+                item.Value = new DateTime(yyyy, mm, dd).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                RefreshDirty();
+                BuildWorkerFacts();
+            }
+            month.SelectionChanged += Changed;
+            day.SelectionChanged += Changed;
+            year.SelectionChanged += Changed;
+            Grid.SetColumn(holder,1);
+            grid.Children.Add(holder);
         }
         else
         {
