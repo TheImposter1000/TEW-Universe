@@ -1,5 +1,11 @@
 # Development and compatibility
 
+## Annual tournament calendar dates and lineage import
+
+For an **Annual Tournament / Cup** title, the Advanced Generator no longer asks for a fixed winning day number. Choose a month (1–12), week of month (First, Second, Third, Fourth, or Last), and weekday (Sunday through Saturday). Every historical year resolves its own valid date, allowing events that always occur on a given weekday. For example, First Sunday of March produces **1994-03-06** and **1997-03-02**. The first four occurrences always exist, and Last selects the last matching weekday of the month. Changing the calendar controls invalidates the current preview.
+
+**Import Preview to Title Lineage** uses the existing transactional `RebuildTitleLineage` path to replace `tblBeltPreHistory` rows only for the selected title. It still requires a manually created backup, a schema check, unchanged-file checks, and explicit destructive confirmation. After importing, the app switches to Title Lineage and reloads the saved entries. Annual tournaments retain `BeltLost = 1666-01-01` and `Defences = -1`. A CSV export is still only a draft, **not** an import format; the import button writes the current in-memory preview to the selected scenario MDB. Test a disposable scenario in TEW IX Data Check before using production data.
+
 ## Windows build
 
 Install the .NET 8 SDK on Windows 10/11. Run:
@@ -34,7 +40,7 @@ The Advanced Generator now takes a different path for **Championship** titles th
 
 In the **legacy fixed-count** generator, randomly weighted reign durations are normalized so exactly the requested number of reigns covers the user-selected dates without equal division. Previews show each reign's **Days held**; the advanced preview also summarizes short, medium, and longer-than-one-year reigns. Rerunning Generate can produce a different plausible history without writing to the MDB. These are fictional history heuristics, not recorded TEW IX results.
 
-**Annual Tournament / Cup** is intentionally excluded from this algorithm. Tournament history still uses one winner per calendar year on its explicitly selected month/day, with `BeltLost = 1666-01-01` and `Defences = -1`. Rebuild actions remain destructive for the selected title's existing history and require the manual backup and confirmation safeguards. Verify on a disposable MDB before applying.
+**Annual Tournament / Cup** is intentionally excluded from this algorithm. Tournament history still uses one winner per calendar year on an event date calculated using its selected month, ordinal weekday occurrence (first through fourth, or last), and weekday, with `BeltLost = 1666-01-01` and `Defences = -1`. Rebuild actions remain destructive for the selected title's existing history and require the manual backup and confirmation safeguards. Verify on a disposable MDB before applying.
 
 ### Editing additional championship fields
 
@@ -48,7 +54,7 @@ This functionality writes to the selected active MDB. Back up before using it, a
 
 The Titles editor now exposes all additional `tblBelt` columns through an expandable **Additional TEW IX fields** inspector, with protected IDs/references read-only. Basic text/description columns from a strict allowlist are editable when present; the app does not enable arbitrary linked-field editing.
 
-The **Title Classification** control offers **Championship** or **Annual Tournament / Cup**. It is *app-only*, keyed by database filename/path and `tblBelt.UID` in `settings.json`; there is no new type column and no change to existing TEW IX numeric enums. The label persists across launches and survives other settings changes. Championship previews generate ongoing reign records. Annual tournaments generate winners rather than ongoing reigns: one winner per calendar year (unless a championship title is selected), a supplied common month/day for the competition, `BeltLost = 1666-01-01`, and `Defences = -1`, matching the sentinel convention observed in the provided TEW IX screenshot. The tournament viewer omits these no-reign fields, relabeling winning dates and holders. This is not a guarantee that every scenario uses the same sentinel semantics; test in TEW IX Data Check using a disposable MDB before rebuilding any production title history.
+The **Title Classification** control offers **Championship** or **Annual Tournament / Cup**. It is *app-only*, keyed by database filename/path and `tblBelt.UID` in `settings.json`; there is no new type column and no change to existing TEW IX numeric enums. The label persists across launches and survives other settings changes. Championship previews generate ongoing reign records. Annual tournaments generate winners rather than ongoing reigns: one winner per calendar year (unless a championship title is selected), a recurring event schedule (month, week-of-month occurrence, weekday) that computes a distinct date for each year, `BeltLost = 1666-01-01`, and `Defences = -1`, matching the sentinel convention observed in the provided TEW IX screenshot. The tournament viewer omits these no-reign fields, relabeling winning dates and holders. This is not a guarantee that every scenario uses the same sentinel semantics; test in TEW IX Data Check using a disposable MDB before rebuilding any production title history.
 
 The legacy reign-based generator remains for championship titles only. Rebuild operations still delete/reinsert only the selected `tblBeltPreHistory` rows transactionally, and require a manual backup and explicit confirmation.
 
