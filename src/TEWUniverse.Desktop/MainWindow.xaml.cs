@@ -84,6 +84,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeWorkerExtrasUI();
+        InitializeWorkerFiltersUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
@@ -136,6 +137,7 @@ public partial class MainWindow : Window
     private void RefreshPortraits()
     {
         Portraits.SetFolder(_settings.WorkerPicturesFolderPath);
+        InvalidateWorkerPictureFilter();
         if (WorkersList != null) FilterWorkers(_worker?.Id);
         UpdateWorkerPortrait();
     }
@@ -176,6 +178,7 @@ public partial class MainWindow : Window
         var matches = _allWorkers.Where(x =>
             x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
             x.Id.ToString(CultureInfo.InvariantCulture).Contains(query, StringComparison.OrdinalIgnoreCase));
+        matches = ApplyWorkerRosterFilters(matches);
         var filtered = (_sortMode switch {
             "Name Z to A" => matches.OrderByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase),
             "Worker ID" => matches.OrderBy(x => x.Id),
@@ -190,6 +193,7 @@ public partial class MainWindow : Window
         _suppressSelection = false;
         WorkerCountText.Text = $"Showing {filtered.Count:N0} of {_allWorkers.Count:N0} workers";
         FilteredText.Text = $"{filtered.Count:N0} of {_allWorkers.Count:N0} workers (filtered)";
+        UpdateWorkerFilterCount();
     }
 
     private void WorkersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -630,6 +634,7 @@ public partial class MainWindow : Window
             int savedId = _worker.Id;
             int count = _session.Save(savedId, edits);
             _allWorkers = _session.ListWorkers();
+            ReloadWorkerFilterIndex();
             _lastSaved = DateTime.Now;
             var refreshed = _allWorkers.FirstOrDefault(x => x.Id == savedId);
             if (refreshed != null) LoadWorker(refreshed);
@@ -774,6 +779,7 @@ public partial class MainWindow : Window
             _sessionPassword = password;
             _settings = copy;
             _allWorkers = list;
+            ReloadWorkerFilterIndex();
             _lastManualBackup = null;
             _lastBackupDatabase = null;
             AdvancedWorkerPicker.ItemsSource = _allWorkers;
@@ -845,6 +851,7 @@ public partial class MainWindow : Window
                 _availableExistingRecords.Clear();
                 _selectedExisting = null;
                 _allWorkers.Clear();
+                ReloadWorkerFilterIndex();
                 FilterWorkers();
                 BackupButton.IsEnabled = SaveAsButton.IsEnabled = SaveButton.IsEnabled = false;
                 RestoreProject();

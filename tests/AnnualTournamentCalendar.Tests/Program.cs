@@ -810,6 +810,61 @@ if (!duplicateKeysRejected)
 
 Console.WriteLine("Passed selected and global existing-record name migration checks.");
 
+// Roster filters combine through AND without writing to the MDB. A single
+// worker can have multiple current tblContract companies and more than one
+// verified role; search, sorting and filtering must remain independent.
+var rosterAsOf = new DateTime(2026, 10, 18);
+var roster = new[]
+{
+    new WorkerFilterRecord(1, "Brendan Walsh", true,
+        new DateTime(1987, 10, 22), "Code 1", "Code 3", "Code 22",
+        new[] { "Wrestler", "Manager" }, new[] { 100, 200 }, true),
+    new WorkerFilterRecord(2, "Brenda Walsh", true,
+        new DateTime(1995, 1, 8), "Code 2", "Code 3", "Code 22",
+        new[] { "Wrestler" }, new[] { 200 }, false),
+    new WorkerFilterRecord(3, "Retired Veteran", false,
+        new DateTime(1970, 2, 14), "Code 1", "Code 4", "Code 24",
+        new[] { "Personality" }, Array.Empty<int>(), false),
+    new WorkerFilterRecord(4, "No Birth Date", null, null,
+        "", "", "", Array.Empty<string>(), Array.Empty<int>(), true)
+};
+int[] MatchIds(WorkerFilterCriteria criteria) => roster
+    .Where(w => WorkerRosterFilterEngine.Matches(w, criteria, rosterAsOf))
+    .Select(w => w.Id).ToArray();
+var combinedFilters = new WorkerFilterCriteria(
+    Search: "Brendan", Active: true, Gender: "Code 1", MinAge: 38,
+    MaxAge: 39, CompanyUid: 100, Role: "Wrestler",
+    Nationality: "Code 3", Region: "Code 22", HasPicture: true);
+if (!MatchIds(combinedFilters).SequenceEqual(new[] { 1 }))
+    throw new Exception("All eight roster filters did not combine correctly.");
+if (!MatchIds(new WorkerFilterCriteria(CompanyUid: 200))
+        .SequenceEqual(new[] { 1, 2 }) ||
+    !MatchIds(new WorkerFilterCriteria(UnemployedOnly: true))
+        .SequenceEqual(new[] { 3, 4 }) ||
+    !MatchIds(new WorkerFilterCriteria(Role: "Manager"))
+        .SequenceEqual(new[] { 1 }) ||
+    !MatchIds(new WorkerFilterCriteria(HasPicture: false))
+        .SequenceEqual(new[] { 2, 3 }) ||
+    !MatchIds(new WorkerFilterCriteria(Active: false))
+        .SequenceEqual(new[] { 3 }))
+    throw new Exception("Company, role, pictures or active-status roster filtering failed.");
+// A worker with a contract whose federation link is blank is NOT unemployed.
+var unknownFedContract = new WorkerFilterRecord(5, "Unknown company contract",
+    true, null, "", "", "", Array.Empty<string>(), Array.Empty<int>(),
+    HasCurrentContract: true);
+if (WorkerRosterFilterEngine.Matches(unknownFedContract,
+        new WorkerFilterCriteria(UnemployedOnly: true), rosterAsOf))
+    throw new Exception("Worker with a companyless active contract was misclassified as unemployed.");
+
+if (WorkerRosterFilterEngine.AgeAt(new DateTime(1987, 10, 22), rosterAsOf) != 38 ||
+    WorkerRosterFilterEngine.AgeAt(new DateTime(1987, 10, 22),
+        new DateTime(2026, 10, 22)) != 39 ||
+    MatchIds(new WorkerFilterCriteria(MinAge: 0)).Contains(4) ||
+    MatchIds(new WorkerFilterCriteria(Region: "Code 24")).Length != 1 ||
+    !MatchIds(new WorkerFilterCriteria(Search: "3")).SequenceEqual(new[] { 3 }))
+    throw new Exception("Age boundary, unknown birthday, region or ID search filter failed.");
+Console.WriteLine("Passed combined worker roster status, gender, age, company, role, region, nationality and picture filters.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);

@@ -2,6 +2,12 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
+## Worker roster filters
+
+The **Workers** sidebar has a collapsible **Filters** panel alongside the existing name/UID search and Name A–Z / Z–A / Worker ID sorting. Filters combine with **AND** logic and update the matching count and worker list immediately. The available controls are: **Active / Inactive**, **Gender**, **Age minimum/maximum** (inclusive, calculated from the worker's `tblWorker.Birthday`), **Current Company** (from live `tblContract.WorkerUID → FedUID` links, including No current contract), **Worker Type / Role**, **Nationality**, **Based-in Region**, and **With pictures / No pictures**. **Reset** clears every filter and the name search to restore the full roster.
+
+Filter values are loaded in a single batch from the selected TEW IX scenario, not from guesswork. Role choices come only from worker-role columns actually found in its `tblWorker` schema; filters unavailable in that MDB are disabled with a short explanation. TEW nationality, gender and region numeric values remain visibly labeled **Code N** unless the MDB supplies text; no unverified enum translation is invented. The company filter reads **current contracts**, not historical `tblCV` employment. Portrait presence tests whether a matching file exists in the configured worker-picture folder (or its People subfolder) using the name-first, MDB-filename-fallback rule of the portrait renderer, so blank `Picture` fields can still have a picture. If no picture folder is set, the panel explains why everyone appears to have no configured portrait. Filtering is read-only and never changes the MDB.
+
 ## Worker Attributes and Employment History
 
 The **Workers** editor has two additional worker-specific tabs: **Attributes** and **Employment History**.

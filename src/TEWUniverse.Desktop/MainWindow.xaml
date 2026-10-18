@@ -168,6 +168,88 @@
            </Button>
           </Grid>
          </Border>
+         <!-- These are query-only filters; they never modify the MDB. Keep
+              the panel collapsed so the worker list remains usable. -->
+         <DockPanel Margin="0,10,0,0">
+          <Button DockPanel.Dock="Right" Content="Reset" x:Name="WorkerResetFilters"
+                  Style="{StaticResource ActionButton}"
+                  Click="ResetWorkerFilters_Click" Padding="11,6"
+                  ToolTip="Reset all filters (keeps your name search)"/>
+          <Button x:Name="WorkerFilterToggle" DockPanel.Dock="Left"
+                  Click="WorkerFilterToggle_Click"
+                  Style="{StaticResource ActionButton}"
+                  HorizontalContentAlignment="Left" Padding="12,7"
+                  Margin="0,0,7,0">
+           <StackPanel Orientation="Horizontal">
+            <TextBlock Text="&#xE71C;" FontFamily="Segoe MDL2 Assets"
+                       Margin="0,0,9,0" Foreground="#B5D5F5"/>
+            <TextBlock x:Name="WorkerFilterToggleText" Text="Filters (all)"/>
+           </StackPanel>
+          </Button>
+         </DockPanel>
+         <Border x:Name="WorkerFilterPanel" Visibility="Collapsed"
+                 Background="#10253D" BorderBrush="#365A7E"
+                 BorderThickness="1" CornerRadius="7"
+                 Margin="0,8,0,0" Padding="10,9,10,8">
+          <ScrollViewer MaxHeight="325" VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled">
+           <StackPanel>
+            <TextBlock Text="ROSTER FILTERS" Foreground="#97BEDF"
+                       FontSize="11" FontWeight="SemiBold"
+                       Margin="0,0,0,9"/>
+            <TextBlock Text="Status" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerActiveFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,9"/>
+            <TextBlock Text="Gender" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerGenderFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,9"/>
+            <TextBlock Text="Age range (years)" Foreground="#ADC9E8" FontSize="11"/>
+            <Grid Margin="0,3,0,9">
+             <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/><ColumnDefinition Width="8"/>
+              <ColumnDefinition Width="*"/>
+             </Grid.ColumnDefinitions>
+             <TextBox x:Name="WorkerMinAgeFilter" Grid.Column="0"
+                      Style="{StaticResource FormTextBox}" Height="34"
+                      ToolTip="Minimum age, inclusive (0–120)"
+                      TextChanged="WorkerAgeFilterChanged"/>
+             <TextBox x:Name="WorkerMaxAgeFilter" Grid.Column="2"
+                      Style="{StaticResource FormTextBox}" Height="34"
+                      ToolTip="Maximum age, inclusive (0–120)"
+                      TextChanged="WorkerAgeFilterChanged"/>
+            </Grid>
+            <TextBlock x:Name="WorkerAgeFilterHint" Text="Minimum                  Maximum"
+                       FontSize="10" Foreground="#819FBB"
+                       Margin="0,-7,0,10"/>
+            <TextBlock Text="Current company (contract)" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerCompanyFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      IsTextSearchEnabled="True"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,9"/>
+            <TextBlock Text="Worker type / role" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerRoleFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,9"/>
+            <TextBlock Text="Nationality" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerNationalityFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,9"/>
+            <TextBlock Text="Based in (region)" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerRegionFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,9"/>
+            <TextBlock Text="Portraits" Foreground="#ADC9E8" FontSize="11"/>
+            <ComboBox x:Name="WorkerPictureFilter" Height="34"
+                      Style="{StaticResource DarkComboBox}"
+                      SelectionChanged="WorkerFilterChanged" Margin="0,3,0,5"/>
+            <TextBlock x:Name="WorkerFilterNotes" Text=""
+                       TextWrapping="Wrap" FontSize="10"
+                       Foreground="#9EB8D3" Margin="0,6,0,1"/>
+           </StackPanel>
+          </ScrollViewer>
+         </Border>
          <Grid Margin="2,12,2,0">
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="130"/></Grid.ColumnDefinitions>
           <TextBlock x:Name="WorkerCountText" Text="No database open"
