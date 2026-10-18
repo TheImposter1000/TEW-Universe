@@ -1423,6 +1423,12 @@ public partial class MainWindow : Window
         if (AdvancedApplyButton != null) ResetAdvancedDraft();
     }
 
+    private void AdvancedCalendarChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // A changed event schedule makes any existing preview unsafe to import.
+        if (AdvancedApplyButton != null) ResetAdvancedDraft();
+    }
+
     private void AdvancedGenerate_Click(object sender, RoutedEventArgs e)
     {
         if (_session == null || _selectedExisting == null || _activeModule != "Titles") return;
@@ -1493,18 +1499,24 @@ public partial class MainWindow : Window
             var seeds = _session.ReadGeneratedWorkerNames(
                 AdvancedNpcGender.Text, AdvancedNpcRace.Text);
             bool annualTournament = IsAnnualTournament();
-            int eventMonth = 0, eventDay = 0;
-            if (annualTournament &&
-                (!int.TryParse(AnnualTournamentMonth.Text.Trim(), NumberStyles.Integer,
-                     CultureInfo.InvariantCulture, out eventMonth) ||
-                 !int.TryParse(AnnualTournamentDay.Text.Trim(), NumberStyles.Integer,
-                     CultureInfo.InvariantCulture, out eventDay)))
-                throw new InvalidOperationException(
-                    "Annual tournaments need a winning month and day. " +
-                    "Set the actual event date in the NPC History section.");
+            int eventMonth = 0;
+            int eventWeek = 0;
+            DayOfWeek eventWeekday = DayOfWeek.Sunday;
+            if (annualTournament)
+            {
+                if (!int.TryParse(AnnualTournamentMonth.Text.Trim(), NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out eventMonth) ||
+                    AnnualTournamentWeek.SelectedIndex < 0 ||
+                    AnnualTournamentWeekday.SelectedIndex < 0)
+                    throw new InvalidOperationException(
+                        "Annual tournaments need a month, week of month, and weekday. " +
+                        "For example, choose March, First, Sunday.");
+                eventWeek = AnnualTournamentWeek.SelectedIndex + 1;
+                eventWeekday = (DayOfWeek)AnnualTournamentWeekday.SelectedIndex;
+            }
             var proposal = AnchoredHistoryPlanner.GenerateFromYears(
                 anchored, seeds, firstYear, lastYear,
-                annualTournament, eventMonth, eventDay);
+                annualTournament, eventMonth, eventWeek, eventWeekday);
 
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             ResetAdvancedDraft();
@@ -1564,8 +1576,14 @@ public partial class MainWindow : Window
                 variety = $"{proposal.Count} total reigns: {shortReigns} at most 60 days, " +
                     $"{mediumReigns} lasting 2–12 months, {longReigns} longer than a year. ";
             }
+            string schedule = annualTournament
+                ? $"Event rule: {((ComboBoxItem)AnnualTournamentWeek.SelectedItem).Content} " +
+                  $"{((ComboBoxItem)AnnualTournamentWeekday.SelectedItem).Content} of " +
+                  $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(eventMonth)}. "
+                : "";
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
+                schedule +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
                 $"{generated} NPC winner(s) across {firstYear}–{lastYear}. " +
                 variety +
@@ -1626,10 +1644,15 @@ public partial class MainWindow : Window
             bool rebuilt = _advancedFullRebuild;
             ResetAdvancedDraft();
             AdvancedGenerationStatus.Text = rebuilt
-                ? $"Created {changed} new prehistory reign(s) for this championship only. " +
+                ? $"Imported {changed} title-history entries for the selected championship. " +
                   "Verify title lineage in TEW IX before treating the result as final."
                 : $"Updated {changed} existing historical reign(s). Verify in TEW IX.";
             RefreshDirty();
+            // The import becomes visible immediately in the saved Title Lineage,
+            // rather than leaving the user looking at an unsaved preview.
+            TitleLineageTab_Click(sender, e);
+            TitleLineageSummary.Text = $"Imported {changed} entries. " + TitleLineageSummary.Text;
+            SetStatus($"Imported {changed} history entries into the selected title's lineage.");
         }
         catch (Exception ex) { Error(ex); }
     }

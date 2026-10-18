@@ -659,14 +659,34 @@
                 <StackPanel Margin="0,0,8,0">
                  <TextBlock Text="Winning month" Foreground="#ADC9E8" FontSize="11"/>
                  <TextBox x:Name="AnnualTournamentMonth" Style="{StaticResource FormTextBox}"
-                          Width="100" TextChanged="AdvancedInputChanged"
+                          Text="3" Width="100" TextChanged="AdvancedInputChanged"
                           ToolTip="Month of each annual event, 1–12"/>
                 </StackPanel>
+                <StackPanel Margin="0,0,8,0">
+                 <TextBlock Text="Week of month" Foreground="#ADC9E8" FontSize="11"/>
+                 <ComboBox x:Name="AnnualTournamentWeek" Style="{StaticResource DarkComboBox}"
+                           Width="115" SelectionChanged="AdvancedCalendarChanged"
+                           ToolTip="Which occurrence of the weekday in each year's selected month">
+                  <ComboBoxItem Content="First" IsSelected="True"/>
+                  <ComboBoxItem Content="Second"/>
+                  <ComboBoxItem Content="Third"/>
+                  <ComboBoxItem Content="Fourth"/>
+                  <ComboBoxItem Content="Last"/>
+                 </ComboBox>
+                </StackPanel>
                 <StackPanel>
-                 <TextBlock Text="Winning day" Foreground="#ADC9E8" FontSize="11"/>
-                 <TextBox x:Name="AnnualTournamentDay" Style="{StaticResource FormTextBox}"
-                          Width="76" TextChanged="AdvancedInputChanged"
-                          ToolTip="Day of each annual event. Required for tournaments."/>
+                 <TextBlock Text="Weekday" Foreground="#ADC9E8" FontSize="11"/>
+                 <ComboBox x:Name="AnnualTournamentWeekday" Style="{StaticResource DarkComboBox}"
+                           Width="122" SelectionChanged="AdvancedCalendarChanged"
+                           ToolTip="Winning date is calculated separately for each calendar year">
+                  <ComboBoxItem Content="Sunday" IsSelected="True"/>
+                  <ComboBoxItem Content="Monday"/>
+                  <ComboBoxItem Content="Tuesday"/>
+                  <ComboBoxItem Content="Wednesday"/>
+                  <ComboBoxItem Content="Thursday"/>
+                  <ComboBoxItem Content="Friday"/>
+                  <ComboBoxItem Content="Saturday"/>
+                 </ComboBox>
                 </StackPanel>
                </StackPanel>
                <StackPanel Margin="0,0,12,6">
@@ -685,7 +705,7 @@
             <WrapPanel Margin="0,0,0,6">
              <Button Content="Generate Full History" Style="{StaticResource BlueButton}"
                      Click="AdvancedGenerate_Click" Padding="13,9" Margin="0,0,8,6"/>
-             <Button x:Name="AdvancedApplyButton" Content="Rebuild Selected Title History"
+             <Button x:Name="AdvancedApplyButton" Content="Import Preview to Title Lineage"
                      IsEnabled="False" Style="{StaticResource ActionButton}"
                      Click="AdvancedApply_Click" Margin="0,0,8,6"/>
              <Button x:Name="AdvancedExportButton" Content="Export Draft CSV"
@@ -695,7 +715,7 @@
                      Click="AdvancedClear_Click" Margin="0,0,8,6"/>
             </WrapPanel>
             <TextBlock x:Name="AdvancedGenerationStatus"
-                       Text="Set the history range and fixed superstar victories. Tournament mode records winning dates only."
+                       Text="Set the history range and fixed superstar victories. Tournament dates follow the selected weekday and week of each month."
                        Foreground="#E7C38D" TextWrapping="Wrap" FontSize="12"
                        Margin="0,0,0,5"/>
            </StackPanel>

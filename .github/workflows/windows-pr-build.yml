@@ -1,0 +1,25 @@
+name: Windows Pull Request Validation
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/windows-pr-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Run annual tournament calendar checks
+        run: dotnet run --project tests/AnnualTournamentCalendar.Tests/AnnualTournamentCalendar.Tests.csproj --configuration Release
+      - name: Compile TEW Universe desktop
+        run: dotnet build src/TEWUniverse.Desktop/TEWUniverse.Desktop.csproj --configuration Release
