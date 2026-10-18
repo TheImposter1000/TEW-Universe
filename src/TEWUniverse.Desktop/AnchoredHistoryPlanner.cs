@@ -147,6 +147,61 @@ internal static class AnchoredHistoryPlanner
 
 
     /// <summary>
+    /// Used by the original fixed-count lineage tool: divide a total calendar
+    /// span into exactly N reigns without giving them identical lengths.
+    /// A minimum number of days is protected for each holder and the randomly
+    /// sampled durations are normalized to fill the selected span precisely.
+    /// </summary>
+    internal static int[] AllocateVariedReignDays(int totalDays, int reignCount)
+    {
+        if (reignCount <= 0 || totalDays < reignCount)
+            throw new InvalidOperationException(
+                "The championship date range is too short for the requested reign count.");
+
+        int minimum = totalDays >= reignCount * 7 ? 7 : 1;
+        int available = totalDays - minimum * reignCount;
+        var result = Enumerable.Repeat(minimum, reignCount).ToArray();
+        if (available == 0) return result;
+
+        int[] weights = Enumerable.Range(0, reignCount).Select(_ =>
+        {
+            double roll = Random.Shared.NextDouble();
+            return roll switch
+            {
+                < 0.10 => Random.Shared.Next(14, 43),
+                < 0.33 => Random.Shared.Next(43, 106),
+                < 0.69 => Random.Shared.Next(106, 251),
+                < 0.92 => Random.Shared.Next(251, 451),
+                _ => Random.Shared.Next(451, 771)
+            };
+        }).ToArray();
+        long weightSum = weights.Sum(w => (long)w);
+        var remainders = new (int Index, long Remainder)[reignCount];
+        int assigned = 0;
+        for (int i = 0; i < reignCount; i++)
+        {
+            long numerator = (long)available * weights[i];
+            int allocation = (int)(numerator / weightSum);
+            result[i] += allocation;
+            assigned += allocation;
+            remainders[i] = (i, numerator % weightSum);
+        }
+        foreach (var entry in remainders.OrderByDescending(x => x.Remainder)
+                     .Take(available - assigned))
+            result[entry.Index]++;
+        return result;
+    }
+
+    internal static short EstimateReignDefences(int heldDays) => heldDays switch
+    {
+        < 28 => (short)Random.Shared.Next(0, 2),
+        < 90 => (short)Random.Shared.Next(0, 5),
+        < 240 => (short)Random.Shared.Next(1, 9),
+        < 450 => (short)Random.Shared.Next(3, 16),
+        _ => (short)Random.Shared.Next(7, 25)
+    };
+
+    /// <summary>
     /// Regular titles are held continuously: an outgoing holder loses the belt
     /// the day before the next holder wins it. The number of NPC reigns is
     /// derived from randomly varied reign lengths, not one reign per year.
@@ -302,14 +357,7 @@ internal static class AnchoredHistoryPlanner
             int held = (lost - curr.Date).Days + 1;
             // Defence counts vary independently of lengths. Long reigns are
             // generally defended more often but not at a fixed 1-per-N-days.
-            short defenses = held switch
-            {
-                < 28 => (short)Random.Shared.Next(0, 2),
-                < 90 => (short)Random.Shared.Next(0, 5),
-                < 240 => (short)Random.Shared.Next(1, 9),
-                < 450 => (short)Random.Shared.Next(3, 16),
-                _ => (short)Random.Shared.Next(7, 25)
-            };
+            short defenses = EstimateReignDefences(held);
             results.Add(new GeneratedTitleReign(
                 i + 1, curr.UID, curr.Name, -1, "", curr.Date, lost, defenses));
         }
