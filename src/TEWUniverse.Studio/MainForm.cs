@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace TEWUniverse.Studio;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private readonly Color _bg = Color.FromArgb(18, 26, 38);
     private readonly Color _panel = Color.FromArgb(28, 39, 55);
@@ -39,139 +39,16 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         Text = "TEW Universe Studio | TEW IX";
-        Width = 1360;
-        Height = 820;
-        MinimumSize = new Size(1050, 660);
+        Width = 1510;
+        Height = 900;
+        MinimumSize = new Size(1190, 730);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = _bg;
         ForeColor = Color.White;
         Font = new Font("Segoe UI", 10);
+        AutoScaleMode = AutoScaleMode.Dpi;
 
-        var bar = new FlowLayoutPanel {
-            Dock = DockStyle.Top, Height = 111, Padding = new Padding(16, 13, 12, 8),
-            WrapContents = true, AutoScroll = false, BackColor = _panel
-        };
-        var import = MakeButton("Import TEW9.mdb", 172);
-        import.Click += (_, _) => ImportDatabase();
-        bar.Controls.Add(import);
-        var reopen = MakeButton("Open working project", 192);
-        reopen.Click += (_, _) => OpenWorkingProject();
-        bar.Controls.Add(reopen);
-        var folder = MakeButton("Projects folder", 147);
-        folder.Click += (_, _) => OpenProjectsFolder();
-        bar.Controls.Add(folder);
-        var saveCopy = MakeButton("Save copy as...", 140);
-        saveCopy.Click += (_, _) => SaveWorkingCopyAs();
-        bar.Controls.Add(saveCopy);
-        var settingsButton = MakeButton("Settings", 110);
-        settingsButton.Click += (_, _) => OpenSettings();
-        bar.Controls.Add(settingsButton);
-        _saveButton.Text = "Save Changes";
-        ConfigureButton(_saveButton, 165, true);
-        _saveButton.Enabled = false;
-        _saveButton.Click += (_, _) => SaveWorker();
-        bar.Controls.Add(_saveButton);
-        ConfigureButton(_backupButton, 151, false);
-        _backupButton.Text = "Create Backup";
-        _backupButton.Enabled = false;
-        _backupButton.Click += (_, _) => CreateBackup();
-        bar.Controls.Add(_backupButton);
-        ConfigureButton(_updatesButton, 150, false);
-        _updatesButton.Text = "Check for updates";
-        _updatesButton.Click += async (_, _) => await CheckForUpdatesAsync(true);
-        bar.Controls.Add(_updatesButton);
-        var logButton = MakeButton("Update log", 115);
-        logButton.Click += (_, _) => OpenUpdateLog();
-        bar.Controls.Add(logButton);
-
-        var split = new SplitContainer {
-            Dock = DockStyle.Fill, Width = 1200, SplitterDistance = 325, FixedPanel = FixedPanel.Panel1,
-            BackColor = _bg, SplitterWidth = 6
-        };
-        var left = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16), BackColor = _bg };
-        var leftTitle = new Label { Text = "EXISTING WORKERS", ForeColor = _accent, Dock = DockStyle.Top, Height = 40, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
-        _search.Dock = DockStyle.Top;
-        _search.Height = 34;
-        _search.PlaceholderText = "Search name or worker ID";
-        _search.BackColor = Color.White;
-        _search.ForeColor = Color.Black;
-        _search.TextChanged += (_, _) => FilterWorkers();
-        _workerCount.Dock = DockStyle.Top;
-        _workerCount.Height = 50;
-        _workerCount.Padding = new Padding(0, 10, 0, 0);
-        _workerCount.ForeColor = _muted;
-        _workerCount.Text = "Import a scenario database to begin.";
-        _workerList.Dock = DockStyle.Fill;
-        _workerList.BackColor = _panel;
-        _workerList.ForeColor = Color.White;
-        _workerList.BorderStyle = BorderStyle.FixedSingle;
-        _workerList.IntegralHeight = false;
-        _workerList.Font = new Font("Segoe UI", 10);
-        _workerList.SelectedIndexChanged += (_, _) => WorkerSelected();
-        left.Controls.Add(_workerList);
-        left.Controls.Add(_workerCount);
-        left.Controls.Add(_search);
-        left.Controls.Add(leftTitle);
-        split.Panel1.Controls.Add(left);
-
-        var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14) };
-        _header.Dock = DockStyle.Top;
-        _header.Height = 75;
-        _header.Text = "Select an existing worker\nChanges are saved only to your separate working copy.";
-        _header.Font = new Font("Segoe UI", 15, FontStyle.Bold);
-        _header.ForeColor = Color.White;
-        _tabs.Dock = DockStyle.Fill;
-
-        foreach (var (label, table) in new[] {
-            ("Profile", "tblWorker"), ("Skills", "tblWorkerSkill"),
-            ("Popularity", "tblWorkerOver"), ("Physical", "tblWorkerPhysical")
-        })
-        {
-            var page = new TabPage(label) { BackColor = _panel, ForeColor = Color.Black, Padding = new Padding(6) };
-            var grid = new DataGridView {
-                Dock = DockStyle.Fill, AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false, AllowUserToResizeRows = false,
-                RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                BackgroundColor = _panel, BorderStyle = BorderStyle.None,
-                SelectionMode = DataGridViewSelectionMode.CellSelect,
-                EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2,
-                EnableHeadersVisualStyles = false
-            };
-            var fieldCol = new DataGridViewTextBoxColumn { HeaderText = "TEW IX database field", Name = "Field", FillWeight = 42, ReadOnly = true };
-            var valueCol = new DataGridViewTextBoxColumn { HeaderText = "Value (editable)", Name = "Value", FillWeight = 58 };
-            grid.Columns.AddRange(fieldCol, valueCol);
-            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(46, 66, 87);
-            grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            grid.DefaultCellStyle.BackColor = Color.White;
-            grid.DefaultCellStyle.ForeColor = Color.FromArgb(20, 30, 43);
-            grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(236, 243, 245);
-            grid.DataError += (_, args) => { args.ThrowException = false; SetStatus("Invalid cell value. Please correct it."); };
-            page.Controls.Add(grid);
-            _grids[table] = grid;
-            _tabs.TabPages.Add(page);
-        }
-        var bioPage = new TabPage("Biography") { Padding = new Padding(10), BackColor = _panel };
-        _biography.Dock = DockStyle.Fill;
-        _biography.Multiline = true;
-        _biography.ScrollBars = ScrollBars.Vertical;
-        _biography.Font = new Font("Segoe UI", 11);
-        _biography.Enabled = false;
-        bioPage.Controls.Add(_biography);
-        _tabs.TabPages.Add(bioPage);
-
-        right.Controls.Add(_tabs);
-        right.Controls.Add(_header);
-        split.Panel2.Controls.Add(right);
-
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 39, BackColor = _panel };
-        _status.Dock = DockStyle.Fill;
-        _status.Padding = new Padding(16, 8, 0, 0);
-        _status.Text = "No project open. Original TEW IX files will never be edited by this app.";
-        _status.ForeColor = _muted;
-        footer.Controls.Add(_status);
-        Controls.Add(split);
-        Controls.Add(footer);
-        Controls.Add(bar);
+        BuildShell();
 
         Shown += async (_, _) =>
         {
@@ -181,29 +58,11 @@ internal sealed class MainForm : Form
         FormClosed += (_, _) => _session?.Dispose();
     }
 
-    private Button MakeButton(string text, int width)
+    private void SetStatus(string message)
     {
-        var button = new Button();
-        ConfigureButton(button, width, false);
-        button.Text = text;
-        return button;
+        _status.Text = message;
+        RefreshShellStatus();
     }
-
-    private void ConfigureButton(Button button, int width, bool prominent)
-    {
-        button.Width = width;
-        button.Height = 37;
-        button.Margin = new Padding(0, 0, 10, 0);
-        button.FlatStyle = FlatStyle.Flat;
-        button.FlatAppearance.BorderColor = prominent ? _accent : Color.FromArgb(98, 132, 165);
-        button.FlatAppearance.BorderSize = 1;
-        button.BackColor = prominent ? _accent : Color.FromArgb(34, 54, 74);
-        button.ForeColor = prominent ? Color.FromArgb(12, 35, 40) : Color.White;
-        button.Font = new Font("Segoe UI", 9, FontStyle.Bold);
-        button.Cursor = Cursors.Hand;
-    }
-
-    private void SetStatus(string message) => _status.Text = message;
 
     private static string? AskPassword(IWin32Window parent)
     {
@@ -458,6 +317,7 @@ internal sealed class MainForm : Form
             FilterWorkers();
             ClearEditor();
             SetStatus($"Connected using {opened.Provider}. {workers.Count} workers. Editing: {opened.PathOnDisk}");
+            RefreshShellStatus();
 
             if (_settings.RememberDatabasePassword)
             {
@@ -528,7 +388,9 @@ internal sealed class MainForm : Form
         _bioExists = false;
         _biography.Enabled = false;
         _saveButton.Enabled = false;
-        _header.Text = "Choose an existing worker\nNo new worker creation in this release.";
+        _header.Text = "Choose an existing worker\nSelect a name from the worker browser.";
+        RefreshBiographyPreview();
+        RefreshShellStatus();
     }
 
     private void LoadWorker(WorkerItem worker)
@@ -556,10 +418,12 @@ internal sealed class MainForm : Form
             _originalBio = _bioExists ? DatabaseSession.Display(bio.Data.Rows[0]["Profile"]) : "";
             _biography.Text = _originalBio;
             _biography.Enabled = _bioExists;
+            RefreshBiographyPreview();
             _currentWorker = worker;
             _saveButton.Enabled = true;
             _header.Text = $"{worker.Name}  |  Worker ID {worker.Id}\nEdit values in the tabs, then save to your working copy.";
-            SetStatus($"Editing existing worker {worker.Id}. Missing linked records remain read only.");
+            SetStatus($"Editing worker {worker.Id}. Original TEW IX scenario is protected.");
+            RefreshShellStatus();
         }
         catch (Exception ex) { ShowError(ex); }
     }
@@ -601,6 +465,7 @@ internal sealed class MainForm : Form
             var updated = _workers.FirstOrDefault(w => w.Id == savedId);
             if (updated != null) LoadWorker(updated);
             SetStatus($"Saved {count} field(s) to {_session.PathOnDisk}. No backup created.");
+            RefreshShellStatus();
             MessageBox.Show(this,
                 $"Saved {count} field(s) to your current working database:\n{_session.PathOnDisk}\n\nNo backup was created.",
                 "Save completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -634,7 +499,9 @@ internal sealed class MainForm : Form
                 MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             var destination = _session.Backup(_settings.BackupFolderPath);
+            _lastBackupFile = destination;
             SetStatus($"Backup created: {destination}");
+            RefreshShellStatus();
             MessageBox.Show(this,
                 $"Backup saved successfully:\n{destination}\n\nThe current working database was not modified.",
                 "Backup completed", MessageBoxButtons.OK, MessageBoxIcon.Information);

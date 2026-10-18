@@ -49,3 +49,10 @@ GitHub releases are currently **unsigned**. The installer updater compares SHA-2
 ## Product roadmap
 
 First, validate existing-worker updates on a sacrificial TEW IX scenario. Then introduce human-friendly dropdown mapping, limits and relationship checks. Later milestones can add company editing, title histories and controlled batch updates. Never claim new record creation is supported until proved with real TEW IX validation.
+
+
+## Phase 1 desktop shell
+
+The Windows Forms application now uses the TEW Universe dark navy and cyan workspace layout selected for Phase 1. It has module navigation, a searchable worker browser, top actions, five editor tabs, contextual summary cards, and a project footer. The browser and editor use actual TEW IX worker data, without fabricated profile values or unverified field mappings.
+
+Workers remains the only functional editor module. The Companies, Titles, Events, Stables, Storylines, Databases and Tools navigation items explicitly identify themselves as future modules. The existing database workflows are preserved: import and open copy, direct save (without automatic backups), manual Create Backup, Save copy as, settings, optional encrypted password remembering, and updater. Phase 2 will handle field-friendly controls, TEW-specific value mappings and smarter data presentation. The layout does not import or display invented wrestler images from conceptual mockups.
