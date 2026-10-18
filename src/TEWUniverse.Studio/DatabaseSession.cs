@@ -831,6 +831,16 @@ internal sealed partial class DatabaseSession : IDisposable
     {
         if (beltId <= 0 || proposed.Count is < 1 or > 500)
             throw new InvalidOperationException("Choose a valid title and 1–500 reigns.");
+        // Use the actual tblBelt.Name (not an internal UID/code) when making
+        // TEW-friendly history Recordname identifiers, e.g. BCW Championship001.
+        var title = ReadSection("tblBelt", beltId);
+        if (!title.Exists || !title.Data.Columns.Contains("Name"))
+            throw new InvalidOperationException(
+                "Cannot name championship history: the selected belt has no verified Name.");
+        string titleName = Convert.ToString(title.Data.Rows[0]["Name"],
+            CultureInfo.InvariantCulture)?.Trim() ?? "";
+        if (titleName.Length == 0)
+            throw new InvalidOperationException("Cannot generate record names for an unnamed title.");
         var workers = ListWorkers().Select(x => x.Id).ToHashSet();
         for (int i = 0; i < proposed.Count; i++)
         {
@@ -949,11 +959,17 @@ internal sealed partial class DatabaseSession : IDisposable
             for (int i = 0; i < proposed.Count; i++)
             {
                 var p = proposed[i];
-                var baseName = $"TUS{beltId:D5}_{i+1:D5}";
-                var recordName = baseName;
-                for (int suffix = 1; existingNames.Contains(recordName) ||
-                    insertedNames.Contains(recordName); suffix++)
-                    recordName = baseName + "_" + suffix.ToString(CultureInfo.InvariantCulture);
+                // Keep sequence numbers unique even if another belt shares
+                // the same title name. Existing records belonging to other
+                // titles must never be renamed just to free a number.
+                int sequence = i + 1;
+                string recordName;
+                do
+                {
+                    recordName = StudioRecordNames.TitleHistory(titleName, sequence++);
+                }
+                while (existingNames.Contains(recordName) ||
+                    insertedNames.Contains(recordName));
                 int limit = schema.Columns["Recordname"]?.MaxLength ?? -1;
                 if (limit > 0 && recordName.Length > limit)
                     throw new InvalidOperationException("Title history Recordname exceeds the MDB text limit.");

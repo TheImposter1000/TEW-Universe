@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../src/TEWUniverse.Desktop/AnnualTournamentCalendar.cs" Link="AnnualTournamentCalendar.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/StudioDateFormat.cs" Link="StudioDateFormat.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/StudioRecordNames.cs" Link="StudioRecordNames.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/AnnualTournamentWinnerPlanner.cs" Link="AnnualTournamentWinnerPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/ChampionshipWinScheduler.cs" Link="ChampionshipWinScheduler.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/SuperstarReignInputPlanner.cs" Link="SuperstarReignInputPlanner.cs" />
