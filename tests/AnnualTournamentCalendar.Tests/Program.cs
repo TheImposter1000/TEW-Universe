@@ -1,4 +1,5 @@
 using TEWUniverse.Desktop;
+using TEWUniverse.Studio;
 
 // Regression checks: a weekday-based annual tournament must not reuse a
 // fixed numbered day between years.
@@ -153,6 +154,101 @@ catch (InvalidOperationException) { impossibleRejected = true; }
 if (!impossibleRejected)
     throw new Exception("Impossible year-end tournament chronology was silently accepted.");
 Console.WriteLine("Passed 452 championship chronology regression checks.");
+
+// Opening-month boundaries for titles founded midyear: the first champion
+// must not start before the promotion's first month of existence.
+var npcSeeds = Enumerable.Range(1, 80)
+    .Select(i => new NpcNameSeed($"Historical Worker {i}", null, null)).ToArray();
+var noPinnedWinners = Array.Empty<AnchoredHistoryPlanner.Anchor>();
+var juneOpening = new DateTime(2002, 6, 1);
+for (int iteration = 0; iteration < 40; iteration++)
+{
+    var pwaHistory = AnchoredHistoryPlanner.GenerateFromYears(
+        noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2021,
+        startMonth: 6);
+    if (pwaHistory.Count == 0 || pwaHistory[0].Captured != juneOpening ||
+        pwaHistory.Any(reign => reign.Captured < juneOpening || reign.Lost < juneOpening) ||
+        pwaHistory[^1].Lost != new DateTime(2021, 12, 31))
+        throw new Exception("A June 2002 championship history started before the company opened.");
+}
+
+var pinnedFoundingYear = new[]
+{
+    new AnchoredHistoryPlanner.Anchor("Founding Champion", 100, 2002, 2002, 2021,
+        new DateTime(2002, 6, 15)),
+    new AnchoredHistoryPlanner.Anchor("Future Champion", 200, 2003, 2002, 2021)
+};
+for (int iteration = 0; iteration < 40; iteration++)
+{
+    var pwaHistory = AnchoredHistoryPlanner.GenerateFromYears(
+        pinnedFoundingYear, npcSeeds, firstYear: 2002, lastYear: 2003,
+        startMonth: 6);
+    if (pwaHistory[0].Captured != juneOpening ||
+        pwaHistory.Any(reign => reign.Captured < juneOpening) ||
+        !pwaHistory.Any(reign => reign.Holder1 == 100 &&
+            reign.Captured.Year == 2002 &&
+            reign.Captured >= new DateTime(2002, 6, 15)) ||
+        !pwaHistory.Any(reign => reign.Holder1 == 200 &&
+            reign.Captured.Year == 2003))
+        throw new Exception("Founding-year pinned wins ignored the start month or winning years.");
+}
+
+// Leaving the Starting Month control at its default must preserve the
+// previous January 1 behavior, including in NPC-only histories.
+var unchangedDefault = AnchoredHistoryPlanner.GenerateFromYears(
+    noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2002);
+if (unchangedDefault[0].Captured != new DateTime(2002, 1, 1))
+    throw new Exception("Default championship history no longer begins January 1.");
+
+// The start-month setting is deliberately separate from annual tournament
+// recurring event dates: a Cup edition still uses its chosen event week/day.
+var annualCup = AnchoredHistoryPlanner.GenerateFromYears(
+    noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2003,
+    annualTournament: true, eventMonth: 8, eventWeek: 4,
+    eventWeekday: DayOfWeek.Saturday, startMonth: 6);
+if (annualCup.Count != 2 ||
+    annualCup[0].Captured != AnnualTournamentCalendar.ResolveDate(
+        2002, 8, 4, DayOfWeek.Saturday) ||
+    annualCup[1].Captured != AnnualTournamentCalendar.ResolveDate(
+        2003, 8, 4, DayOfWeek.Saturday))
+    throw new Exception("The championship starting month incorrectly changed Cup dates.");
+
+foreach (var badMonth in new[] { 0, 13, -1 })
+{
+    bool rejected = false;
+    try
+    {
+        AnchoredHistoryPlanner.GenerateFromYears(
+            noPinnedWinners, npcSeeds, 2002, 2002, startMonth: badMonth);
+    }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected)
+        throw new Exception("An invalid championship history starting month was accepted.");
+}
+
+var multiPins = new[]
+{
+    new ChampionshipWinScheduler.Win(1, "Winner A", 2002),
+    new ChampionshipWinScheduler.Win(2, "Winner B", 2002)
+};
+for (int iteration = 0; iteration < 40; iteration++)
+{
+    var scheduled = ChampionshipWinScheduler.Schedule(multiPins, juneOpening);
+    if (scheduled.Count != 2 ||
+        scheduled[0].Date < juneOpening || scheduled[1].Date < juneOpening ||
+        scheduled[1].Date < scheduled[0].Date.AddDays(7))
+        throw new Exception("Same-year fixed wins violated the opening month.");
+}
+bool impossibleOpeningRejected = false;
+try
+{
+    ChampionshipWinScheduler.Schedule(multiPins, new DateTime(2002, 12, 29));
+}
+catch (InvalidOperationException) { impossibleOpeningRejected = true; }
+if (!impossibleOpeningRejected)
+    throw new Exception("A logically impossible December opening constraint was ignored.");
+
+Console.WriteLine("Passed optional midyear championship opening-month regression checks.");
 
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
