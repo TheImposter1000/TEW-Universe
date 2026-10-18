@@ -279,6 +279,7 @@ public partial class MainWindow
                         "Hidden and Permanent reflect the actual MDB flags.";
                 }
                 finally { _settingWorkerExtraForm = false; }
+                AttributeSelectionChanged(_attributesGrid, null!);
             }
             else if (tab == "Employment")
             {
@@ -299,6 +300,7 @@ public partial class MainWindow
                         $"{_worker.Name}. This does not show current tblContract deals.";
                 }
                 finally { _settingWorkerExtraForm = false; }
+                EmploymentSelectionChanged(_employmentGrid, null!);
             }
         }
         catch (Exception ex)
