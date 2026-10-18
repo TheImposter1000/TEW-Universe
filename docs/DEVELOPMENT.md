@@ -1,5 +1,11 @@
 # Development and compatibility
 
+## Consistent user-facing date format
+
+The shared `StudioDateFormat` helper defines `MM/dd/yyyy` as the only accepted typed date format (`MM/DD/YYYY` in UI instructions). Examples: `06/09/2002`, `12/12/2021`, and TEW's 1666 sentinel `01/01/1666`. Date values in `DatabaseSession.Display` and `DatabaseSession.Parse` use the helper; they continue to enter MDB rows as native typed `DateTime` values, never as display-formatted SQL literals. WPF worker date fields, other existing-record fields, employment-history from/until fields, the Tag Team creation date, championship history and advanced preview grids, CSV exports, and cross-title chronology notes use month/day/year. The legacy WinForms worker date picker and worker validation also use this pattern. A strict `TryParseExact` prevents accidental day/month flips and rejects typed year-first values such as `2002-06-09`.
+
+This change does not reformat internal application backup filenames, serialized release metadata, or annual-tournament date arithmetic: those are not human-facing data-entry formats. It does not convert plain history range **years** into full dates. The regression suite checks formatting, round trips, leap-day validation, sentinel values, and rejection of year-first input.
+
 ## Worker Attributes and Employment History
 
 The Workers workspace now exposes separate **Attributes** and **Employment History** tabs.
@@ -50,7 +56,7 @@ The preview reports distinct NPC names versus total NPC winners and explicitly n
 
 For an **Annual Tournament / Cup** title, the Advanced Generator no longer asks for a fixed winning day number. Choose a month (1–12), week of month (First, Second, Third, Fourth, or Last), and weekday (Sunday through Saturday). Every historical year resolves its own valid date, allowing events that always occur on a given weekday. For example, First Sunday of March produces **1994-03-06** and **1997-03-02**. The first four occurrences always exist, and Last selects the last matching weekday of the month. Changing the calendar controls invalidates the current preview.
 
-**Import Preview to Title Lineage** uses the existing transactional `RebuildTitleLineage` path to replace `tblBeltPreHistory` rows only for the selected title. A manually created backup is recommended but optional. Schema checks, unchanged-file checks, and explicit destructive confirmation remain mandatory. After importing, the app switches to Title Lineage and reloads the saved entries. Annual tournaments retain `BeltLost = 1666-01-01` and `Defences = -1`. A CSV export is still only a draft, **not** an import format; the import button writes the current in-memory preview to the selected scenario MDB. Test a disposable scenario in TEW IX Data Check before using production data.
+**Import Preview to Title Lineage** uses the existing transactional `RebuildTitleLineage` path to replace `tblBeltPreHistory` rows only for the selected title. A manually created backup is recommended but optional. Schema checks, unchanged-file checks, and explicit destructive confirmation remain mandatory. After importing, the app switches to Title Lineage and reloads the saved entries. Annual tournaments retain `BeltLost = 01/01/1666` and `Defences = -1`. A CSV export is still only a draft, **not** an import format; the import button writes the current in-memory preview to the selected scenario MDB. Test a disposable scenario in TEW IX Data Check before using production data.
 
 ## Windows build
 
