@@ -250,6 +250,133 @@ if (!impossibleOpeningRejected)
 
 Console.WriteLine("Passed optional midyear championship opening-month regression checks.");
 
+// Exact linked superstar reigns must not be interrupted by a randomly
+// generated NPC, and the preview/import record uses inclusive days held.
+// The two-year anniversary is a calendar rule, not a hardcoded 730 days.
+for (int seed = 0; seed < 100; seed++)
+{
+    var superstars = new[]
+    {
+        new AnchoredHistoryPlanner.Anchor(
+            "Tavitia", 4982, 2016, 2014, 2022, ReignYears: 2),
+        new AnchoredHistoryPlanner.Anchor(
+            "Zara Ellis", 4966, 2020, 2014, 2022, ReignDays: 719)
+    };
+    var history = AnchoredHistoryPlanner.GenerateFromYears(
+        superstars, npcSeeds, firstYear: 2014, lastYear: 2024);
+    var tavitia = history.Single(r => r.Holder1 == 4982 &&
+        r.HolderName1 == "Tavitia" && r.Captured.Year == 2016);
+    var zara = history.Single(r => r.Holder1 == 4966 &&
+        r.HolderName1 == "Zara Ellis" && r.Captured.Year == 2020);
+    if (tavitia.Lost != tavitia.Captured.AddYears(2).AddDays(-1) ||
+        zara.Lost != zara.Captured.AddDays(718) ||
+        (zara.Lost - zara.Captured).Days + 1 != 719)
+        throw new Exception("An exact superstar reign was cut short or counted incorrectly.");
+
+    var chron = history.OrderBy(r => r.Captured).ToArray();
+    for (int j = 1; j < chron.Length; j++)
+        if (chron[j].Captured != chron[j - 1].Lost.AddDays(1))
+            throw new Exception("Generated dates have a gap or overlapping reign.");
+    if (chron[^1].Lost != new DateTime(2024, 12, 31))
+        throw new Exception("Generated title history stopped before the chosen end date.");
+
+    var afterTavitia = chron.Single(r => r.Captured == tavitia.Lost.AddDays(1));
+    var afterZara = chron.Single(r => r.Captured == zara.Lost.AddDays(1));
+    if (afterTavitia.Holder1 == tavitia.Holder1 ||
+        afterZara.Holder1 == zara.Holder1)
+        throw new Exception("A fixed-length holder was never succeeded by a different champion.");
+}
+
+// Leap day/year boundaries: the calendar anniversary determines the end of
+// a two-year streak (not a fixed 730-day approximation).
+var leap = ChampionshipWinScheduler.Schedule(new[]
+{
+    new ChampionshipWinScheduler.Win(7, "Leap Champion", 2020, ReignYears: 2)
+}, historyStart: new DateTime(2020, 1, 1),
+    historyEnd: new DateTime(2023, 12, 31));
+if (leap.Count != 1 ||
+    ChampionshipWinScheduler.RequiredNextCaptureDate(leap[0]) !=
+    leap[0].Date.AddYears(2))
+    throw new Exception("Two calendar years were not scheduled using AddYears.");
+
+// Within-year schedule must move the capture EARLIER if the exact reign would
+// otherwise run beyond the last day of the user-defined history.
+for (int i = 0; i < 100; i++)
+{
+    var single = AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Zara Ellis", 4966, 2020,
+            2020, 2022, ReignDays: 719)
+    }, npcSeeds, firstYear: 2020, lastYear: 2022);
+    var zara = single.Single(x => x.Holder1 == 4966);
+    if (zara.Captured.Year != 2020 || (zara.Lost - zara.Captured).Days + 1 != 719)
+        throw new Exception("The fixed 719-day reign moved out of 2020 or was shortened.");
+}
+
+// Infeasible chronology must never quietly edit a fixed winning year or
+// reduce a requested exact reign. A 2018 two-year reign conflicts with a
+// second wrestler's mandatory 2019 title capture.
+bool overlappingPinnedRejected = false;
+try
+{
+    AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Tavitia", 4982, 2018,
+            2018, 2020, ReignYears: 2),
+        new AnchoredHistoryPlanner.Anchor("Another Champion", 503, 2019,
+            2018, 2020)
+    }, npcSeeds, firstYear: 2018, lastYear: 2020);
+}
+catch (InvalidOperationException) { overlappingPinnedRejected = true; }
+if (!overlappingPinnedRejected)
+    throw new Exception("A conflicting 2019 pinned victory shortened a two-year reign.");
+
+bool beyondHistoryRejected = false;
+try
+{
+    AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Zara Ellis", 4966, 2020,
+            2020, 2021, ReignDays: 719)
+    }, npcSeeds, firstYear: 2020, lastYear: 2021);
+}
+catch (InvalidOperationException) { beyondHistoryRejected = true; }
+if (!beyondHistoryRejected)
+    throw new Exception("A 719-day reign was forced beyond the end of a 2021 timeline.");
+
+// Cross-title Cup victories still restrict when an exact reign may start.
+// Impossible lower and upper bounds must reject conflicting requirements.
+bool tournamentDateConflictRejected = false;
+try
+{
+    ChampionshipWinScheduler.Schedule(new[]
+    {
+        new ChampionshipWinScheduler.Win(4966, "Zara Ellis", 2020,
+            NotBefore: new DateTime(2020, 12, 20), ReignDays: 719)
+    }, historyStart: new DateTime(2020, 1, 1),
+        historyEnd: new DateTime(2022, 1, 1));
+}
+catch (InvalidOperationException) { tournamentDateConflictRejected = true; }
+if (!tournamentDateConflictRejected)
+    throw new Exception("A prior Cup victory was ignored to force an exact duration.");
+
+bool annualLengthRejected = false;
+try
+{
+    AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Cup Winner", 400, 2020,
+            2020, 2020, ReignDays: 719)
+    }, npcSeeds, firstYear: 2020, lastYear: 2020,
+        annualTournament: true, eventMonth: 5, eventWeek: 1,
+        eventWeekday: DayOfWeek.Sunday);
+}
+catch (InvalidOperationException) { annualLengthRejected = true; }
+if (!annualLengthRejected)
+    throw new Exception("Annual Cup accepted a continuing championship reign length.");
+
+Console.WriteLine("Passed 200 randomized exact superstar reigns, continuity and conflict checks.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);
