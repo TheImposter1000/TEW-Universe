@@ -39,8 +39,8 @@ public partial class MainWindow
 
     private sealed record EmploymentDisplay(WorkerEmploymentEntry Entry, string Company)
     {
-        public string FromText => Entry.FromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        public string UntilText => Entry.UntilDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        public string FromText => StudioDateFormat.Format(Entry.FromDate);
+        public string UntilText => StudioDateFormat.Format(Entry.UntilDate);
         public string Type => string.Join(", ", new[] {
             Entry.Loan ? "Loan" : "", Entry.Trade ? "Trade" : "",
             Entry.Tour ? "Tour" : "", Entry.Developmental ? "Developmental" : ""
@@ -200,9 +200,9 @@ public partial class MainWindow
         _employmentInitials = ExtraTextBox();
         AddExtraField(employmentEditor, ExtraLabel("Historical company initials"), _employmentInitials);
         _employmentFrom = ExtraTextBox();
-        AddExtraField(employmentEditor, ExtraLabel("From date (YYYY-MM-DD)"), _employmentFrom);
+        AddExtraField(employmentEditor, ExtraLabel("From date (MM/DD/YYYY)"), _employmentFrom);
         _employmentUntil = ExtraTextBox();
-        AddExtraField(employmentEditor, ExtraLabel("Until date (YYYY-MM-DD)"), _employmentUntil);
+        AddExtraField(employmentEditor, ExtraLabel("Until date (MM/DD/YYYY)"), _employmentUntil);
         var flags = new WrapPanel { Margin = new Thickness(0, 0, 0, 13) };
         _employmentLoan = ExtraFlag("Loan", flags);
         _employmentTrade = ExtraFlag("Trade", flags);
@@ -344,8 +344,8 @@ public partial class MainWindow
             _employmentCompany.SelectedItem = item == null ? null :
                 _employmentCompanies.FirstOrDefault(c => c.Id == item.FedUid);
             _employmentInitials.Text = item?.Initials ?? "";
-            _employmentFrom.Text = item?.FromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
-            _employmentUntil.Text = item?.UntilDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+            _employmentFrom.Text = item is null ? "" : StudioDateFormat.Format(item.FromDate);
+            _employmentUntil.Text = item is null ? "" : StudioDateFormat.Format(item.UntilDate);
             _employmentLoan.IsChecked = item?.Loan ?? false;
             _employmentTrade.IsChecked = item?.Trade ?? false;
             _employmentTour.IsChecked = item?.Tour ?? false;
@@ -387,10 +387,8 @@ public partial class MainWindow
                     _employmentDevelopmental.IsChecked == true;
             return company?.Id != item.FedUid ||
                 !_employmentInitials.Text.Trim().Equals(item.Initials, StringComparison.Ordinal) ||
-                !_employmentFrom.Text.Trim().Equals(item.FromDate.ToString(
-                    "yyyy-MM-dd", CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
-                !_employmentUntil.Text.Trim().Equals(item.UntilDate.ToString(
-                    "yyyy-MM-dd", CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+                !_employmentFrom.Text.Trim().Equals(StudioDateFormat.Format(item.FromDate), StringComparison.Ordinal) ||
+                !_employmentUntil.Text.Trim().Equals(StudioDateFormat.Format(item.UntilDate), StringComparison.Ordinal) ||
                 (_employmentLoan.IsChecked == true) != item.Loan ||
                 (_employmentTrade.IsChecked == true) != item.Trade ||
                 (_employmentTour.IsChecked == true) != item.Tour ||
@@ -473,12 +471,10 @@ public partial class MainWindow
         if (_employmentCompany.SelectedItem is not ExistingRecordItem company)
             throw new InvalidOperationException(
                 "Select an existing company from the list. Typing an unmatched company name is not enough.");
-        if (!DateTime.TryParseExact(_employmentFrom.Text.Trim(), "yyyy-MM-dd",
-                CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime from) ||
-            !DateTime.TryParseExact(_employmentUntil.Text.Trim(), "yyyy-MM-dd",
-                CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime until))
+        if (!StudioDateFormat.TryParse(_employmentFrom.Text, out DateTime from) ||
+            !StudioDateFormat.TryParse(_employmentUntil.Text, out DateTime until))
             throw new InvalidOperationException(
-                "Enter valid employment dates using YYYY-MM-DD for both From and Until.");
+                "Enter valid employment dates using MM/DD/YYYY for both From and Until (for example, 06/01/2002).");
         return new WorkerEmploymentDraft(
             company.Id, _employmentInitials.Text.Trim(), from, until,
             _employmentLoan.IsChecked == true, _employmentTrade.IsChecked == true,
@@ -498,7 +494,7 @@ public partial class MainWindow
             if (!ConfirmExtraWrite(
                 (createNew ? "Add a new" : "Update this") +
                 $" historical employment period for {_worker.Name} at {company}?\n" +
-                $"{draft.FromDate:yyyy-MM-dd} through {draft.UntilDate:yyyy-MM-dd}.\n\n" +
+                $"{StudioDateFormat.Format(draft.FromDate)} through {StudioDateFormat.Format(draft.UntilDate)}.\n\n" +
                 "This does not create or change an active worker contract.",
                 createNew ? "Add Employment History" : "Save Employment History")) return;
 
@@ -522,7 +518,7 @@ public partial class MainWindow
                 WorkerEmploymentEntry selected) return;
         if (!ConfirmExtraWrite(
             $"Remove {_worker.Name}'s historical employment period " +
-            $"{selected.FromDate:yyyy-MM-dd} through {selected.UntilDate:yyyy-MM-dd}?\n" +
+            $"{StudioDateFormat.Format(selected.FromDate)} through {StudioDateFormat.Format(selected.UntilDate)}?\n" +
             "This is permanent and cannot be restored without a backup.",
             "Remove Employment History")) return;
         try
