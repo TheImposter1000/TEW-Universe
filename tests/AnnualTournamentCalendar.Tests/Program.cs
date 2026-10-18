@@ -25,11 +25,7 @@ for (int day = 0; day <= 6; day++)
         if (date.AddDays(7).Month == month)
             throw new Exception("Last occurrence was not last.");
     }
-    else if (date.Day is < 1 or > 28 + 0 && occurrence == 1)
-    {
-        throw new Exception("First occurrence is outside the first seven days.");
-    }
-    else if (occurrence != 5 && ((date.Day - 1) / 7) + 1 != occurrence)
+    else if (((date.Day - 1) / 7) + 1 != occurrence)
     {
         throw new Exception("Wrong ordinal occurrence.");
     }
