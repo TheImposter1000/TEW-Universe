@@ -428,6 +428,23 @@ for (int attempt = 0; attempt < 80; attempt++)
         throw new Exception("Same worker's repeated 2016 reigns were merged.");
 }
 
+// Two women exchanging the title repeatedly in the same year should
+// alternate naturally instead of scheduling all one wrestler's wins first.
+for (int i = 0; i < 60; i++)
+{
+    var feud = ChampionshipWinScheduler.Schedule(new[]
+    {
+        new ChampionshipWinScheduler.Win(10, "Charlotte Flair", 2016, SourceOrder: 0),
+        new ChampionshipWinScheduler.Win(10, "Charlotte Flair", 2016, SourceOrder: 1),
+        new ChampionshipWinScheduler.Win(20, "Sasha Banks", 2016, SourceOrder: 2),
+        new ChampionshipWinScheduler.Win(20, "Sasha Banks", 2016, SourceOrder: 3)
+    });
+    if (feud.Count != 4 ||
+        !feud.Select(x => x.WorkerId).SequenceEqual(new[] { 10, 20, 10, 20 }) ||
+        feud.Any(x => x.Date.Year != 2016))
+        throw new Exception("Same-year title-trading feud failed to alternate winners.");
+}
+
 // All durations are OPTIONAL independently. A six-time champion can have
 // one historical 2011 title win lasting ~2y and five freely generated years
 // and lengths. Explicit d values remain exact.
