@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private string _currentTab = "Profile";
     private DateTime? _lastSaved;
     private string _sortMode = "Name A to Z";
+    private WorkerPortraitConverter Portraits => (WorkerPortraitConverter)FindResource("WorkerPictureConverter");
     private static readonly Brush Muted = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A6BDD9")!);
 
     private sealed class FieldDraft
@@ -45,6 +46,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        RefreshPortraits();
         Loaded += async (_, _) =>
         {
             RestoreProject();
@@ -86,6 +88,23 @@ public partial class MainWindow : Window
             "No unsaved edits";
         SaveStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
             dirty ? "#F5C96A" : "#70E4C6")!);
+    }
+
+    private void RefreshPortraits()
+    {
+        Portraits.SetFolder(_settings.WorkerPicturesFolderPath);
+        if (WorkersList != null) FilterWorkers(_worker?.Id);
+        UpdateWorkerPortrait();
+    }
+
+    private void UpdateWorkerPortrait()
+    {
+        if (WorkerPortraitEllipse == null) return;
+        var picture = ValueFor("Picture") ?? _worker?.PictureName;
+        WorkerPortraitEllipse.Fill = Portraits.LoadBrush(picture, 260) ?? Brushes.Transparent;
+        WorkerPortraitEllipse.ToolTip = string.IsNullOrWhiteSpace(picture)
+            ? "No picture is assigned in the MDB"
+            : picture;
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => FilterWorkers();
@@ -173,6 +192,7 @@ public partial class MainWindow : Window
             _worker = selected;
             WorkerNameText.Text = selected.Name;
             WorkerIdBadge.Text = $"Worker ID {selected.Id}";
+            UpdateWorkerPortrait();
             BuildWorkerFacts();
             WorkerStatusText.Text = selected.IsActive switch {
                 true => "● Active worker", false => "● Inactive worker", _ => "Worker record"
@@ -397,6 +417,8 @@ public partial class MainWindow : Window
                 if (item.Table == "tblWorker" &&
                     (item.Column == "Nationality" || item.Column == "Based_In" || item.Column == "Style"))
                     BuildWorkerFacts();
+                if (item.Table == "tblWorker" && item.Column == "Picture")
+                    UpdateWorkerPortrait();
             };
             Grid.SetColumn(text, 1);
             grid.Children.Add(text);
@@ -426,7 +448,7 @@ public partial class MainWindow : Window
         // a separate Additional Details section, then opt-in advanced columns.
         // This retains full editing access without a wall of raw MDB columns.
         var core = new[] { "Name", "Gender", "Birthday", "Nationality", "Based_In", "Active", "Style" };
-        var details = new[] { "Shortname", "ShortName", "AlsoKnownAs", "CommentaryName",
+        var details = new[] { "Shortname", "ShortName", "Picture", "AlsoKnownAs", "CommentaryName",
             "RetirementDate", "DebutDate" };
         var coreFields = core.Select(name => profile.FirstOrDefault(x =>
             x.Column.Equals(name, StringComparison.OrdinalIgnoreCase)))
@@ -687,6 +709,7 @@ public partial class MainWindow : Window
             _settings = copy;
             _allWorkers = list;
             _worker = null;
+            WorkerPortraitEllipse.Fill = Brushes.Transparent;
             _fields.Clear();
             _originalBio = "";
             _bioExists = false;
@@ -731,6 +754,7 @@ public partial class MainWindow : Window
             if (!next.RememberDatabasePassword) CredentialStore.Delete();
             else if (_sessionPassword != null) CredentialStore.Save(_sessionPassword);
             _settings = next;
+            RefreshPortraits();
             SetStatus("Settings saved.");
             if (changed)
             {

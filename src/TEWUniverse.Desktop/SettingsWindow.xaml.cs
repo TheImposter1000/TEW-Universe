@@ -14,6 +14,7 @@ public partial class SettingsWindow : Window
         DefaultPath.Text = current.DefaultDatabasePath;
         CopyPath.Text = current.CurrentCopyPath;
         BackupPath.Text = current.BackupFolderPath;
+        PicturePath.Text = current.WorkerPicturesFolderPath;
         RememberPassword.IsChecked = current.RememberDatabasePassword;
     }
 
@@ -43,6 +44,13 @@ public partial class SettingsWindow : Window
         if (dialog.ShowDialog(this) == true) BackupPath.Text = dialog.FolderName;
     }
 
+    private void PictureBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog { Title = "Choose the TEW IX People picture folder" };
+        if (Directory.Exists(PicturePath.Text)) dialog.InitialDirectory = PicturePath.Text;
+        if (dialog.ShowDialog(this) == true) PicturePath.Text = dialog.FolderName;
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -51,6 +59,7 @@ public partial class SettingsWindow : Window
                 DefaultDatabasePath = DefaultPath.Text,
                 CurrentCopyPath = CopyPath.Text,
                 BackupFolderPath = BackupPath.Text,
+                WorkerPicturesFolderPath = PicturePath.Text,
                 RememberDatabasePassword = RememberPassword.IsChecked == true
             };
             next.NormalizeAndValidate();

@@ -8,6 +8,8 @@ internal sealed class AppSettings
     public string DefaultDatabasePath { get; set; } = "";
     public string CurrentCopyPath { get; set; } = "";
     public string BackupFolderPath { get; set; } = "";
+    // The TEW IX People picture folder. Files are read in place, never imported into MDB.
+    public string WorkerPicturesFolderPath { get; set; } = "";
     public bool RememberDatabasePassword { get; set; } = false;
 
     public static string SettingsFile => Path.Combine(
@@ -35,6 +37,7 @@ internal sealed class AppSettings
         DefaultDatabasePath = DefaultDatabasePath,
         CurrentCopyPath = CurrentCopyPath,
         BackupFolderPath = BackupFolderPath,
+        WorkerPicturesFolderPath = WorkerPicturesFolderPath,
         RememberDatabasePassword = RememberDatabasePassword
     };
 
@@ -51,6 +54,12 @@ internal sealed class AppSettings
         BackupFolderPath = string.IsNullOrWhiteSpace(BackupFolderPath)
             ? ""
             : Path.GetFullPath(BackupFolderPath.Trim());
+
+        WorkerPicturesFolderPath = string.IsNullOrWhiteSpace(WorkerPicturesFolderPath)
+            ? ""
+            : Path.GetFullPath(WorkerPicturesFolderPath.Trim());
+        if (WorkerPicturesFolderPath.Length > 0 && File.Exists(WorkerPicturesFolderPath))
+            throw new InvalidOperationException("Worker Picture Folder must be a directory.");
 
         if (SamePath(DefaultDatabasePath, CurrentCopyPath))
             throw new InvalidOperationException(
