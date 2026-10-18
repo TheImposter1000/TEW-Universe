@@ -106,6 +106,7 @@ internal sealed partial class DatabaseSession
         }
 
         var companyLinks = new Dictionary<int, HashSet<int>>();
+        var withContracts = new HashSet<int>();
         bool companySupported = false;
         var contractSchema = new DataTable("ContractFilterSchema");
         try
@@ -123,8 +124,11 @@ internal sealed partial class DatabaseSession
                 using var reader = contracts.ExecuteReader();
                 while (reader?.Read() == true)
                 {
-                    if (reader.IsDBNull(0) || reader.IsDBNull(1)) continue;
+                    if (reader.IsDBNull(0)) continue;
                     int uid = Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture);
+                    if (uid <= 0) continue;
+                    withContracts.Add(uid);
+                    if (reader.IsDBNull(1)) continue;
                     int company = Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
                     if (company <= 0) continue;
                     if (!companyLinks.TryGetValue(uid, out var set))
@@ -139,6 +143,7 @@ internal sealed partial class DatabaseSession
             // The company filter is disabled rather than guessing.
             companySupported = false;
             companyLinks.Clear();
+            withContracts.Clear();
         }
 
         var companyNames = companySupported
@@ -150,7 +155,8 @@ internal sealed partial class DatabaseSession
             return new WorkerFilterRecord(worker.Id, worker.Name, worker.IsActive,
                 raw.Birthday, raw.Gender ?? "", raw.Nationality ?? "",
                 raw.Region ?? "", raw.Roles ?? Array.Empty<string>(),
-                (IReadOnlyCollection<int>?)companies ?? Array.Empty<int>());
+                (IReadOnlyCollection<int>?)companies ?? Array.Empty<int>(),
+                HasCurrentContract: withContracts.Contains(worker.Id));
         }).ToArray();
 
         return new WorkerFilterIndex(data, companyNames, hasGender, hasBirthday,
