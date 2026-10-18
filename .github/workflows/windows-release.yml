@@ -12,6 +12,11 @@ on:
 permissions:
   contents: write
 
+# Avoid publishing multiple competing "latest" releases during rapid development.
+concurrency:
+  group: tew-universe-windows-release
+  cancel-in-progress: true
+
 jobs:
   build-and-release:
     runs-on: windows-latest
