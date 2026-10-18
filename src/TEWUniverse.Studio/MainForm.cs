@@ -68,7 +68,7 @@ internal sealed class MainForm : Form
         bar.Controls.Add(_updatesButton);
 
         var split = new SplitContainer {
-            Dock = DockStyle.Fill, SplitterDistance = 325, FixedPanel = FixedPanel.Panel1,
+            Dock = DockStyle.Fill, Width = 1200, SplitterDistance = 325, FixedPanel = FixedPanel.Panel1,
             BackColor = _bg, SplitterWidth = 6
         };
         var left = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16), BackColor = _bg };
@@ -406,7 +406,10 @@ internal sealed class MainForm : Form
             var updater = Path.Combine(AppContext.BaseDirectory, "TEWUniverse.Updater.exe");
             if (!File.Exists(updater))
                 throw new InvalidOperationException("Updater executable not found. Install a published GitHub Release build.");
-            var info = new ProcessStartInfo { FileName = updater, UseShellExecute = false };
+            // Run the updater from outside the installation directory, so its installed EXE can be replaced.
+            var stagedUpdater = Path.Combine(Path.GetDirectoryName(installer)!, "TEWUniverse.Updater.exe");
+            File.Copy(updater, stagedUpdater, overwrite: true);
+            var info = new ProcessStartInfo { FileName = stagedUpdater, UseShellExecute = false };
             info.ArgumentList.Add("--waitpid");
             info.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
             info.ArgumentList.Add("--installer");
