@@ -48,6 +48,16 @@ internal static class RecordNameRepairPlanner
             .Select(row => row.OldName)
             .Where(name => !string.IsNullOrEmpty(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Preserve all problematic records before allocating any new name;
+        // otherwise a target generated earlier could collide with a later
+        // invalid record that must remain unchanged.
+        foreach (var invalid in targets.Where(row =>
+            string.IsNullOrWhiteSpace(row.OldName) ||
+            string.IsNullOrWhiteSpace(row.TitleName) ||
+            row.TitleName.Any(char.IsControl) ||
+            row.Uid <= 0 || row.BeltUid <= 0 || row.BeltOrder < 0))
+            if (!string.IsNullOrEmpty(invalid.OldName))
+                reserved.Add(invalid.OldName);
         var changes = new List<RecordNameRepair>();
         var warnings = new List<string>();
 
@@ -98,6 +108,14 @@ internal static class RecordNameRepairPlanner
             .Select(row => row.OldName)
             .Where(name => !string.IsNullOrEmpty(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var invalid in targets.Where(row =>
+            string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
+            row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
+            row.Initials.Any(char.IsControl) ||
+            row.From.Year < 1800 || row.Until.Year > 2100 ||
+            row.Until < row.From))
+            if (!string.IsNullOrEmpty(invalid.OldName))
+                reserved.Add(invalid.OldName);
         var changes = new List<RecordNameRepair>();
         var warnings = new List<string>();
 
