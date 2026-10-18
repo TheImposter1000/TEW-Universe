@@ -42,6 +42,61 @@ foreach (var invalid in new[] { (month: 0, week: 1), (month: 13, week: 1),
 }
 Console.WriteLine($"Passed annual tournament date checks for {combinations:N0} recurring schedules.");
 
+// Historical annual cups should not be dominated by the same tiny group of
+// name-only NPC winners. Reproduce the 2005–2021 case with pinned 2014 / 2018.
+string?[] pinnedCupYears = Enumerable.Range(2005, 17).Select(year =>
+    year == 2014 ? "Tavita Satele" :
+    year == 2018 ? "Carson Cade" : null).ToArray();
+string[] generatedNames = Enumerable.Range(1, 60)
+    .Select(i => $"Generated NPC {i}").ToArray();
+
+for (int seed = 0; seed < 250; seed++)
+{
+    var winners = AnnualTournamentWinnerPlanner.FillWinners(
+        pinnedCupYears, generatedNames, new Random(seed));
+
+    if (winners.Count != 17 || winners[9] != "Tavita Satele" ||
+        winners[13] != "Carson Cade")
+        throw new Exception("A pinned linked-worker tournament victory was not preserved.");
+
+    var npcWinners = winners.Where((_, i) => pinnedCupYears[i] == null).ToArray();
+    var groups = npcWinners.GroupBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+    if (npcWinners.Length != 15 || groups.Length < 12 ||
+        groups.Any(g => g.Count() > 2))
+        throw new Exception("A long annual cup history recycled too few NPCs.");
+
+    for (int i = 1; i < winners.Count; i++)
+        if (winners[i].Equals(winners[i - 1], StringComparison.OrdinalIgnoreCase))
+            throw new Exception("The same NPC won consecutive annual tournament editions.");
+
+    for (int i = 2; i < winners.Count; i++)
+        if (pinnedCupYears[i] == null &&
+            winners[i].Equals(winners[i - 2], StringComparison.OrdinalIgnoreCase))
+            throw new Exception("A historical NPC won again only two tournament editions later.");
+}
+
+// A narrow generator seed list is a genuine limitation and should not cause
+// an exception or fabricate new worker names beyond that source.
+var smallSource = AnnualTournamentWinnerPlanner.FillWinners(
+    Enumerable.Repeat<string?>(null, 12).ToArray(),
+    new[] { "Green Bat", "Fran" }, new Random(19));
+if (smallSource.Count != 12 ||
+    smallSource.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 2)
+    throw new Exception("Limited NPC source names were not handled gracefully.");
+
+// Exclude fixed real-worker aliases even if tblGenerateWorker contains them.
+var aliases = AnnualTournamentWinnerPlanner.FillWinners(
+    new string?[] { null, "Dragonheart", null, null },
+    new[] { "Dragonheart", "Amethyst", "Granite", "Sapphire" },
+    new Random(13));
+if (aliases[1] != "Dragonheart" ||
+    aliases.Where((_, index) => index != 1)
+        .Any(name => name.Equals("Dragonheart", StringComparison.OrdinalIgnoreCase)))
+    throw new Exception("An NPC was incorrectly assigned a linked superstar's name.");
+
+Console.WriteLine("Passed 250 randomized annual NPC variety histories and constrained-pool checks.");
+
+
 // Tournament wins constrain the earliest possible championship capture in
 // the SAME year, while the scheduled title history still keeps the correct
 // real worker UID and the required winning year.
