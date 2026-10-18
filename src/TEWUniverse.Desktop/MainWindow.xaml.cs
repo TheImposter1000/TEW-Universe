@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private bool _loading;
     private string _currentTab = "Profile";
     private DateTime? _lastSaved;
+    private string _sortMode = "Name A to Z";
     private static readonly Brush Muted = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A6BDD9")!);
 
     private sealed class FieldDraft
@@ -88,15 +89,30 @@ public partial class MainWindow : Window
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => FilterWorkers();
+    private void ClearSearch_Click(object sender, RoutedEventArgs e) => SearchBox.Clear();
+    private void SortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SortCombo?.SelectedItem is ComboBoxItem option)
+            _sortMode = Convert.ToString(option.Content, CultureInfo.InvariantCulture) ?? "Name A to Z";
+        FilterWorkers();
+    }
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    private void Maximize_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void FilterWorkers(int? selectId = null)
     {
         if (WorkersList == null) return;
         var query = SearchBox.Text.Trim();
-        var filtered = _allWorkers.Where(x =>
+        var matches = _allWorkers.Where(x =>
             x.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-            x.Id.ToString(CultureInfo.InvariantCulture).Contains(query, StringComparison.OrdinalIgnoreCase))
-            .Take(700).ToList();
+            x.Id.ToString(CultureInfo.InvariantCulture).Contains(query, StringComparison.OrdinalIgnoreCase));
+        var filtered = (_sortMode switch {
+            "Name Z to A" => matches.OrderByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "Worker ID" => matches.OrderBy(x => x.Id),
+            _ => matches.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+        }).ToList();
 
         _suppressSelection = true;
         WorkersList.ItemsSource = filtered;
@@ -156,15 +172,12 @@ public partial class MainWindow : Window
 
             _worker = selected;
             WorkerNameText.Text = selected.Name;
-            WorkerSummaryText.Text = $"Worker ID {selected.Id}  •  Existing TEW IX worker  •  Working database";
+            WorkerIdBadge.Text = $"Worker ID {selected.Id}";
+            BuildWorkerFacts();
             WorkerStatusText.Text = selected.IsActive switch {
                 true => "● Active worker", false => "● Inactive worker", _ => "Worker record"
             };
-            QuickId.Text = "Worker ID: " + selected.Id;
-            QuickActive.Text = "Status: " + (selected.IsActive switch {
-                true => "Active", false => "Inactive", _ => "Not available"
-            });
-            QuickDatabase.Text = "Current Copy: " + Path.GetFileName(_session.PathOnDisk);
+
             BuildProfileFields();
             ShowSection(_currentTab);
             SetStatus("Editing " + selected.Name);
@@ -246,8 +259,8 @@ public partial class MainWindow : Window
             return;
         }
         // Prioritize known frequently edited columns while still exposing every editable column.
-        var priority = new[] { "Name", "ShortName", "Gender", "Sex", "Active", "DateOfBirth",
-            "BirthDate", "DOB", "Nationality", "BasedIn", "Style" };
+        var priority = new[] { "Name", "Shortname", "Gender", "Birthday",
+            "Nationality", "Based_In", "Active", "Style", "DebutDate" };
         var first = profile.Where(x => priority.Contains(x.Column, StringComparer.OrdinalIgnoreCase))
             .OrderBy(x => Array.FindIndex(priority,
                 p => p.Equals(x.Column, StringComparison.OrdinalIgnoreCase))).ToList();
@@ -298,6 +311,7 @@ public partial class MainWindow : Window
         _syncBio = true;
         if (FullBioEditor != null) FullBioEditor.Text = BioEditor.Text;
         _syncBio = false;
+        if (BioCountText != null) BioCountText.Text = $"{BioEditor.Text.Length:N0} characters";
         if (!_loading) RefreshDirty();
     }
 
