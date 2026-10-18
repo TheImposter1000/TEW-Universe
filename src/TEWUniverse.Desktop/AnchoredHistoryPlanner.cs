@@ -10,7 +10,10 @@ namespace TEWUniverse.Desktop;
 internal static class AnchoredHistoryPlanner
 {
     internal sealed record Anchor(string Name, int WorkerId, int WinYear,
-        int FirstEligibleYear, int LastEligibleYear, DateTime? NotBefore = null);
+        int FirstEligibleYear, int LastEligibleYear, DateTime? NotBefore = null,
+        int? ReignDays = null, int? ReignYears = null);
+    private sealed record ChampionshipEvent(DateTime Date, int UID, string Name,
+        DateTime? ForcedEnd = null, bool ForcedNpcBridge = false);
     private sealed record Event(DateTime Won, Anchor? FixedWinner);
 
     /// <summary>
@@ -64,6 +67,10 @@ internal static class AnchoredHistoryPlanner
         if (annualTournament && reserved.Any(pair => pair.Value.Count != 1))
             throw new InvalidOperationException(
                 "Annual Tournament mode permits only one winner in each calendar year.");
+        if (annualTournament && fixedWins.Any(w =>
+                w.ReignDays.HasValue || w.ReignYears.HasValue))
+            throw new InvalidOperationException(
+                "Exact reign lengths apply to championships only. Annual Cups record individual victories, not continuing title reigns.");
 
         // Championship histories use independent, varied reign durations.
         // Only annual cups use the fixed one-winner-per-year model below.
@@ -185,8 +192,11 @@ internal static class AnchoredHistoryPlanner
         // Fixed winning years are preserved, but any relevant prior tournament
         // victories can move the capture date later inside that same year.
         var pinned = ChampionshipWinScheduler.Schedule(fixedWins.Select(w =>
-            new ChampionshipWinScheduler.Win(w.WorkerId, w.Name, w.WinYear, w.NotBefore))
-            .ToArray(), firstDay).Select(w => (w.Date, UID: w.WorkerId, w.Name)).ToList();
+            new ChampionshipWinScheduler.Win(w.WorkerId, w.Name, w.WinYear,
+                w.NotBefore, w.ReignDays, w.ReignYears))
+            .ToArray(), firstDay, lastDay).Select(w => new ChampionshipEvent(
+                w.Date, w.WorkerId, w.Name,
+                ChampionshipWinScheduler.RequiredNextCaptureDate(w))).ToList();
 
         var cast = npcNames.Select(n => n.Name)
             .Where(name => !fixedWins.Any(w =>
@@ -199,7 +209,7 @@ internal static class AnchoredHistoryPlanner
             throw new InvalidOperationException(
                 "No generated NPC names remain after excluding the linked superstar aliases.");
 
-        var events = new List<(DateTime Date, int UID, string Name)>();
+        var events = new List<ChampionshipEvent>();
         string PickNpc(string? current, string? upcoming)
         {
             var choices = cast.Where(name =>
@@ -213,13 +223,14 @@ internal static class AnchoredHistoryPlanner
                     "The NPC name pool is too small to create distinct consecutive champions.");
             return choices[Random.Shared.Next(choices.Length)];
         }
-        void AddNpc(DateTime date, string? upcoming = null)
+        void AddNpc(DateTime date, string? upcoming = null, bool forcedBridge = false)
         {
             if (events.Count >= maxReigns)
                 throw new InvalidOperationException(
                     "The requested title-history span exceeds 500 varied reigns. Reduce its years.");
-            events.Add((date, -1,
-                PickNpc(events.Count == 0 ? null : events[^1].Name, upcoming)));
+            events.Add(new ChampionshipEvent(date, -1,
+                PickNpc(events.Count == 0 ? null : events[^1].Name, upcoming),
+                ForcedNpcBridge: forcedBridge));
         }
 
         if (pinned.Count == 0 || pinned[0].Date > firstDay)
@@ -240,9 +251,10 @@ internal static class AnchoredHistoryPlanner
             };
         }
 
-        // Insert generated transitions before each fixed real-worker win.
-        // If the same worker wins again, a different champion MUST hold the
-        // title between those wins (otherwise it is not a second reign).
+        // Before each pinned win, fill any free history with NPC champions.
+        // A fixed-duration superstar's tenure is protected: NPCs cannot
+        // displace them early, and a successor must capture exactly when
+        // their requested number of days or calendar years has elapsed.
         foreach (var next in pinned)
         {
             if (events.Count == 0)
@@ -250,21 +262,44 @@ internal static class AnchoredHistoryPlanner
                 events.Add(next);
                 continue;
             }
+
             var cursor = events[^1];
-            while (true)
+            if (cursor.ForcedEnd is DateTime requiredNextCapture)
             {
-                int availableDays = (next.Date - cursor.Date).Days;
-                if (availableDays < minimumTransitionDays)
+                if (next.Date < requiredNextCapture)
                     throw new InvalidOperationException(
-                        "Two pinned wins are too close together to be separate title reigns.");
-                int length = NextReignDays();
-                if (length + minimumTransitionDays > availableDays) break;
-                var nextDate = cursor.Date.AddDays(length);
-                AddNpc(nextDate, next.Name);
-                cursor = events[^1];
+                        $"The next pinned victory would shorten {cursor.Name}'s exact reign.");
+                if (next.Date > requiredNextCapture)
+                {
+                    // Their exact reign ends on the preceding day. Insert a
+                    // transitional NPC precisely on the requested next date.
+                    AddNpc(requiredNextCapture, next.Name, forcedBridge: true);
+                    cursor = events[^1];
+                }
+                else if (cursor.Name.Equals(next.Name, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        $"{next.Name} cannot win another reign without an intervening champion.");
             }
 
-            // Fixed wins by the same worker require at least one intervening NPC.
+            if (cursor.ForcedEnd == null)
+            {
+                while (true)
+                {
+                    int availableDays = (next.Date - cursor.Date).Days;
+                    int minimum = cursor.ForcedNpcBridge ? 1 : minimumTransitionDays;
+                    if (availableDays < minimum)
+                        throw new InvalidOperationException(
+                            $"The pinned title win for {next.Name} leaves no room for a valid intervening reign.");
+                    int length = NextReignDays();
+                    if (length + minimumTransitionDays > availableDays) break;
+                    var nextDate = cursor.Date.AddDays(length);
+                    AddNpc(nextDate, next.Name);
+                    cursor = events[^1];
+                }
+            }
+
+            // A worker claiming two separate reigns needs an intervening
+            // champion, even when their earlier reign length was fixed.
             if (cursor.Name.Equals(next.Name, StringComparison.OrdinalIgnoreCase))
             {
                 int availableDays = (next.Date - cursor.Date).Days;
@@ -280,12 +315,24 @@ internal static class AnchoredHistoryPlanner
             events.Add(next);
         }
 
-        // After the final pinned victory, keep building a plausible history
-        // through the end of the requested championship timeline.
+        // After the last pinned victory, honor its exact release date too.
+        // If the protected reign finishes on the timeline's final day,
+        // there is no need to invent a successor in the following year.
         if (events.Count == 0)
             AddNpc(firstDay);
         var last = events[^1];
-        while (true)
+        if (last.ForcedEnd is DateTime forcedEnd)
+        {
+            if (forcedEnd > lastDay.AddDays(1))
+                throw new InvalidOperationException(
+                    $"{last.Name}'s exact reign extends beyond the selected history end year.");
+            if (forcedEnd <= lastDay)
+            {
+                AddNpc(forcedEnd, forcedBridge: true);
+                last = events[^1];
+            }
+        }
+        while (last.ForcedEnd == null)
         {
             int daysRemaining = (lastDay - last.Date).Days + 1;
             int length = NextReignDays();
@@ -304,6 +351,10 @@ internal static class AnchoredHistoryPlanner
             if (lost < curr.Date)
                 throw new InvalidOperationException("Generated championship reign dates overlap.");
             int held = (lost - curr.Date).Days + 1;
+            if (curr.ForcedEnd.HasValue && lost.AddDays(1) != curr.ForcedEnd.Value)
+                throw new InvalidOperationException(
+                    $"Generated title changes would shorten the required reign for {curr.Name}. " +
+                    "Move the fixed winning year or adjust its reign duration.");
             // Defence counts vary independently of lengths. Long reigns are
             // generally defended more often but not at a fixed 1-per-N-days.
             short defenses = EstimateReignDefences(held);

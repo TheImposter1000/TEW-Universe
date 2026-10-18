@@ -597,7 +597,7 @@
              <StackPanel>
               <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="Select the wrestlers whose real achievements you want to preserve. Specify how many times they won, and the winning years."
+              <TextBlock Text="Select wrestlers, enter their exact winning years, and optionally protect the length of each title reign."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel Margin="0,0,0,9">
@@ -642,9 +642,12 @@
                 <DataGridTextColumn Header="Years won (e.g. 2016, 2017, 2019)"
                       Binding="{Binding WinYears, UpdateSourceTrigger=LostFocus}"
                       Width="2*"/>
+                <DataGridTextColumn Header="Reign lengths (optional)"
+                      Binding="{Binding ReignLengths, UpdateSourceTrigger=LostFocus}"
+                      Width="1.7*"/>
                </DataGrid.Columns>
               </DataGrid>
-              <TextBlock Text="Enter one year for each reign. For a single-year wrestler, the win year is filled automatically when added. Select a row and press Delete to remove it."
+              <TextBlock Text="Enter one winning year per reign. Reign lengths are optional: 719d = exactly 719 days; 2y = two calendar years (leap-year aware). For multiple wins use entries in the same order, e.g. -, 719d, 2y. A dash leaves that reign random. Exact lengths apply to championships, not annual Cups. Select a row and press Delete to remove it."
                          FontSize="11" Foreground="#ADC9E8" TextWrapping="Wrap"
                          Margin="0,7,0,0"/>
                <CheckBox x:Name="AdvancedRespectTournamentDates"
