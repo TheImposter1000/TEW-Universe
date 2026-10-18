@@ -1673,6 +1673,17 @@ public partial class MainWindow : Window
             AdvancedApplyButton.IsEnabled = canApply;
             AdvancedExportButton.IsEnabled = true;
             int generated = proposal.Count(r => r.Holder1 == -1);
+            int distinctNpcNames = annualTournament
+                ? proposal.Where(r => r.Holder1 == -1).Select(r => r.HolderName1)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count()
+                : 0;
+            string npcSummary = annualTournament
+                ? $"{generated} NPC winner(s) using {distinctNpcNames} distinct name(s)"
+                : $"{generated} NPC winner(s)";
+            string npcLimitNote = annualTournament &&
+                distinctNpcNames < (int)Math.Ceiling(generated * 0.75)
+                ? "Diversity is limited by available generated-worker names or NPC filters. "
+                : "";
             string variety = "";
             if (!annualTournament)
             {
@@ -1698,8 +1709,8 @@ public partial class MainWindow : Window
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
                 schedule + chronology +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
-                $"{generated} NPC winner(s) across {firstYear}–{lastYear}. " +
-                variety +
+                $"{npcSummary} across {firstYear}–{lastYear}. " +
+                npcLimitNote + variety +
                 $"{_advancedExistingSlots} existing title-history row(s). " +
                 (canApply
                     ? "Creating a backup is recommended but optional before importing this preview."

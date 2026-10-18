@@ -72,50 +72,24 @@ internal static class AnchoredHistoryPlanner
             throw new InvalidOperationException(
                 "The selected years and superstar wins require more than 500 records.");
 
-        // Populate a recurring historical cast, rather than creating a unique
-        // name for every year. All NPCs are title-history names only.
-        var pool = npcNames
-            .Select(x => x.Name)
-            .Where(name => !fixedWins.Any(win =>
-                name.Equals(win.Name, StringComparison.OrdinalIgnoreCase)))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(_ => Random.Shared.Next())
-            .ToList();
-        int npcYears = Enumerable.Range(firstYear, lastYear - firstYear + 1)
-            .Count(y => !reserved.ContainsKey(y));
-        if (npcYears > 0 && pool.Count == 0)
-            throw new InvalidOperationException(
-                "There are no available NPC names distinct from the pinned superstars.");
-        int castSize = Math.Min(pool.Count, Math.Max(3,
-            (int)Math.Ceiling(npcYears / 3.0)));
-        pool = pool.Take(castSize).ToList();
+        // Assign the pinned editions first. The annual NPC picker then
+        // distributes distinct names and occasional balanced repeat winners,
+        // without changing fixed worker UIDs or any event calendar dates.
+        var years = Enumerable.Range(firstYear, lastYear - firstYear + 1).ToArray();
+        var plannedNames = AnnualTournamentWinnerPlanner.FillWinners(
+            years.Select(year => reserved.TryGetValue(year, out var wins)
+                ? wins[0].Name : null).ToArray(),
+            npcNames.Select(seed => seed.Name).ToArray());
 
-        var events = new List<(DateTime Date, int UID, string Name)>();
-        string? previous = null;
-        foreach (int year in Enumerable.Range(firstYear, lastYear - firstYear + 1))
+        var events = new List<(DateTime Date, int UID, string Name)>(years.Length);
+        for (int i = 0; i < years.Length; i++)
         {
-            if (reserved.TryGetValue(year, out var wins))
-            {
-                // Each specified winning year is fixed. Multiple anchored wins
-                // in one year get separate dates without generating NPC winners.
-                for (int i = 0; i < wins.Count; i++)
-                {
-                    DateTime day = AnnualTournamentCalendar.ResolveDate(
-                        year, eventMonth, eventWeek, eventWeekday);
-                    events.Add((day, wins[i].WorkerId, wins[i].Name));
-                    previous = wins[i].Name;
-                }
-            }
-            else
-            {
-                var choices = pool.Where(name => !string.Equals(name, previous,
-                    StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (choices.Length == 0) choices = pool.ToArray();
-                var selected = choices[Random.Shared.Next(choices.Length)];
-                events.Add((AnnualTournamentCalendar.ResolveDate(
-                    year, eventMonth, eventWeek, eventWeekday), -1, selected));
-                previous = selected;
-            }
+            int year = years[i];
+            int workerUid = reserved.TryGetValue(year, out var fixedWinner)
+                ? fixedWinner[0].WorkerId : -1;
+            events.Add((AnnualTournamentCalendar.ResolveDate(
+                year, eventMonth, eventWeek, eventWeekday),
+                workerUid, plannedNames[i]));
         }
         var reigns = new List<GeneratedTitleReign>(events.Count);
         for (int i = 0; i < events.Count; i++)
