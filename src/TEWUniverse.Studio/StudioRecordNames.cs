@@ -46,8 +46,9 @@ internal static class StudioRecordNames
         if (tail.Length > limit)
             throw new InvalidOperationException(
                 "MDB Recordname column is too short for a unique generated identifier.");
-        head = head.Length > limit - tail.Length
-            ? head[..Math.Max(0, limit - tail.Length)].TrimEnd() : head;
-        return head + tail;
+        int prefixBudget = Math.Max(0, limit - tail.Length - 1);
+        head = head.Length > prefixBudget
+            ? head[..prefixBudget].TrimEnd() : head;
+        return head.Length > 0 ? head + " " + tail : tail;
     }
 }
