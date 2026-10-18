@@ -41,11 +41,27 @@ internal static class ChampionshipWinScheduler
     internal static List<Scheduled> Schedule(IReadOnlyList<Win> wins,
         DateTime? historyStart = null, DateTime? historyEnd = null)
     {
-        var input = wins
-            .GroupBy(w => w.Year).OrderBy(g => g.Key)
-            .SelectMany(g => g.OrderBy(w => w.NotBefore?.Date ?? new DateTime(g.Key, 1, 1))
-                .ThenBy(w => w.SourceOrder).ThenBy(w => w.WorkerId))
-            .ToArray();
+        // Interleave workers competing in the same calendar year. A
+        // Charlotte/Sasha hot-potato feud should become Charlotte → Sasha →
+        // Charlotte → Sasha, not both Charlotte captures and then both Sasha
+        // captures. Preserve each worker's positional input order so a 2y
+        // tenure is still attached to the correct win.
+        var input = wins.GroupBy(w => w.Year).OrderBy(g => g.Key)
+            .SelectMany(g =>
+            {
+                var workerQueues = g.GroupBy(w => w.WorkerId)
+                    .Select(group => new Queue<Win>(group.OrderBy(w => w.SourceOrder)))
+                    .OrderBy(queue => queue.Peek().NotBefore?.Date ??
+                        new DateTime(g.Key, 1, 1))
+                    .ThenBy(queue => queue.Peek().SourceOrder).ToList();
+                var yearOrder = new List<Win>();
+                while (workerQueues.Any(queue => queue.Count > 0))
+                {
+                    foreach (var queue in workerQueues)
+                        if (queue.Count > 0) yearOrder.Add(queue.Dequeue());
+                }
+                return yearOrder;
+            }).ToArray();
         if (input.Length == 0) return new();
 
         foreach (var win in input)
