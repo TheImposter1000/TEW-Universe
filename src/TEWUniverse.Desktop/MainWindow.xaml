@@ -597,7 +597,7 @@
              <StackPanel>
               <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="Select wrestlers, enter their exact winning years, and optionally protect the length of each title reign."
+              <TextBlock Text="Set the wrestler's total reigns and active years. Specify only the winning years and durations you know; the rest are generated."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel Margin="0,0,0,9">
@@ -639,7 +639,7 @@
                       Width="96"/>
                 <DataGridTextColumn Header="Reigns" Binding="{Binding RequiredReigns, UpdateSourceTrigger=LostFocus}"
                       Width="72"/>
-                <DataGridTextColumn Header="Years won (e.g. 2016, 2017, 2019)"
+                <DataGridTextColumn Header="Years won (optional, repeats allowed)"
                       Binding="{Binding WinYears, UpdateSourceTrigger=LostFocus}"
                       Width="2*"/>
                 <DataGridTextColumn Header="Reign lengths (optional)"
@@ -647,7 +647,7 @@
                       Width="1.7*"/>
                </DataGrid.Columns>
               </DataGrid>
-              <TextBlock Text="Enter one winning year per reign. Reign lengths are optional: 719d = exactly 719 days; 2y = two calendar years (leap-year aware). For multiple wins use entries in the same order, e.g. -, 719d, 2y. A dash leaves that reign random. Exact lengths apply to championships, not annual Cups. Select a row and press Delete to remove it."
+              <TextBlock Text="Reigns = total number won. Winning years are optional: 2016, 2016 is allowed; 2011 with six reigns leaves five years automatic. Use a dash for an unknown earlier year, e.g. -, -, 2011. Reign lengths are independently optional: 719d = EXACT 719 days; 2y = two calendar years plus up to 90 days; 6m = six calendar months plus up to 30 days. To set only one tenure use -, -, 2y and leave the others blank or random. Annual Cup editions still require distinct known winning years."
                          FontSize="11" Foreground="#ADC9E8" TextWrapping="Wrap"
                          Margin="0,7,0,0"/>
                <CheckBox x:Name="AdvancedRespectTournamentDates"
@@ -686,7 +686,7 @@
                 <TextBlock Text="Starting month (optional)" Foreground="#ADC9E8" FontSize="11"/>
                 <ComboBox x:Name="AdvancedStartMonth" Style="{StaticResource DarkComboBox}"
                           Width="160" SelectionChanged="AdvancedCalendarChanged"
-                          ToolTip="Championship histories begin on the first of this month in the From year. Default is January.">
+                          ToolTip="Championship histories begin on a random day within the chosen month in the From year. Default month: January.">
                  <ComboBoxItem Content="Default (January)" IsSelected="True"/>
                  <ComboBoxItem Content="January"/>
                  <ComboBoxItem Content="February"/>
