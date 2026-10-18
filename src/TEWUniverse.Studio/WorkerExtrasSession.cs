@@ -306,6 +306,24 @@ internal sealed partial class DatabaseSession
         using var tx = _connection.BeginTransaction();
         try
         {
+            // Prevent an accidental duplicate of the same person's same
+            // company stint. This still permits separate nonoverlapping stints
+            // and never touches other workers' history.
+            using (var duplicate = new OleDbCommand(
+                "SELECT COUNT(*) FROM [tblCV] WHERE [WorkerUID]=? AND [FedUID]=? " +
+                "AND [CVFromDate]=? AND [CVUntilDate]=? AND [RecordName]<>?",
+                _connection, tx))
+            {
+                duplicate.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
+                duplicate.Parameters.Add("fed", OleDbType.Integer).Value = draft.FedUid;
+                duplicate.Parameters.Add("from", OleDbType.DBTimeStamp).Value = draft.FromDate.Date;
+                duplicate.Parameters.Add("until", OleDbType.DBTimeStamp).Value = draft.UntilDate.Date;
+                duplicate.Parameters.Add("name", OleDbType.VarWChar).Value = recordName ?? "";
+                if (Convert.ToInt32(duplicate.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
+                    throw new InvalidOperationException(
+                        "This worker already has a historical period for that company with the same dates.");
+            }
+
             string key;
             if (string.IsNullOrEmpty(recordName))
             {
