@@ -1605,7 +1605,7 @@ public partial class MainWindow : Window
                 variety +
                 $"{_advancedExistingSlots} existing title-history row(s). " +
                 (canApply
-                    ? "Create Backup before rebuilding the selected championship's records."
+                    ? "Creating a backup is recommended but optional before importing this preview."
                     : "Direct rebuilding is unavailable for this title's current schema or team history.");
             SetStatus($"Prepared {_advancedDraft.Count:N0} championship history entries.");
         }
@@ -1623,19 +1623,6 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Save or discard the unsaved championship details first.");
             return;
         }
-        if (_advancedFullRebuild &&
-            (string.IsNullOrWhiteSpace(_lastManualBackup) ||
-             !File.Exists(_lastManualBackup) ||
-             !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk)))
-        {
-            MessageBox.Show(this,
-                "A full lineage rebuild deletes the selected title's existing prehistory " +
-                "and creates newly generated reign records.\n\n" +
-                "Select CREATE BACKUP before applying this draft. " +
-                "This is required, not optional.",
-                "Create a backup first", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
         string actionText = _advancedFullRebuild
             ? $"REBUILD {_selectedExisting.Name} (belt UID {_selectedExisting.Id})?\n\n" +
               $"Delete its {_advancedExistingSlots} current history row(s) and create " +
@@ -1646,7 +1633,7 @@ public partial class MainWindow : Window
               $"for {_selectedExisting.Name} (belt UID {_selectedExisting.Id})?";
         var result = MessageBox.Show(this,
             actionText + "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
-            "without your backup.\n\nContinue?",
+            "without a backup. Creating one first is recommended but optional.\n\nContinue?",
             "Confirm Championship History Rebuild",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
