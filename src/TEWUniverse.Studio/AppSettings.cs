@@ -19,6 +19,25 @@ internal sealed class AppSettings
     // never inserted into tblBelt. Keys combine database path with title UID.
     public Dictionary<string, string> TitleDisplayKinds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, string> TitleCompetitorFormats { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public string GetTitleCompetitorFormat(string databasePath, int titleUid) =>
+        TitleCompetitorFormats != null &&
+        TitleCompetitorFormats.TryGetValue(TitleDisplayKey(databasePath, titleUid), out var format) &&
+        format is "TagTeam" or "Trios" ? format : "Singles";
+
+    public void SetTitleCompetitorFormat(string databasePath, int titleUid, string format)
+    {
+        if (format is not ("Singles" or "TagTeam" or "Trios"))
+            throw new InvalidOperationException("Unknown singles / tag team / trios title format.");
+        TitleCompetitorFormats ??= new(StringComparer.OrdinalIgnoreCase);
+        string key = TitleDisplayKey(databasePath, titleUid);
+        if (format == "Singles") TitleCompetitorFormats.Remove(key);
+        else TitleCompetitorFormats[key] = format;
+    }
+
+
     public static string TitleDisplayKey(string databasePath, int titleUid) =>
         Path.GetFullPath(databasePath.Trim()).ToUpperInvariant() + "|" +
         titleUid.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -66,7 +85,8 @@ internal sealed class AppSettings
         BackupFolderPath = BackupFolderPath,
         WorkerPicturesFolderPath = WorkerPicturesFolderPath,
         RememberDatabasePassword = RememberDatabasePassword,
-        TitleDisplayKinds = new Dictionary<string, string>(TitleDisplayKinds ?? new(), StringComparer.OrdinalIgnoreCase)
+        TitleDisplayKinds = new Dictionary<string, string>(TitleDisplayKinds ?? new(), StringComparer.OrdinalIgnoreCase),
+        TitleCompetitorFormats = new Dictionary<string, string>(TitleCompetitorFormats ?? new(), StringComparer.OrdinalIgnoreCase)
     };
 
     public static bool SamePath(string? a, string? b) =>
@@ -92,6 +112,8 @@ internal sealed class AppSettings
 
         TitleDisplayKinds ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         TitleDisplayKinds = new Dictionary<string, string>(TitleDisplayKinds, StringComparer.OrdinalIgnoreCase);
+        TitleCompetitorFormats ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        TitleCompetitorFormats = new Dictionary<string, string>(TitleCompetitorFormats, StringComparer.OrdinalIgnoreCase);
         // Direct editing deliberately permits the previously protected source path.
         if (BackupFolderPath.Length > 0 && File.Exists(BackupFolderPath))
             throw new InvalidOperationException("Backup Folder must be a directory, not a file.");
