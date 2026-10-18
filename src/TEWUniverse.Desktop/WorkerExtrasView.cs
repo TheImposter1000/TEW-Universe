@@ -282,6 +282,19 @@ public partial class MainWindow
             Foreground = ExtraColor("#A6BDD9"), TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 15)
         });
+        employmentEditor.Children.Add(ExtraLabel("Existing record-name repair", true));
+        employmentEditor.Children.Add(new TextBlock {
+            Text = "Preview old → new RecordName values before changing the MDB. " +
+                "Only record names are updated; employment periods, companies and arrangement flags stay unchanged.",
+            Foreground = ExtraColor("#93B4D5"), FontSize = 11,
+            Margin = new Thickness(0, 0, 0, 12), TextWrapping = TextWrapping.Wrap
+        });
+        employmentEditor.Children.Add(ExtraButton(
+            "Review / Repair This Worker's Existing Names", false,
+            ReviewSelectedEmploymentRecordNames_Click));
+        employmentEditor.Children.Add(ExtraButton(
+            "Review / Repair All Employment Record Names", false,
+            ReviewAllEmploymentRecordNames_Click));
         employmentEditor.Children.Add(ExtraButton("+ Add Employment Period", true, AddEmployment_Click));
         _employmentSave = ExtraButton("Save Selected Period", false, SaveEmployment_Click);
         _employmentDelete = ExtraButton("Remove Selected Period", false, RemoveEmployment_Click);
