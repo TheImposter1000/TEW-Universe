@@ -80,6 +80,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeWorkerExtrasUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
@@ -546,10 +547,18 @@ public partial class MainWindow : Window
         _currentTab = tab;
         ProfileView.Visibility = tab == "Profile" ? Visibility.Visible : Visibility.Collapsed;
         BiographyView.Visibility = tab == "Biography" ? Visibility.Visible : Visibility.Collapsed;
+        AttributesView.Visibility = tab == "Attributes" ? Visibility.Visible : Visibility.Collapsed;
+        EmploymentView.Visibility = tab == "Employment" ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.Visibility = tab is "Skills" or "Popularity" or "Physical"
             ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var button in new[] { ProfileTab, SkillsTab, PopularityTab, PhysicalTab, BiographyTab })
+        foreach (var button in new[] { ProfileTab, SkillsTab, PopularityTab,
+            PhysicalTab, BiographyTab, AttributesTab, EmploymentTab })
             button.Style = (Style)FindResource(button.Tag as string == tab ? "BlueButton" : "ActionButton");
+        if (tab is "Attributes" or "Employment")
+        {
+            RefreshWorkerExtraTab(tab);
+            return;
+        }
         if (DetailsView.Visibility != Visibility.Visible) return;
         var table = tab switch {
             "Skills" => "tblWorkerSkill", "Popularity" => "tblWorkerOver",
@@ -757,6 +766,7 @@ public partial class MainWindow : Window
             WorkerPortraitEllipse.Fill = Brushes.Transparent;
             WorkerPortraitPlaceholder.Visibility = Visibility.Visible;
             _fields.Clear();
+            ResetWorkerExtras();
             _selectedExisting = null;
             _existingFields.Clear();
             _availableExistingRecords.Clear();
