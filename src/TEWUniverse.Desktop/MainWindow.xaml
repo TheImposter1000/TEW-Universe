@@ -56,7 +56,7 @@
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,11,15,7">
           <Button x:Name="ImportButton" Style="{StaticResource ActionButton}" Click="Import_Click" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="▤" Foreground="#32A3FF" FontSize="23" Margin="0,0,12,0"/>
+              <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" Foreground="#32A3FF" FontSize="23" Margin="0,0,12,0"/>
               <StackPanel>
                 <TextBlock Text="Import Database" FontWeight="SemiBold"/>
                 <TextBlock Text="Create a new working copy" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
@@ -65,7 +65,7 @@
           </Button>
           <Button Style="{StaticResource ActionButton}" Click="OpenProject_Click" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="▣" Foreground="#F5BC4C" FontSize="23" Margin="0,0,12,0"/>
+              <TextBlock Text="&#xE8A7;" FontFamily="Segoe MDL2 Assets" Foreground="#F5BC4C" FontSize="23" Margin="0,0,12,0"/>
               <StackPanel>
                 <TextBlock Text="Open Project" FontWeight="SemiBold"/>
                 <TextBlock Text="Use saved working copy" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
@@ -74,7 +74,7 @@
           </Button>
           <Button x:Name="SaveButton" Style="{StaticResource BlueButton}" Click="Save_Click" IsEnabled="False" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="▣" FontSize="24" Margin="0,0,12,0"/>
+              <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="24" Margin="0,0,12,0"/>
               <StackPanel>
                 <TextBlock Text="Save Changes" FontWeight="SemiBold"/>
                 <TextBlock Text="Write to working copy" FontWeight="Normal" FontSize="10"/>
@@ -83,7 +83,7 @@
           </Button>
           <Button x:Name="BackupButton" Style="{StaticResource BackupButton}" Click="Backup_Click" IsEnabled="False" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="◈" Foreground="#BE9CFF" FontSize="23" Margin="0,0,12,0"/>
+              <TextBlock Text="&#xE753;" FontFamily="Segoe MDL2 Assets" Foreground="#BE9CFF" FontSize="23" Margin="0,0,12,0"/>
               <StackPanel>
                 <TextBlock Text="Create Backup" FontWeight="SemiBold"/>
                 <TextBlock Text="Snapshot the saved copy" FontWeight="Normal" FontSize="10" Foreground="#C1B0EE"/>
@@ -97,13 +97,13 @@
             </StackPanel>
           </Button>
           <Button Style="{StaticResource ActionButton}" Click="Settings_Click" Margin="0,0,9,0">
-            <TextBlock Text="⚙  Settings"/>
+            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="18" Margin="0,0,8,0"/><TextBlock Text="Settings" VerticalAlignment="Center"/></StackPanel>
           </Button>
           <Button x:Name="UpdatesButton" Style="{StaticResource ActionButton}" Click="Updates_Click" Margin="0,0,9,0">
-            <TextBlock Text="⟳  Check for Updates"/>
+            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="18" Margin="0,0,8,0"/><TextBlock Text="Check for Updates" VerticalAlignment="Center"/></StackPanel>
           </Button>
           <Button Style="{StaticResource ActionButton}" Click="UpdateLog_Click">
-            <TextBlock Text="⋯  Update log"/>
+            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE712;" FontFamily="Segoe MDL2 Assets" FontSize="18" Margin="0,0,8,0"/><TextBlock Text="Update log" VerticalAlignment="Center"/></StackPanel>
           </Button>
         </StackPanel>
       </ScrollViewer>
@@ -129,7 +129,7 @@
           <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Project Folder"/></StackPanel>
          </Button>
         </StackPanel>
-        <StackPanel Margin="0,8,0,0"><Button x:Name="WorkersNav" Style="{StaticResource BlueButton}" Click="WorkersNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Workers" VerticalAlignment="Center"/></StackPanel></Button>
+        <StackPanel Margin="0,8,0,0"><Button x:Name="WorkersNav" Style="{StaticResource BlueButton}" HorizontalContentAlignment="Left" Click="WorkersNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Workers" VerticalAlignment="Center"/></StackPanel></Button>
 <Button Tag="Companies" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Companies" VerticalAlignment="Center"/></StackPanel></Button>
 <Button Tag="Titles" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Titles" VerticalAlignment="Center"/></StackPanel></Button>
 <Button Tag="Events" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Events" VerticalAlignment="Center"/></StackPanel></Button>
