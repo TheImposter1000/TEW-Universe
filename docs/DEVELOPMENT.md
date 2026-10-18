@@ -6,6 +6,16 @@ The shared `StudioDateFormat` helper defines `MM/dd/yyyy` as the only accepted t
 
 This change does not reformat internal application backup filenames, serialized release metadata, or annual-tournament date arithmetic: those are not human-facing data-entry formats. It does not convert plain history range **years** into full dates. The regression suite checks formatting, round trips, leap-day validation, sentinel values, and rejection of year-first input.
 
+## TEW-style RecordName conventions and active worker Contracts
+
+Full rebuilds of a singles `tblBeltPreHistory` title now derive `Recordname` from verified `tblBelt.Name` and the next available zero-padded three-digit ordinal, e.g. `BCW Championship001`. Names are checked globally against every *other title's* prehistory records and against names already allocated in the current transaction; the original belt and other titles remain untouched. Targeted name-only holder substitutions preserve ALL existing `Recordname` values. A full rebuild intentionally replaces the selected title's prehistory; it never bulk-renames unrelated history records.
+
+New `tblCV.RecordName` values use `StudioRecordNames.Employment(initials, from, until)`, e.g. `PWA (2015-2021)`; a generated collision is resolved with a readable ` #2` suffix if within the actual MDB max length. The Employment History form puts the **Record name** text field before the company selector, supports manual edits, and regenerates a name on demand. Changing a saved record's identifier is a single-row `UPDATE ... WHERE RecordName=? AND WorkerUID=?` within the same transaction that updates its dates and linked company. Blank/manual conflicting names, unsupported column types and oversize strings fail closed.
+
+The **Contracts** tab in Workers is a separate `tblContract` record viewer/editor; it does not use historical `tblCV` data. The data layer inspects `tblContract` for a verified integer `WorkerUID` and a unique record key (`UID` or `Recordname`), reads only rows belonging to the selected worker, and shows their actual stored fields. Editable fields must be supported primitive date/text/numeric/boolean columns; contract identity, worker/federation foreign keys and unverified `*UID` fields are protected. Saving requires confirmation and runs a transactional optimistic row snapshot verification, then field-specific parameterized updates constrained by both the worker link and record identity. Dates use `MM/DD/YYYY`. The app does **not** fabricate new active contracts or delete existing contracts without a verified complete insertion schema. Runtime schema mismatches show an error in the Contracts tab and do not modify the MDB.
+
+All linked-record DataGrids are styled explicitly with dark column headers, alternating rows, dark selection, and light text to avoid the framework's default white header/cell templates. Pure regression checks cover record-name formatting and invalid employment-year ranges; Windows CI compiles the WPF editor and related date/history checks. Game-side Data Check on a disposable MDB is still recommended after writing an unfamiliar TEW contract value or renaming a historical `RecordName`.
+
 ## Worker Attributes and Employment History
 
 The Workers workspace now exposes separate **Attributes** and **Employment History** tabs.
