@@ -290,6 +290,7 @@ public partial class MainWindow
         employmentEditor.Children.Add(_employmentDelete);
         BuildExtraSection(EmploymentHost, "Employment History", _employmentGrid,
             employmentEditor, out _employmentSummary);
+        InitializeWorkerContractsUI();
     }
 
     private CheckBox ExtraFlag(string name, Panel panel)
@@ -387,6 +388,7 @@ public partial class MainWindow
         {
             _attributesGrid.ItemsSource = null;
             _employmentGrid.ItemsSource = null;
+            ResetWorkerContractsUI();
             _attributeName.ItemsSource = null;
             _attributeName.Text = "";
             _attributeHidden.IsChecked = _attributePermanent.IsChecked = false;
@@ -411,6 +413,11 @@ public partial class MainWindow
         if (_session == null || _worker == null) return;
         try
         {
+            if (tab == "Contracts")
+            {
+                RefreshWorkerContracts();
+                return;
+            }
             if (tab == "Attributes")
             {
                 var records = _session.ReadWorkerAttributes(_worker.Id);
@@ -511,6 +518,7 @@ public partial class MainWindow
     {
         if (_settingWorkerExtraForm || _worker == null || _attributesGrid == null)
             return false;
+        if (_currentTab == "Contracts") return HasUnappliedContractEdits();
         if (_currentTab == "Attributes")
         {
             var entry = _attributesGrid.SelectedItem as WorkerAttributeEntry;
