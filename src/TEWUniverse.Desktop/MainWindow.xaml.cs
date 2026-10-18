@@ -120,7 +120,7 @@ public partial class MainWindow : Window
     {
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null && (_activeModule == "Workers"
-            ? _worker != null && _currentTab is not ("Attributes" or "Employment")
+            ? _worker != null && _currentTab is not ("Attributes" or "Contracts" or "Employment")
             : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
@@ -548,8 +548,8 @@ public partial class MainWindow : Window
         if (sender is not Button button || button.Tag is not string tab) return;
         if (tab != _currentTab && HasUnappliedWorkerExtraForm() &&
             MessageBox.Show(this,
-                "Discard edits to this attribute or employment form? " +
-                "These linked records use their own Add / Save Selected buttons.",
+                "Discard edits to this worker's attribute, contract, or employment form? " +
+                "These records use their own Save Selected / Add controls.",
                 "Unapplied Worker Changes", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
@@ -563,13 +563,14 @@ public partial class MainWindow : Window
         ProfileView.Visibility = tab == "Profile" ? Visibility.Visible : Visibility.Collapsed;
         BiographyView.Visibility = tab == "Biography" ? Visibility.Visible : Visibility.Collapsed;
         AttributesView.Visibility = tab == "Attributes" ? Visibility.Visible : Visibility.Collapsed;
+        ContractsView.Visibility = tab == "Contracts" ? Visibility.Visible : Visibility.Collapsed;
         EmploymentView.Visibility = tab == "Employment" ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.Visibility = tab is "Skills" or "Popularity" or "Physical"
             ? Visibility.Visible : Visibility.Collapsed;
         foreach (var button in new[] { ProfileTab, SkillsTab, PopularityTab,
-            PhysicalTab, BiographyTab, AttributesTab, EmploymentTab })
+            PhysicalTab, BiographyTab, AttributesTab, ContractsTab, EmploymentTab })
             button.Style = (Style)FindResource(button.Tag as string == tab ? "BlueButton" : "ActionButton");
-        if (tab is "Attributes" or "Employment")
+        if (tab is "Attributes" or "Contracts" or "Employment")
         {
             RefreshWorkerExtraTab(tab);
             return;
