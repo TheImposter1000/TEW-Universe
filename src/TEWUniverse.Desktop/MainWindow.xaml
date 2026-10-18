@@ -136,6 +136,7 @@
         <StackPanel Margin="0,8,0,0"><Button x:Name="WorkersNav" Style="{StaticResource BlueButton}" HorizontalContentAlignment="Left" Click="WorkersNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Workers" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="CompaniesNav" Tag="Companies" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Companies" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="TitlesNav" Tag="Titles" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Titles" VerticalAlignment="Center"/></StackPanel></Button>
+<Button x:Name="TagTeamsNav" Tag="Tag Teams" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tag Teams" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="EventsNav" Tag="Events" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Events" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="StablesNav" Tag="Stables" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Stables" VerticalAlignment="Center"/></StackPanel></Button>
 <Button Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
@@ -369,6 +370,10 @@
                    ToolTip="Search existing records by name or ID"/>
           <TextBlock x:Name="ExistingCount" Foreground="{StaticResource TextBrushMuted}"
                      Text="No records loaded" FontSize="12" Margin="2,12,0,0"/>
+          <Button x:Name="CreateTagTeamButton" Content="+ Create Tag Team"
+                  Style="{StaticResource BlueButton}" Visibility="Collapsed"
+                  Click="CreateTagTeam_Click" Padding="12,9" Margin="0,15,0,0"
+                  HorizontalAlignment="Stretch"/>
          </StackPanel>
          <ListBox x:Name="ExistingList" BorderThickness="0" Background="Transparent"
                   SelectionChanged="ExistingList_SelectionChanged"
@@ -429,7 +434,8 @@
            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
             <TextBlock x:Name="ExistingFieldsTitle" Text="Editable Information"
                        FontSize="18" FontWeight="Bold"/>
-            <TextBlock Text="Edit supported title fields, including annual settings and raw numeric codes. Primary keys and unverified links remain protected."
+            <TextBlock x:Name="ExistingFieldsDescription"
+                       Text="Edit existing records. Primary keys and unverified links remain protected."
                        Foreground="{StaticResource TextBrushMuted}" FontSize="12"
                        TextWrapping="Wrap" Margin="0,6,0,0"/>
             <Border x:Name="TitleClassificationOptions" Visibility="Collapsed"
