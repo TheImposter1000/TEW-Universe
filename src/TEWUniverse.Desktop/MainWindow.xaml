@@ -116,25 +116,28 @@
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
 
-      <!-- Main navigation -->
-      <Border Grid.Column="0" Background="#101B2B" BorderBrush="#30435B" BorderThickness="0,0,1,0">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Bottom" Margin="12,10,12,18">
-            <TextBlock Text="PROJECT" Foreground="{StaticResource TextBrushMuted}" Margin="10,0,0,9"/>
-            <Button Style="{StaticResource NavigationButton}" Click="OpenProject_Click" Content="▣   Current Project"/>
-            <Button Style="{StaticResource NavigationButton}" Click="ProjectsFolder_Click" Content="▣   Project Folder"/>
-          </StackPanel>
-          <StackPanel Margin="0,11,0,0">
-            <Button x:Name="WorkersNav" Style="{StaticResource BlueButton}" Margin="8,4" Click="WorkersNav_Click" Content="♟   Workers"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="Companies" Click="FutureNav_Click" Content="▤   Companies"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="Titles" Click="FutureNav_Click" Content="♜   Titles"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="Events" Click="FutureNav_Click" Content="▦   Events"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="Stables" Click="FutureNav_Click" Content="♟   Stables"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="Relationships" Click="FutureNav_Click" Content="↔   Relationships"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="History" Click="FutureNav_Click" Content="◷   History"/>
-            <Button Style="{StaticResource NavigationButton}" Tag="Tools" Click="FutureNav_Click" Content="⚒   Tools"/>
-          </StackPanel>
-        </DockPanel>
+      <!-- Primary navigation -->
+      <Border Grid.Column="0" Background="#0D1C30" BorderBrush="#2D4965" BorderThickness="0,0,1,0">
+       <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Margin="10,10,10,16">
+         <Border BorderBrush="#365371" BorderThickness="0,1,0,0" Margin="8,0,8,18"/>
+         <TextBlock Text="PROJECT" Foreground="#8EAACA" FontSize="11" Margin="14,0,0,8"/>
+         <Button Style="{StaticResource NavigationButton}" Click="OpenProject_Click">
+          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Current Project"/></StackPanel>
+         </Button>
+         <Button Style="{StaticResource NavigationButton}" Click="ProjectsFolder_Click">
+          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Project Folder"/></StackPanel>
+         </Button>
+        </StackPanel>
+        <StackPanel Margin="0,8,0,0"><Button x:Name="WorkersNav" Style="{StaticResource BlueButton}" Click="WorkersNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Workers" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="Companies" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Companies" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="Titles" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Titles" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="Events" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Events" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="Stables" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Stables" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="History" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE81C;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="History" VerticalAlignment="Center"/></StackPanel></Button>
+<Button Tag="Tools" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tools" VerticalAlignment="Center"/></StackPanel></Button></StackPanel>
+       </DockPanel>
       </Border>
 
       <!-- Worker master list -->
