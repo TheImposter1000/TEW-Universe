@@ -1976,6 +1976,16 @@ public partial class MainWindow : Window
         {
             bool annual = IsAnnualTournament();
             TitleKindCombo.SelectedIndex = annual ? 1 : 0;
+            var format = CurrentTitleFormat();
+            TitleCompetitorCombo.SelectedIndex = (int)format - 1;
+            AdvancedPartner2Picker.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3Picker.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner2Column.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3Column.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
             TitleClassificationHelp.Text = annual
                 ? "Annual tournament: one winner per edition, no title-loss date or defences."
                 : "Championship: continuing reigns, title-loss dates and defences.";
@@ -1990,7 +2000,8 @@ public partial class MainWindow : Window
             if (_activeModule == "Titles" && _selectedExisting != null)
                 ExistingRecordSubtitle.Text =
                     $"Record ID {_selectedExisting.Id}  •  tblBelt  •  " +
-                    (annual ? "Annual Tournament (studio label)" : "Championship (studio label)");
+                    (annual ? "Annual Tournament" : "Championship") +
+                    $" / {format} (studio labels)";
         }
         finally { _loadingTitleKind = false; }
     }
@@ -2014,6 +2025,38 @@ public partial class MainWindow : Window
             if (TitleLineagePanel.Visibility == Visibility.Visible)
                 LoadTitleLineage();
             SetStatus("Saved title classification locally (not written into the MDB).");
+        }
+        catch (Exception ex)
+        {
+            UpdateTitleKindUI();
+            Error(ex);
+        }
+    }
+
+    private void TitleCompetitorCombo_SelectionChanged(object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_loadingTitleKind || _session == null || _selectedExisting == null ||
+            _activeModule != "Titles") return;
+        try
+        {
+            string format = TitleCompetitorCombo.SelectedIndex switch
+            {
+                1 => "TagTeam",
+                2 => "Trios",
+                _ => "Singles"
+            };
+            var next = _settings.Copy();
+            next.SetTitleCompetitorFormat(
+                _session.PathOnDisk, _selectedExisting.Id, format);
+            next.Save();
+            _settings = next;
+            ResetAdvancedDraft();
+            ClearGeneratedLineage();
+            UpdateTitleKindUI();
+            if (TitleLineagePanel.Visibility == Visibility.Visible)
+                LoadTitleLineage();
+            SetStatus($"Saved {format} title format locally (not written to the MDB).");
         }
         catch (Exception ex)
         {
