@@ -101,7 +101,7 @@ public partial class MainWindow : Window
     {
         if (WorkerPortraitEllipse == null) return;
         var picture = ValueFor("Picture") ?? _worker?.PictureName;
-        WorkerPortraitEllipse.Fill = Portraits.LoadBrush(picture, 260) ?? Brushes.Transparent;
+        WorkerPortraitEllipse.Fill = ((Brush?)Portraits.LoadBrush(picture, 260)) ?? Brushes.Transparent;
         WorkerPortraitEllipse.ToolTip = string.IsNullOrWhiteSpace(picture)
             ? "No picture is assigned in the MDB"
             : picture;

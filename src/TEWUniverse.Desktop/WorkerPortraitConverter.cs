@@ -25,7 +25,7 @@ public sealed class WorkerPortraitConverter : IValueConverter
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is WorkerItem worker
-            ? LoadBrush(worker.PictureName, 110) ?? Brushes.Transparent
+            ? ((Brush?)LoadBrush(worker.PictureName, 110)) ?? Brushes.Transparent
             : Brushes.Transparent;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
