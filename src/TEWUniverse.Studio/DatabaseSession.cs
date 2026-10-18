@@ -497,6 +497,23 @@ internal sealed class DatabaseSession : IDisposable
         using var tx = _connection.BeginTransaction();
         try
         {
+            // A pair is unordered in TEW; do not create a duplicate partnership
+            // for the same company (or the same verified game-wide sentinel).
+            using (var duplicatePair = new OleDbCommand(
+                "SELECT COUNT(*) FROM [tblTeam] WHERE [Fed]=? AND " +
+                "(([Worker1]=? AND [Worker2]=?) OR ([Worker1]=? AND [Worker2]=?))",
+                _connection, tx))
+            {
+                duplicatePair.Parameters.Add("company", OleDbType.Integer).Value = draft.CompanyId;
+                duplicatePair.Parameters.Add("first", OleDbType.Integer).Value = draft.Worker1;
+                duplicatePair.Parameters.Add("second", OleDbType.Integer).Value = draft.Worker2;
+                duplicatePair.Parameters.Add("reversedFirst", OleDbType.Integer).Value = draft.Worker2;
+                duplicatePair.Parameters.Add("reversedSecond", OleDbType.Integer).Value = draft.Worker1;
+                if (Convert.ToInt32(duplicatePair.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
+                    throw new InvalidOperationException(
+                        "This pair already has a team in the selected company. " +
+                        "Edit the existing tag team instead.");
+            }
             int id;
             using (var next = new OleDbCommand("SELECT MAX([UID]) FROM [tblTeam]", _connection, tx))
             {
