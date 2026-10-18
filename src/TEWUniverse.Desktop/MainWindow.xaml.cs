@@ -1519,13 +1519,21 @@ public partial class MainWindow : Window
             preview.Columns.Add("Captured", typeof(DateTime));
             preview.Columns.Add("Lost", typeof(DateTime));
             preview.Columns.Add("Defences", typeof(short));
+            if (!annualTournament)
+                preview.Columns.Add("Days held", typeof(int));
             for (int i = 0; i < proposal.Count; i++)
             {
                 var reign = proposal[i];
-                preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
-                    i > 0 ? proposal[i - 1].HolderName1 : "Inaugural",
-                    i + 1 < proposal.Count ? proposal[i + 1].HolderName1 : "End of history",
-                    reign.Captured, reign.Lost, reign.Defences);
+                var predecessor = i > 0 ? proposal[i - 1].HolderName1 : "Inaugural";
+                var successor = i + 1 < proposal.Count
+                    ? proposal[i + 1].HolderName1 : "End of history";
+                if (annualTournament)
+                    preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                        predecessor, successor, reign.Captured, reign.Lost, reign.Defences);
+                else
+                    preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                        predecessor, successor, reign.Captured, reign.Lost, reign.Defences,
+                        (reign.Lost - reign.Captured).Days + 1);
             }
             AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
             AdvancedCandidatesGrid.Items.Refresh();
@@ -1541,10 +1549,22 @@ public partial class MainWindow : Window
             AdvancedApplyButton.IsEnabled = canApply;
             AdvancedExportButton.IsEnabled = true;
             int generated = proposal.Count(r => r.Holder1 == -1);
+            string variety = "";
+            if (!annualTournament)
+            {
+                var durations = proposal.Select(r =>
+                    (r.Lost - r.Captured).Days + 1).ToArray();
+                int shortReigns = durations.Count(days => days <= 60);
+                int mediumReigns = durations.Count(days => days > 60 && days <= 365);
+                int longReigns = durations.Count(days => days > 365);
+                variety = $"{proposal.Count} total reigns: {shortReigns} at most 60 days, " +
+                    $"{mediumReigns} lasting 2–12 months, {longReigns} longer than a year. ";
+            }
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
                 $"{generated} NPC winner(s) across {firstYear}–{lastYear}. " +
+                variety +
                 $"{_advancedExistingSlots} existing title-history row(s). " +
                 (canApply
                     ? "Create Backup before rebuilding the selected championship's records."
