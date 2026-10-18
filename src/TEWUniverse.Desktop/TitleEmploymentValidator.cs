@@ -17,8 +17,11 @@ internal static class TitleEmploymentValidator
     {
         if (!companyUid.HasValue || companyUid.Value <= 0)
             return EmploymentVerification.CompanyUnknown;
+        // The caller passes captured==lost for annual Cup editions. A
+        // championship with an unknown/sentinel loss date has no verifiable
+        // full tenure; do not silently pretend it lasted only one day.
         if (lost < captured || lost.Year < 1800)
-            lost = captured; // Annual Cup edition: only the winning day matters.
+            return EmploymentVerification.Unverified;
 
         var matching = periods.Where(p => p.CompanyUid == companyUid.Value).ToArray();
         if (matching.Length == 0) return EmploymentVerification.Missing;
