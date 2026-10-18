@@ -1344,6 +1344,8 @@ public partial class MainWindow : Window
         if (_advancedConfiguredTitleId == _selectedExisting.Id) return;
         ResetAdvancedTitle();
         _advancedConfiguredTitleId = _selectedExisting.Id;
+        // A month selected for one title must not silently carry over to another.
+        AdvancedStartMonth.SelectedIndex = 0;
         var history = _session.ReadTitleLineage(_selectedExisting.Id);
         if (history.LinkField == null)
         {
@@ -1610,9 +1612,14 @@ public partial class MainWindow : Window
                 chronologyNotes = aligned.Notes;
             }
 
+            // January preserves previous generator behavior when unspecified.
+            // The month is relevant only to continuing championship histories;
+            // annual cups already use their separate recurring event month.
+            int startMonth = !annualTournament && AdvancedStartMonth.SelectedIndex > 0
+                ? AdvancedStartMonth.SelectedIndex : 1;
             var proposal = AnchoredHistoryPlanner.GenerateFromYears(
                 anchored, seeds, firstYear, lastYear,
-                annualTournament, eventMonth, eventWeek, eventWeekday);
+                annualTournament, eventMonth, eventWeek, eventWeekday, startMonth);
 
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             ResetAdvancedDraft();
@@ -1699,7 +1706,7 @@ public partial class MainWindow : Window
                 ? $"Event rule: {((ComboBoxItem)AnnualTournamentWeek.SelectedItem).Content} " +
                   $"{((ComboBoxItem)AnnualTournamentWeekday.SelectedItem).Content} of " +
                   $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(eventMonth)}. "
-                : "";
+                : $"History begins {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(startMonth)} 1, {firstYear}. ";
             string chronology = chronologyNotes.Count > 0
                 ? $"{chronologyNotes.Count} championship win(s) scheduled after recorded tournament victories. "
                 : !annualTournament && AdvancedRespectTournamentDates.IsChecked == true
@@ -1880,6 +1887,8 @@ public partial class MainWindow : Window
                 : "Championship: continuing reigns, title-loss dates and defences.";
             AnnualTournamentDateFields.Visibility = annual
                 ? Visibility.Visible : Visibility.Collapsed;
+            ChampionshipStartMonthFields.Visibility = annual
+                ? Visibility.Collapsed : Visibility.Visible;
             AdvancedRespectTournamentDates.Visibility = annual
                 ? Visibility.Collapsed : Visibility.Visible;
             AdvancedChronologyHelp.Visibility = annual

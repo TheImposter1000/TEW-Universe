@@ -666,6 +666,26 @@
                 <TextBox x:Name="AdvancedStartYear" Style="{StaticResource FormTextBox}"
                          Text="1994" Width="92" TextChanged="AdvancedInputChanged" ToolTip="The championship's first historical year"/>
                </StackPanel>
+               <StackPanel x:Name="ChampionshipStartMonthFields" Margin="0,0,12,6">
+                <TextBlock Text="Starting month (optional)" Foreground="#ADC9E8" FontSize="11"/>
+                <ComboBox x:Name="AdvancedStartMonth" Style="{StaticResource DarkComboBox}"
+                          Width="160" SelectionChanged="AdvancedCalendarChanged"
+                          ToolTip="Championship histories begin on the first of this month in the From year. Default is January.">
+                 <ComboBoxItem Content="Default (January)" IsSelected="True"/>
+                 <ComboBoxItem Content="January"/>
+                 <ComboBoxItem Content="February"/>
+                 <ComboBoxItem Content="March"/>
+                 <ComboBoxItem Content="April"/>
+                 <ComboBoxItem Content="May"/>
+                 <ComboBoxItem Content="June"/>
+                 <ComboBoxItem Content="July"/>
+                 <ComboBoxItem Content="August"/>
+                 <ComboBoxItem Content="September"/>
+                 <ComboBoxItem Content="October"/>
+                 <ComboBoxItem Content="November"/>
+                 <ComboBoxItem Content="December"/>
+                </ComboBox>
+               </StackPanel>
                <StackPanel Margin="0,0,12,6">
                 <TextBlock Text="Through year" Foreground="#ADC9E8" FontSize="11"/>
                 <TextBox x:Name="AdvancedEndYear" Style="{StaticResource FormTextBox}"

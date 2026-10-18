@@ -24,7 +24,8 @@ internal static class AnchoredHistoryPlanner
         IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
         int firstYear, int lastYear, bool annualTournament = false,
         int eventMonth = 0, int eventWeek = 0,
-        DayOfWeek eventWeekday = DayOfWeek.Sunday)
+        DayOfWeek eventWeekday = DayOfWeek.Sunday,
+        int startMonth = 1)
     {
         if (firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
             throw new InvalidOperationException(
@@ -37,6 +38,9 @@ internal static class AnchoredHistoryPlanner
 
         if (annualTournament)
             _ = AnnualTournamentCalendar.ResolveDate(firstYear, eventMonth, eventWeek, eventWeekday);
+        else if (startMonth is < 1 or > 12)
+            throw new InvalidOperationException(
+                "Championship history starting month must be between January (1) and December (12).");
 
         var reserved = new Dictionary<int, List<Anchor>>();
         foreach (var win in fixedWins)
@@ -64,7 +68,8 @@ internal static class AnchoredHistoryPlanner
         // Championship histories use independent, varied reign durations.
         // Only annual cups use the fixed one-winner-per-year model below.
         if (!annualTournament)
-            return GenerateVariedChampionshipReigns(fixedWins, npcNames, firstYear, lastYear);
+            return GenerateVariedChampionshipReigns(fixedWins, npcNames,
+                firstYear, lastYear, startMonth);
 
         int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
             .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
@@ -170,18 +175,18 @@ internal static class AnchoredHistoryPlanner
     /// </summary>
     private static List<GeneratedTitleReign> GenerateVariedChampionshipReigns(
         IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
-        int firstYear, int lastYear)
+        int firstYear, int lastYear, int startMonth)
     {
         const int maxReigns = 500;
         const int minimumTransitionDays = 7;
-        var firstDay = new DateTime(firstYear, 1, 1);
+        var firstDay = new DateTime(firstYear, startMonth, 1);
         var lastDay = new DateTime(lastYear, 12, 31);
 
         // Fixed winning years are preserved, but any relevant prior tournament
         // victories can move the capture date later inside that same year.
         var pinned = ChampionshipWinScheduler.Schedule(fixedWins.Select(w =>
             new ChampionshipWinScheduler.Win(w.WorkerId, w.Name, w.WinYear, w.NotBefore))
-            .ToArray()).Select(w => (w.Date, UID: w.WorkerId, w.Name)).ToList();
+            .ToArray(), firstDay).Select(w => (w.Date, UID: w.WorkerId, w.Name)).ToList();
 
         var cast = npcNames.Select(n => n.Name)
             .Where(name => !fixedWins.Any(w =>

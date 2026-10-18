@@ -10,7 +10,8 @@ internal static class ChampionshipWinScheduler
     internal sealed record Win(int WorkerId, string Name, int Year, DateTime? NotBefore = null);
     internal sealed record Scheduled(DateTime Date, int WorkerId, string Name);
 
-    internal static List<Scheduled> Schedule(IReadOnlyList<Win> wins)
+    internal static List<Scheduled> Schedule(IReadOnlyList<Win> wins,
+        DateTime? historyStart = null)
     {
         const int minimumTransitionDays = 7;
         var result = new List<Scheduled>();
@@ -19,13 +20,18 @@ internal static class ChampionshipWinScheduler
             int year = group.Key;
             if (year is < 1800 or > 2100)
                 throw new InvalidOperationException("Fixed championship wins require years between 1800 and 2100.");
-            var first = new DateTime(year, 1, 1);
+            if (historyStart.HasValue && year < historyStart.Value.Year)
+                throw new InvalidOperationException(
+                    "A fixed championship-winning year cannot precede the history start date.");
+            var first = historyStart.HasValue && year == historyStart.Value.Year
+                ? historyStart.Value.Date : new DateTime(year, 1, 1);
             var last = new DateTime(year, 12, 31);
 
             // Give workers with prior tournament victories earlier available
             // slots first, rather than allowing a later-eligible worker to
             // consume the only feasible space for an earlier-eligible winner.
-            var items = group.OrderBy(w => w.NotBefore?.Date ?? first)
+            var items = group.OrderBy(w => w.NotBefore.HasValue &&
+                    w.NotBefore.Value.Date > first ? w.NotBefore.Value.Date : first)
                 .ThenBy(w => w.WorkerId).ToArray();
             int daysInYear = (last - first).Days + 1;
             if (items.Length > daysInYear / minimumTransitionDays)
@@ -46,9 +52,10 @@ internal static class ChampionshipWinScheduler
                 var latest = last.AddDays(-minimumTransitionDays * (items.Length - i - 1));
                 if (earliest > latest)
                     throw new InvalidOperationException(
-                        $"Cannot schedule {win.Name}'s {year} championship win after the recorded " +
-                        "tournament victory while keeping the other fixed wins in that year. " +
-                        "Adjust the winning years or turn off the tournament-date constraint.");
+                        $"Cannot schedule {win.Name}'s {year} championship win within the " +
+                        "available dates. The chosen start month, tournament chronology, " +
+                        "or other fixed wins leave too little room. Adjust the start month, " +
+                        "winning years, or optional tournament-date constraint.");
 
                 int baseDay = daysInYear * (i + 1) / (items.Length + 1);
                 int jitterRange = Math.Min(21, daysInYear / (items.Length + 1) / 4);
