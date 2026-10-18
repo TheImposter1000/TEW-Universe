@@ -691,6 +691,31 @@ if (TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
 
 Console.WriteLine("Passed title-format, protected-placeholder and employment coverage checks.");
 
+// Human-readable TEW IX record names must remain deterministic for a new
+// championship lineage and for historical worker/company CV stints.
+if (StudioRecordNames.TitleHistory("BCW Championship", 1) != "BCW Championship001" ||
+    StudioRecordNames.TitleHistory("BCW Championship", 17) != "BCW Championship017" ||
+    StudioRecordNames.TitleHistory("BCW Championship", 1000) != "BCW Championship1000" ||
+    StudioRecordNames.Employment("pwa", new DateTime(2015, 6, 20),
+        new DateTime(2021, 12, 12)) != "PWA (2015-2021)" ||
+    StudioRecordNames.Employment(" NCW ", new DateTime(2008, 10, 25),
+        new DateTime(2012, 8, 18)) != "NCW (2008-2012)" ||
+    StudioRecordNames.WithCollisionSuffix("PWA (2015-2021)", 2)
+        != "PWA (2015-2021) #2")
+    throw new Exception("Championship or employment record-name format regressed.");
+
+bool invalidRecordNameRejected = false;
+try
+{
+    StudioRecordNames.Employment("PWA", new DateTime(2021, 1, 1),
+        new DateTime(2015, 1, 1));
+}
+catch (InvalidOperationException) { invalidRecordNameRejected = true; }
+if (!invalidRecordNameRejected)
+    throw new Exception("An impossible employment name date range was accepted.");
+
+Console.WriteLine("Passed TEW-style title and employment RecordName conventions.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);
