@@ -1143,6 +1143,8 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("The selected date range is too short.");
 
             var proposed = new List<GeneratedTitleReign>();
+            var reignDurations = AnchoredHistoryPlanner.AllocateVariedReignDays(days, count);
+            int elapsedDays = 0;
             int previous = -1, previousPartner = -1;
             for (int i = 0; i < count; i++)
             {
@@ -1158,12 +1160,11 @@ public partial class MainWindow : Window
                         partners = eligible.Where(w => w.Id != first.Id).ToList();
                     second = partners[Random.Shared.Next(partners.Count)];
                 }
-                int captureDays = (int)((long)i * days / count);
-                int nextDays = (int)((long)(i + 1) * days / count);
-                DateTime captured = start.AddDays(captureDays);
-                DateTime lost = start.AddDays(nextDays - 1);
-                short defences = (short)Math.Min(short.MaxValue,
-                    Math.Max(0, (nextDays - captureDays) / 45));
+                int heldDays = reignDurations[i];
+                DateTime captured = start.AddDays(elapsedDays);
+                DateTime lost = captured.AddDays(heldDays - 1);
+                elapsedDays += heldDays;
+                short defences = AnchoredHistoryPlanner.EstimateReignDefences(heldDays);
                 proposed.Add(new GeneratedTitleReign(
                     i + 1, first.Id, first.Name, second?.Id ?? 0, second?.Name ?? "",
                     captured, lost, defences));
@@ -1182,10 +1183,12 @@ public partial class MainWindow : Window
             preview.Columns.Add("Captured", typeof(DateTime));
             preview.Columns.Add("Lost", typeof(DateTime));
             preview.Columns.Add("Defences", typeof(short));
+            preview.Columns.Add("Days held", typeof(int));
             preview.Columns.Add("Worker IDs", typeof(string));
             foreach (var reign in proposed)
                 preview.Rows.Add(reign.Order, reign.HolderName1, reign.HolderName2,
                     reign.Captured, reign.Lost, reign.Defences,
+                    (reign.Lost - reign.Captured).Days + 1,
                     reign.Holder2 > 0 ? $"{reign.Holder1}, {reign.Holder2}" :
                         reign.Holder1.ToString(CultureInfo.InvariantCulture));
             TitleLineageGrid.ItemsSource = preview.DefaultView;
@@ -1197,7 +1200,8 @@ public partial class MainWindow : Window
             TitleLineageSummary.Text = $"GENERATED PREVIEW · {count} reign(s) · " +
                 $"{_existingLineageSlots} existing history slot(s) for this championship.";
             GeneratorHelp.Text = canApply
-                ? "Preview only. Replace Existing Reigns will overwrite holders, captured/lost dates, " +
+                ? "Preview only. Reign lengths and defence counts now vary. " +
+                  "Replace Existing Reigns will overwrite holders, captured/lost dates, " +
                   "and defences for this title's existing history rows, after confirmation. " +
                   "Other titles and history record IDs remain unchanged."
                 : $"This title has {_existingLineageSlots} existing lineage slot(s). " +
