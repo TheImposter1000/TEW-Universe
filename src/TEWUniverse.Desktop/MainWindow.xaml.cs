@@ -827,6 +827,255 @@ public partial class MainWindow : Window
             "Module not implemented", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+
+    private void SelectModule(string section)
+    {
+        if (_activeModule == section) return;
+        if (!MayLeave()) return;
+
+        // Confirmation to discard changes means reload the selected worker from disk
+        // when we eventually return, rather than preserving stale unsaved form text.
+        _activeModule = section;
+        bool workers = section == "Workers";
+        WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
+        WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
+        ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+
+        var navigation = new[] {
+            (Section: "Workers", Button: WorkersNav),
+            (Section: "Companies", Button: CompaniesNav),
+            (Section: "Titles", Button: TitlesNav),
+            (Section: "Events", Button: EventsNav),
+            (Section: "Stables", Button: StablesNav)
+        };
+        foreach (var item in navigation)
+        {
+            item.Button.Style = (Style)FindResource(
+                item.Section == section ? "BlueButton" : "NavigationButton");
+            item.Button.HorizontalContentAlignment = HorizontalAlignment.Left;
+        }
+
+        _existingFields.Clear();
+        _selectedExisting = null;
+        if (workers)
+        {
+            // Reset the worker editor after a confirmed discard, preserving the selection.
+            if (_worker != null) LoadWorker(_worker);
+            FilterWorkers(_worker?.Id);
+            SetStatus("Workers editor ready");
+        }
+        else
+        {
+            ExistingListTitle.Text = section == "Titles" ? "Championships" : section;
+            ExistingRecordTitle.Text = "Select an existing " +
+                (section == "Titles" ? "championship" : section.TrimEnd('s').ToLowerInvariant());
+            ExistingRecordSubtitle.Text = "All record IDs and linked references remain unchanged.";
+            ExistingFieldsTitle.Text = section + " Information";
+            ExistingFieldsPanel.Children.Clear();
+            ExistingSearch.Clear();
+            LoadExistingCatalog();
+        }
+        RefreshDirty();
+    }
+
+    private void LoadExistingCatalog()
+    {
+        _availableExistingRecords.Clear();
+        _selectedExisting = null;
+        _existingFields.Clear();
+        _suppressExistingSelection = true;
+        ExistingList.ItemsSource = null;
+        ExistingList.SelectedItem = null;
+        _suppressExistingSelection = false;
+        ExistingFieldsPanel.Children.Clear();
+        if (_session == null)
+        {
+            ExistingCount.Text = "Open an editable database to browse records.";
+            RefreshDirty();
+            return;
+        }
+        try
+        {
+            _availableExistingRecords = _session.ListExistingRecords(_activeModule);
+            FilterExistingRecords();
+            SetStatus($"Loaded {_availableExistingRecords.Count:N0} existing {_activeModule.ToLowerInvariant()}");
+        }
+        catch (Exception ex) { Error(ex); }
+        RefreshDirty();
+    }
+
+    private void ExistingSearch_TextChanged(object sender, TextChangedEventArgs e)
+        => FilterExistingRecords();
+
+    private void FilterExistingRecords(int? selectedId = null)
+    {
+        if (ExistingList == null) return;
+        var term = ExistingSearch?.Text?.Trim() ?? "";
+        var result = _availableExistingRecords.Where(x =>
+            x.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            x.Id.ToString(CultureInfo.InvariantCulture).Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        _suppressExistingSelection = true;
+        ExistingList.ItemsSource = result;
+        int? id = selectedId ?? _selectedExisting?.Id;
+        ExistingList.SelectedItem = id.HasValue
+            ? result.FirstOrDefault(x => x.Id == id.Value) : null;
+        _suppressExistingSelection = false;
+        ExistingCount.Text = $"Showing {result.Count:N0} of {_availableExistingRecords.Count:N0} records";
+    }
+
+    private void ExistingList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressExistingSelection || _session == null ||
+            ExistingList.SelectedItem is not ExistingRecordItem selected ||
+            selected.Id == _selectedExisting?.Id) return;
+
+        if (!MayLeave())
+        {
+            _suppressExistingSelection = true;
+            ExistingList.SelectedItem = _selectedExisting == null
+                ? null : ExistingList.Items.Cast<ExistingRecordItem>()
+                    .FirstOrDefault(x => x.Id == _selectedExisting.Id);
+            _suppressExistingSelection = false;
+            return;
+        }
+        LoadExistingRecord(selected);
+    }
+
+    private void LoadExistingRecord(ExistingRecordItem selected)
+    {
+        if (_session == null || !ExistingEditors.TryGet(_activeModule, out var spec)) return;
+        try
+        {
+            var record = _session.ReadExistingRecord(_activeModule, selected.Id);
+            if (!record.Exists || record.Data.Rows.Count != 1)
+                throw new InvalidOperationException("The selected record is missing from the working database.");
+
+            _selectedExisting = selected;
+            _existingFields.Clear();
+            ExistingFieldsPanel.Children.Clear();
+            ExistingRecordTitle.Text = selected.Name;
+            ExistingRecordSubtitle.Text =
+                $"Record ID {selected.Id}  •  {spec.Table}  •  Existing record only";
+            ExistingFieldsTitle.Text = _activeModule == "Titles"
+                ? "Championship Information" : _activeModule + " Information";
+
+            var row = record.Data.Rows[0];
+            foreach (var name in spec.EditableColumns)
+            {
+                if (!record.Data.Columns.Contains(name)) continue;
+                var column = record.Data.Columns[name]!;
+                if (!DatabaseSession.IsEditable(column.DataType)) continue;
+                var original = DatabaseSession.Display(row[column]);
+                var field = new FieldDraft {
+                    Table = spec.Table, Key = "UID", Column = name,
+                    ValueType = column.DataType, Original = original, Value = original
+                };
+                _existingFields.Add(field);
+                AddExistingField(field);
+            }
+            if (_existingFields.Count == 0)
+                ExistingFieldsPanel.Children.Add(new TextBlock {
+                    Text = "No approved fields are present in this database record.",
+                    Foreground = Muted, TextWrapping = TextWrapping.Wrap
+                });
+            SetStatus($"Editing existing {_activeModule.ToLowerInvariant()} record {selected.Id}");
+            RefreshDirty();
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void AddExistingField(FieldDraft field)
+    {
+        var card = new Border {
+            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#142840")!),
+            BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#304C6B")!),
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(13,10,13,12), Margin = new Thickness(0,0,0,10)
+        };
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock {
+            Text = FriendlyName(field.Column),
+            FontSize = 12, Foreground = Muted, FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0,0,0,7),
+            ToolTip = $"{field.Table}.{field.Column}"
+        });
+
+        if (field.ValueType == typeof(bool))
+        {
+            var combo = new ComboBox {
+                Style = (Style)FindResource("DarkComboBox"),
+                ItemsSource = new[] { "Yes", "No" },
+                SelectedIndex = field.Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
+                    field.Value == "1" ? 0 :
+                    field.Value.Equals("False", StringComparison.OrdinalIgnoreCase) ||
+                    field.Value == "0" ? 1 : -1,
+                ToolTip = field.Table + "." + field.Column
+            };
+            combo.SelectionChanged += (_, _) =>
+            {
+                if (combo.SelectedIndex == -1) return;
+                field.Value = combo.SelectedIndex == 0 ? "True" : "False";
+                RefreshDirty();
+            };
+            stack.Children.Add(combo);
+        }
+        else
+        {
+            bool multiline = field.Column.Equals("Profile", StringComparison.OrdinalIgnoreCase);
+            var entry = new TextBox {
+                Style = (Style)FindResource("FormTextBox"),
+                Text = field.Value,
+                TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
+                AcceptsReturn = multiline,
+                MinHeight = multiline ? 150 : 35,
+                VerticalScrollBarVisibility = multiline
+                    ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled,
+                VerticalContentAlignment = multiline
+                    ? VerticalAlignment.Top : VerticalAlignment.Center,
+                ToolTip = field.ValueType == typeof(DateTime)
+                    ? "Date format: YYYY-MM-DD (stored in the original date field)"
+                    : $"{field.Table}.{field.Column} ({field.ValueType.Name})"
+            };
+            entry.TextChanged += (_, _) =>
+            {
+                field.Value = entry.Text;
+                if (field.Column == "Name")
+                    ExistingRecordTitle.Text = string.IsNullOrWhiteSpace(field.Value)
+                        ? "(unnamed record)" : field.Value;
+                RefreshDirty();
+            };
+            stack.Children.Add(entry);
+        }
+        card.Child = stack;
+        ExistingFieldsPanel.Children.Add(card);
+    }
+
+    private void SaveExisting()
+    {
+        if (_session == null || _selectedExisting == null) return;
+        var edits = _existingFields.Where(x => x.Dirty).Select(x => x.ToEdit()).ToList();
+        if (edits.Count == 0) { SetStatus("No changes to save"); return; }
+        if (MessageBox.Show(this,
+                $"Update {edits.Count} field(s) of {_selectedExisting.Name} in the current working copy?\n\n" +
+                "The record UID stays the same. No backup is created automatically.",
+                "Confirm Existing Record Update", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+        try
+        {
+            int id = _selectedExisting.Id;
+            int updated = _session.SaveExistingRecord(_activeModule, id, edits);
+            _lastSaved = DateTime.Now;
+            _availableExistingRecords = _session.ListExistingRecords(_activeModule);
+            var refreshed = _availableExistingRecords.FirstOrDefault(x => x.Id == id);
+            if (refreshed != null) LoadExistingRecord(refreshed);
+            FilterExistingRecords(id);
+            SetStatus($"Saved {updated} {_activeModule.ToLowerInvariant()} field(s). No backup created.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
     private void Error(Exception ex)
     {
         SetStatus("Operation failed.");
