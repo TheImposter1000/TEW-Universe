@@ -20,6 +20,8 @@ The sidebar now includes **Tag Teams**, integrated into the existing three-colum
 
 This initial module must be tested in TEW IX's Data Check using a backed-up scenario before editing your main scenario. Its form fields and mappings may be adjusted as MDB-specific details are validated.
 
+**Date entry and display:** All human-facing date values now use **MM/DD/YYYY** (for example, **06/09/2002**) in worker profiles, existing-record editors, employment history, tag-team formation, championship lineage and previews, confirmation messages, and CSV exports. Date text fields validate this exact month/day/year order, including two-digit months and days; year-first **YYYY-MM-DD** input is no longer accepted. Worker date pickers remain arranged Month / Day / Year. This affects formatting only: TEW IX MDB columns still store native date values, history calculations are unchanged, and year-only history-range settings remain year-only.
+
 **Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
 
 ## Desktop application
