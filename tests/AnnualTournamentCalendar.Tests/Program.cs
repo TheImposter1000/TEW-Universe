@@ -848,6 +848,14 @@ if (!MatchIds(new WorkerFilterCriteria(CompanyUid: 200))
     !MatchIds(new WorkerFilterCriteria(Active: false))
         .SequenceEqual(new[] { 3 }))
     throw new Exception("Company, role, pictures or active-status roster filtering failed.");
+// A worker with a contract whose federation link is blank is NOT unemployed.
+var unknownFedContract = new WorkerFilterRecord(5, "Unknown company contract",
+    true, null, "", "", "", Array.Empty<string>(), Array.Empty<int>(),
+    HasCurrentContract: true);
+if (WorkerRosterFilterEngine.Matches(unknownFedContract,
+        new WorkerFilterCriteria(UnemployedOnly: true), rosterAsOf))
+    throw new Exception("Worker with a companyless active contract was misclassified as unemployed.");
+
 if (WorkerRosterFilterEngine.AgeAt(new DateTime(1987, 10, 22), rosterAsOf) != 38 ||
     WorkerRosterFilterEngine.AgeAt(new DateTime(1987, 10, 22),
         new DateTime(2026, 10, 22)) != 39 ||
