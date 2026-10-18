@@ -12,13 +12,13 @@ The redesigned Workers screen includes a sidebar, searchable worker list, real M
 
 In Titles, open **Title Lineage** to view existing pre-game reigns from `tblBeltPreHistory`, filtered by the selected championship and sorted by Order Number where the MDB schema identifies it. A Generate Title Reigns panel lets you select a pool of existing workers, reign count, years and singles/tag-team mode, then generate a dated preview and export a draft CSV. You can replace holders and dates ONLY when the selected championship already has exactly the same number of prehistory rows; this updates only that belt's existing history UIDs in one transaction. Nothing is inserted or deleted. Always back up before replacing lineage; the exported draft CSV is not a verified TEW IX import file. If the belt-reference column cannot be recognized unambiguously, the app shows diagnostic columns rather than mixing reigns across belts.
 
-**No entity insert or delete operations are performed.** Existing IDs and linked references are protected. **Save Changes** writes to the current working MDB. **Create Backup** makes an independent snapshot. **Save Copy As** creates a new working MDB at a location you choose.
+**Direct database editing:** Select an existing scenario MDB as the **Active Database**. Save Changes writes to that same file; Refresh Database reloads records added or changed externally. There is no required working copy. **Create Backup** is a separate manual snapshot. **Export Copy As** creates an independent MDB without changing the active selection. Legacy Default Database and Current Copy paths are not automatically activated after upgrading: explicitly choose the MDB you intend to edit. If the file changes externally after opening, saving is blocked until you refresh. Close TEW IX\'s database editor while using this application; do not edit the same MDB simultaneously. **No entity insert or delete operations are performed.** Existing IDs and linked references are protected.
 
 ## Distribution
 
 Get the Windows installer from [GitHub Releases](https://github.com/TheImposter1000/TEW-Universe/releases). GitHub Actions builds WPF, the installer and update agent. Microsoft ACE OLE DB for 64-bit Windows is required for Access MDB connections.
 
-Original scenario databases are never edited by Import. Credentials are not in source code; optional password remembering uses local Windows-user DPAPI encryption.
+The explicitly selected scenario database is edited directly. Credentials are not in source code; optional password remembering uses local Windows-user DPAPI encryption.
 
 See [development notes](docs/DEVELOPMENT.md) for build instructions and validation guidance.
 
