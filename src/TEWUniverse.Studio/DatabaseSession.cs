@@ -70,7 +70,7 @@ internal sealed record RecordSection(string Table, string Key, DataTable Data)
     public bool Exists => Data.Rows.Count != 0;
 }
 
-internal sealed class DatabaseSession : IDisposable
+internal sealed partial class DatabaseSession : IDisposable
 {
     private readonly string _password;
     private OleDbConnection _connection;
