@@ -810,7 +810,7 @@ public partial class MainWindow : Window
     private void WorkersNav_Click(object sender, RoutedEventArgs e)
     {
         SelectModule("Workers");
-        ShowSection(_currentTab);
+        if (_activeModule == "Workers") ShowSection(_currentTab);
     }
 
     private void FutureNav_Click(object sender, RoutedEventArgs e)

@@ -16,9 +16,17 @@ Builds on GitHub Actions also publish a separate .NET updater agent and create a
 
 The Windows release now builds `src/TEWUniverse.Desktop` using WPF. Its MainWindow provides the redesigned sidebar, searchable worker list, profile, skills, popularity, physical and biography panels, plus settings and the existing update workflow. It shares the proven database service and local preferences from `src/TEWUniverse.Studio` through linked C# files; the old WinForms UI is not shipped. Other sidebar sections are labeled unavailable until implemented.
 
+## Existing-record module expansion
+
+The integrated WPF workspace now supports repurposing **existing** company, title, event and stable entries without creating new TEW IX records. Modules use `tblFed`, `tblBelt`, `tblCard`, and `tblStable` respectively, each keyed by existing `UID`. The left browser searches names and IDs, and the right pane edits an allowlist of basic fields. **UID, company links, title holders, stable members, relationship IDs, and other unverified coded fields cannot be changed in these modules.**
+
+Permitted fields are intentionally narrow: Companies can edit Name, Initials, URL, Logo, Backdrop, Banner, Prestige, Influence, Money and Momentum. Titles can edit Name, Picture, Profile, Prestige and Active. Events can edit Name, Logo and Dormant. Stables can edit Name, Logo, Backdrop, Profile, Active and Important. All modifications still go through the existing parameterized, transactional `Save Changes` path. Backups are created only through `Create Backup`.
+
+This is not evidence that TEW IX will accept every modified value. Test with a separate copied database and TEW IX Data Check. No automatic reign insertion or creation of missing linked records is enabled.
+
 ## Scope of current MVP
 
-The editor only updates **existing** workers. It displays raw data fields where TEW-specific value mappings are not yet established. It never inserts worker records. It searches tblWorker, and reads tblWorkerSkill, tblWorkerOver, tblWorkerPhysical and tblWorkerBio via existing WorkerUID/UID keys. Linked rows that do not exist are left untouched. Company creation, title lineage generation and advanced validation are future work.
+The editor updates **existing** workers, companies, championship titles, events and stables. It displays raw data fields where TEW-specific value mappings are not yet established. It never inserts worker records. It searches tblWorker, and reads tblWorkerSkill, tblWorkerOver, tblWorkerPhysical and tblWorkerBio via existing WorkerUID/UID keys. Linked rows that do not exist are left untouched. Brand-new record creation, title lineage generation and advanced game-specific validation are not supported.
 
 ## File safety
 
@@ -59,7 +67,7 @@ First, validate existing-worker updates on a sacrificial TEW IX scenario. Then i
 
 The Windows Forms application now uses the TEW Universe dark navy and cyan workspace layout selected for Phase 1. It has module navigation, a searchable worker browser, top actions, five editor tabs, contextual summary cards, and a project footer. The browser and editor use actual TEW IX worker data, without fabricated profile values or unverified field mappings.
 
-Workers remains the only functional editor module. The Companies, Titles, Events, Stables, Storylines, Databases and Tools navigation items explicitly identify themselves as future modules. The existing database workflows are preserved: import and open copy, direct save (without automatic backups), manual Create Backup, Save copy as, settings, optional encrypted password remembering, and updater. Phase 2 will handle field-friendly controls, TEW-specific value mappings and smarter data presentation. The layout does not import or display invented wrestler images from conceptual mockups.
+Workers and four existing-record modules are functional. The legacy WinForms notes below are retained for historical context. The Companies, Titles, Events, Stables, Storylines, Databases and Tools navigation items explicitly identify themselves as future modules. The existing database workflows are preserved: import and open copy, direct save (without automatic backups), manual Create Backup, Save copy as, settings, optional encrypted password remembering, and updater. Phase 2 will handle field-friendly controls, TEW-specific value mappings and smarter data presentation. The layout does not import or display invented wrestler images from conceptual mockups.
 
 
 ## Phase 2: Existing worker data-entry improvements

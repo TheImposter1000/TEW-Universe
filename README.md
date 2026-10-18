@@ -8,9 +8,9 @@ The published Windows app now uses **WPF and .NET 8**. Its source is in `src/TEW
 
 The worker portrait feature looks for a **worker-name PNG first**, then WebP/JPEG/GIF/BMP files in that order, in the configured local pictures folder or its `People` subfolder. If no usable worker-name image exists, it falls back to the stem of the worker's `tblWorker.Picture` filename, with PNG still preferred. Missing images show the silhouette; loaded images hide the silhouette and its background, preserving PNG transparency. Portrait loading never edits the MDB or image files. WebP requires a compatible Windows image codec.
 
-The redesigned Workers screen includes a sidebar, searchable worker list, real MDB fields, biography editor and status bar. Other module navigation links are placeholders, not working editors yet.
+The redesigned Workers screen includes a sidebar, searchable worker list, real MDB fields, biography editor and status bar. Companies, Titles (championships), Events, and Stables now have existing-record editors in the same dark workspace. These sections browse existing MDB entries and allow updates to a restricted set of fields. Relationships, History and Tools remain nonfunctional placeholders until relationship and title-lineage operations are validated.
 
-**Save Changes** writes to the current working MDB. **Create Backup** makes an independent snapshot. **Save Copy As** creates a new working MDB at a location you choose.
+**No entity insert or delete operations are performed.** Existing IDs and linked references are protected. **Save Changes** writes to the current working MDB. **Create Backup** makes an independent snapshot. **Save Copy As** creates a new working MDB at a location you choose.
 
 ## Distribution
 
