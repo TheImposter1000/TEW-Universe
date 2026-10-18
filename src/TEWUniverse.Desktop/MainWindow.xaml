@@ -275,6 +275,8 @@
           <Button x:Name="BiographyTab" Style="{StaticResource ActionButton}" Content="▣   Biography" Tag="Biography" Click="Tab_Click"/>
            <Button x:Name="AttributesTab" Style="{StaticResource ActionButton}"
                    Content="◆   Attributes" Tag="Attributes" Click="Tab_Click" Margin="0,0,5,0"/>
+           <Button x:Name="ContractsTab" Style="{StaticResource ActionButton}"
+                   Content="▤   Contracts" Tag="Contracts" Click="Tab_Click" Margin="0,0,5,0"/>
            <Button x:Name="EmploymentTab" Style="{StaticResource ActionButton}"
                    Content="▣   Employment History" Tag="Employment" Click="Tab_Click"/>
         </UniformGrid>
@@ -343,6 +345,10 @@
            <Border x:Name="AttributesView" Visibility="Collapsed"
                    Style="{StaticResource CardBorder}" Padding="14">
             <Grid x:Name="AttributesHost"/>
+           </Border>
+           <Border x:Name="ContractsView" Visibility="Collapsed"
+                   Style="{StaticResource CardBorder}" Padding="14">
+            <Grid x:Name="ContractsHost"/>
            </Border>
            <Border x:Name="EmploymentView" Visibility="Collapsed"
                    Style="{StaticResource CardBorder}" Padding="14">
