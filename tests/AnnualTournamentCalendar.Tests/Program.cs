@@ -161,16 +161,23 @@ var npcSeeds = Enumerable.Range(1, 80)
     .Select(i => new NpcNameSeed($"Historical Worker {i}", null, null)).ToArray();
 var noPinnedWinners = Array.Empty<AnchoredHistoryPlanner.Anchor>();
 var juneOpening = new DateTime(2002, 6, 1);
-for (int iteration = 0; iteration < 40; iteration++)
+var variedJuneStarts = new HashSet<DateTime>();
+for (int iteration = 0; iteration < 80; iteration++)
 {
     var pwaHistory = AnchoredHistoryPlanner.GenerateFromYears(
         noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2021,
         startMonth: 6);
-    if (pwaHistory.Count == 0 || pwaHistory[0].Captured != juneOpening ||
+    if (pwaHistory.Count == 0 ||
+        pwaHistory[0].Captured.Year != 2002 ||
+        pwaHistory[0].Captured.Month != 6 ||
+        pwaHistory[0].Captured.Day <= 1 ||
         pwaHistory.Any(reign => reign.Captured < juneOpening || reign.Lost < juneOpening) ||
         pwaHistory[^1].Lost != new DateTime(2021, 12, 31))
-        throw new Exception("A June 2002 championship history started before the company opened.");
+        throw new Exception("An initial June 2002 reign did not start on a random valid June day.");
+    variedJuneStarts.Add(pwaHistory[0].Captured);
 }
+if (variedJuneStarts.Count < 5)
+    throw new Exception("The generated first championship date was not sufficiently varied.");
 
 var pinnedFoundingYear = new[]
 {
@@ -183,7 +190,8 @@ for (int iteration = 0; iteration < 40; iteration++)
     var pwaHistory = AnchoredHistoryPlanner.GenerateFromYears(
         pinnedFoundingYear, npcSeeds, firstYear: 2002, lastYear: 2003,
         startMonth: 6);
-    if (pwaHistory[0].Captured != juneOpening ||
+    if (pwaHistory[0].Captured.Month != 6 ||
+        pwaHistory[0].Captured.Day <= 1 ||
         pwaHistory.Any(reign => reign.Captured < juneOpening) ||
         !pwaHistory.Any(reign => reign.Holder1 == 100 &&
             reign.Captured.Year == 2002 &&
@@ -193,12 +201,40 @@ for (int iteration = 0; iteration < 40; iteration++)
         throw new Exception("Founding-year pinned wins ignored the start month or winning years.");
 }
 
-// Leaving the Starting Month control at its default must preserve the
-// previous January 1 behavior, including in NPC-only histories.
-var unchangedDefault = AnchoredHistoryPlanner.GenerateFromYears(
-    noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2002);
-if (unchangedDefault[0].Captured != new DateTime(2002, 1, 1))
-    throw new Exception("Default championship history no longer begins January 1.");
+// Default (January) still means the first eligible month is January,
+// but the inaugural reign must no longer be hardcoded to January 1.
+var variedJanuaryStarts = new HashSet<DateTime>();
+for (int iteration = 0; iteration < 50; iteration++)
+{
+    var defaultStart = AnchoredHistoryPlanner.GenerateFromYears(
+        noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2002);
+    if (defaultStart[0].Captured.Year != 2002 ||
+        defaultStart[0].Captured.Month != 1 ||
+        defaultStart[0].Captured.Day <= 1)
+        throw new Exception("Default championship history must begin on a random January day.");
+    variedJanuaryStarts.Add(defaultStart[0].Captured);
+}
+if (variedJanuaryStarts.Count < 5)
+    throw new Exception("Default January opening dates do not vary across previews.");
+
+// Fixed wins during the founding month bound the random inaugural capture.
+// A following real title win must never be preceded by a later NPC start.
+var earlyPinned = new[]
+{
+    new AnchoredHistoryPlanner.Anchor("Early Champion", 541, 2002,
+        2002, 2003, new DateTime(2002, 6, 2))
+};
+for (int iteration = 0; iteration < 50; iteration++)
+{
+    var earlyHistory = AnchoredHistoryPlanner.GenerateFromYears(
+        earlyPinned, npcSeeds, firstYear: 2002, lastYear: 2003,
+        startMonth: 6);
+    var real = earlyHistory.Single(r => r.Holder1 == 541);
+    if (earlyHistory[0].Captured.Month != 6 ||
+        earlyHistory[0].Captured.Day <= 1 ||
+        earlyHistory[0].Captured > real.Captured)
+        throw new Exception("Random first capture was scheduled after an early pinned June winner.");
+}
 
 // The start-month setting is deliberately separate from annual tournament
 // recurring event dates: a Cup edition still uses its chosen event week/day.
