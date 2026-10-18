@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using TEWUniverse.Studio;
@@ -24,6 +25,9 @@ public partial class MainWindow
 
     private DataGrid _employmentGrid = null!;
     private ComboBox _employmentCompany = null!;
+    private TextBox _employmentRecordName = null!;
+    private bool _employmentNameAutomatic = true;
+    private bool _settingGeneratedEmploymentName;
     private TextBox _employmentInitials = null!;
     private TextBox _employmentFrom = null!;
     private TextBox _employmentUntil = null!;
@@ -82,24 +86,66 @@ public partial class MainWindow
         Margin = new Thickness(0, 0, 0, 11)
     };
 
-    private DataGrid ExtraGrid() => new() {
-        AutoGenerateColumns = false, IsReadOnly = true,
-        SelectionMode = DataGridSelectionMode.Single,
-        CanUserAddRows = false, CanUserDeleteRows = false,
-        Background = ExtraColor("#102238"),
-        Foreground = ExtraColor("#ECF4FF"),
-        RowBackground = ExtraColor("#12253A"),
-        AlternatingRowBackground = ExtraColor("#1B324C"),
-        BorderThickness = new Thickness(0),
-        GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
-        HorizontalGridLinesBrush = ExtraColor("#314960")
-    };
+    private DataGrid ExtraGrid()
+    {
+        // Explicit header, row and cell styles prevent the WPF default
+        // white column headers / selected cells from showing through.
+        var headers = new Style(typeof(DataGridColumnHeader));
+        headers.Setters.Add(new Setter(Control.BackgroundProperty, ExtraColor("#1A3450")));
+        headers.Setters.Add(new Setter(Control.ForegroundProperty, ExtraColor("#E8F4FF")));
+        headers.Setters.Add(new Setter(Control.BorderBrushProperty, ExtraColor("#345370")));
+        headers.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0, 0, 1, 1)));
+        headers.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 8, 8, 8)));
+        headers.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
+
+        var rows = new Style(typeof(DataGridRow));
+        rows.Setters.Add(new Setter(Control.ForegroundProperty, ExtraColor("#E4F1FF")));
+        var selected = new Trigger { Property = DataGridRow.IsSelectedProperty, Value = true };
+        selected.Setters.Add(new Setter(Control.BackgroundProperty, ExtraColor("#185AA0")));
+        selected.Setters.Add(new Setter(Control.ForegroundProperty, ExtraColor("#FFFFFF")));
+        rows.Triggers.Add(selected);
+
+        var cells = new Style(typeof(DataGridCell));
+        cells.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        cells.Setters.Add(new Setter(Control.ForegroundProperty, ExtraColor("#E4F1FF")));
+        cells.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
+        cells.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 5, 8, 5)));
+        var selectedCell = new Trigger { Property = DataGridCell.IsSelectedProperty, Value = true };
+        selectedCell.Setters.Add(new Setter(Control.BackgroundProperty, ExtraColor("#185AA0")));
+        selectedCell.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+        cells.Triggers.Add(selectedCell);
+
+        return new DataGrid {
+            AutoGenerateColumns = false, IsReadOnly = true,
+            SelectionMode = DataGridSelectionMode.Single,
+            CanUserAddRows = false, CanUserDeleteRows = false,
+            Background = ExtraColor("#102238"),
+            Foreground = ExtraColor("#ECF4FF"),
+            RowBackground = ExtraColor("#12253A"),
+            AlternatingRowBackground = ExtraColor("#1B324C"),
+            BorderBrush = ExtraColor("#345370"),
+            BorderThickness = new Thickness(1),
+            GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
+            HorizontalGridLinesBrush = ExtraColor("#314960"),
+            HeadersVisibility = DataGridHeadersVisibility.Column,
+            ColumnHeaderHeight = 36, RowHeight = 36,
+            ColumnHeaderStyle = headers, RowStyle = rows, CellStyle = cells
+        };
+    }
 
     private static void TextColumn(DataGrid grid, string title, string binding,
-        DataGridLength width) =>
+        DataGridLength width)
+    {
+        var textStyle = new Style(typeof(TextBlock));
+        textStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty,
+            new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E6F3FF")!)));
+        textStyle.Setters.Add(new Setter(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center));
+        textStyle.Setters.Add(new Setter(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis));
         grid.Columns.Add(new DataGridTextColumn {
-            Header = title, Binding = new Binding(binding), Width = width
+            Header = title, Binding = new Binding(binding), Width = width,
+            ElementStyle = textStyle
         });
+    }
 
     private static void AddExtraField(StackPanel panel, UIElement caption, UIElement field)
     {
@@ -186,22 +232,43 @@ public partial class MainWindow
             attrEditor, out _attributeSummary);
 
         _employmentGrid = ExtraGrid();
-        TextColumn(_employmentGrid, "Company", "Company", new DataGridLength(1, DataGridLengthUnitType.Star));
+        TextColumn(_employmentGrid, "Record name", "Entry.RecordName",
+            new DataGridLength(1.3, DataGridLengthUnitType.Star));
+        TextColumn(_employmentGrid, "Company", "Company", new DataGridLength(1.15, DataGridLengthUnitType.Star));
         TextColumn(_employmentGrid, "From", "FromText", new DataGridLength(103));
         TextColumn(_employmentGrid, "Until", "UntilText", new DataGridLength(103));
         TextColumn(_employmentGrid, "Arrangement", "Type", new DataGridLength(120));
         _employmentGrid.SelectionChanged += EmploymentSelectionChanged;
         var employmentEditor = new StackPanel { Margin = new Thickness(1, 0, 8, 6) };
         employmentEditor.Children.Add(ExtraLabel("Employment period", true));
+        _employmentRecordName = ExtraTextBox();
+        _employmentRecordName.TextChanged += EmploymentRecordNameChanged;
+        var recordHeading = new DockPanel();
+        var generateName = ExtraButton("Generate name", false, GenerateEmploymentName_Click);
+        generateName.Padding = new Thickness(8, 5, 8, 5);
+        generateName.Margin = new Thickness(0, 0, 0, 5);
+        DockPanel.SetDock(generateName, Dock.Right);
+        recordHeading.Children.Add(generateName);
+        recordHeading.Children.Add(ExtraLabel("Record name (editable)"));
+        AddExtraField(employmentEditor, recordHeading, _employmentRecordName);
+        employmentEditor.Children.Add(new TextBlock {
+            Text = "Example: PWA (2015-2021). Generated from initials and dates; you can edit it.",
+            Foreground = ExtraColor("#93B4D5"), FontSize = 11,
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -5, 0, 11)
+        });
         _employmentCompany = ExtraPicker(editable: true);
+        _employmentCompany.SelectionChanged += EmploymentCompanyChanged;
         _employmentCompany.DisplayMemberPath = nameof(ExistingRecordItem.Name);
         TextSearch.SetTextPath(_employmentCompany, nameof(ExistingRecordItem.Name));
         AddExtraField(employmentEditor, ExtraLabel("Company"), _employmentCompany);
         _employmentInitials = ExtraTextBox();
+        _employmentInitials.TextChanged += EmploymentNameSourceChanged;
         AddExtraField(employmentEditor, ExtraLabel("Historical company initials"), _employmentInitials);
         _employmentFrom = ExtraTextBox();
+        _employmentFrom.TextChanged += EmploymentNameSourceChanged;
         AddExtraField(employmentEditor, ExtraLabel("From date (MM/DD/YYYY)"), _employmentFrom);
         _employmentUntil = ExtraTextBox();
+        _employmentUntil.TextChanged += EmploymentNameSourceChanged;
         AddExtraField(employmentEditor, ExtraLabel("Until date (MM/DD/YYYY)"), _employmentUntil);
         var flags = new WrapPanel { Margin = new Thickness(0, 0, 0, 13) };
         _employmentLoan = ExtraFlag("Loan", flags);
