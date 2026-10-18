@@ -406,8 +406,9 @@ public partial class MainWindow : Window
     private void AddSectionHeader(StackPanel panel, string title)
     {
         panel.Children.Add(new TextBlock {
-            Text = title, FontSize = 14, FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 16, 0, 12)
+            Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 13, 0, 13),
+            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D5E6FB")!)
         });
     }
 
@@ -417,25 +418,56 @@ public partial class MainWindow : Window
         var profile = _fields.Where(x => x.Table == "tblWorker").ToList();
         if (profile.Count == 0)
         {
-            AddSectionHeader(ProfileFieldsPanel, "No profile record found for this worker.");
+            AddSectionHeader(ProfileFieldsPanel, "No profile record is available for this worker.");
             return;
         }
-        // Prioritize known frequently edited columns while still exposing every editable column.
-        var priority = new[] { "Name", "Shortname", "Gender", "Birthday",
-            "Nationality", "Based_In", "Active", "Style", "DebutDate" };
-        var first = profile.Where(x => priority.Contains(x.Column, StringComparer.OrdinalIgnoreCase))
-            .OrderBy(x => Array.FindIndex(priority,
-                p => p.Equals(x.Column, StringComparison.OrdinalIgnoreCase))).ToList();
-        if (first.Count > 0)
+        // The approved mockup groups common worker fields first, then provides
+        // a separate Additional Details section, then opt-in advanced columns.
+        // This retains full editing access without a wall of raw MDB columns.
+        var core = new[] { "Name", "Gender", "Birthday", "Nationality", "Based_In", "Active", "Style" };
+        var details = new[] { "Shortname", "ShortName", "AlsoKnownAs", "CommentaryName",
+            "RetirementDate", "DebutDate" };
+        var coreFields = core.Select(name => profile.FirstOrDefault(x =>
+            x.Column.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            .Where(x => x != null).Cast<FieldDraft>().Distinct().ToList();
+        var detailFields = details.Select(name => profile.FirstOrDefault(x =>
+            x.Column.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            .Where(x => x != null && !coreFields.Contains(x)).Cast<FieldDraft>()
+            .Distinct().ToList();
+
+        foreach (var field in coreFields) AddField(ProfileFieldsPanel, field);
+        if (detailFields.Count > 0)
         {
-            AddSectionHeader(ProfileFieldsPanel, "Core fields");
-            foreach (var item in first) AddField(ProfileFieldsPanel, item);
+            ProfileFieldsPanel.Children.Add(new Border {
+                Height = 1, Background = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString("#38506A")!),
+                Margin = new Thickness(0,18,0,5)
+            });
+            AddSectionHeader(ProfileFieldsPanel, "◈   Additional Details");
+            foreach (var field in detailFields) AddField(ProfileFieldsPanel, field);
         }
-        var others = profile.Except(first).ToList();
-        if (others.Count > 0)
+
+        var advanced = profile.Except(coreFields).Except(detailFields).ToList();
+        if (advanced.Count > 0)
         {
-            AddSectionHeader(ProfileFieldsPanel, "Additional TEW IX fields");
-            foreach (var item in others) AddField(ProfileFieldsPanel, item);
+            var advancedFields = new StackPanel { Visibility = Visibility.Collapsed };
+            foreach (var field in advanced) AddField(advancedFields, field);
+            var toggle = new Button {
+                Style = (Style)FindResource("ActionButton"),
+                Content = $"Show {advanced.Count} advanced TEW IX fields",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(0,18,0,9),
+                FontSize = 12
+            };
+            toggle.Click += (_, _) => {
+                bool showing = advancedFields.Visibility == Visibility.Visible;
+                advancedFields.Visibility = showing ? Visibility.Collapsed : Visibility.Visible;
+                toggle.Content = showing
+                    ? $"Show {advanced.Count} advanced TEW IX fields"
+                    : "Hide advanced TEW IX fields";
+            };
+            ProfileFieldsPanel.Children.Add(toggle);
+            ProfileFieldsPanel.Children.Add(advancedFields);
         }
     }
 
