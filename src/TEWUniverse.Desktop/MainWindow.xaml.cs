@@ -243,15 +243,10 @@ public partial class MainWindow : Window
     private string? ValueFor(string field) => _fields.FirstOrDefault(
         x => x.Table == "tblWorker" && x.Column.Equals(field, StringComparison.OrdinalIgnoreCase))?.Value;
 
-    private static string DisplayGender(string? value) => value switch
-    {
-        "1" => "Male", "2" => "Female",
-        null or "" => "Not recorded", _ => "Gender code " + value
-    };
-
-    // No guessing about TEW IX enum mappings. Their code remains visible to editors.
-    private static string Unmapped(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? "Not recorded" : "Code " + value + " (unmapped)";
+    // Show stored numeric codes consistently throughout the worker editor.
+    // We intentionally do not translate some TEW IX codes while leaving others raw.
+    private static string DisplayCode(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not recorded" : "Code " + value.Trim();
 
     private static DateTime? ParseStoredDate(string? raw)
         => DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) &&
@@ -286,9 +281,9 @@ public partial class MainWindow : Window
     {
         if (_worker == null) return;
         HeaderFactsPanel.Children.Clear();
-        var gender = DisplayGender(ValueFor("Gender"));
+        var gender = DisplayCode(ValueFor("Gender"));
         var dob = ParseStoredDate(ValueFor("Birthday"));
-        AddHeaderFact("\uE77B", gender);
+        AddHeaderFact("\uE77B", "Gender: " + gender);
         if (dob.HasValue)
         {
             int years = DateTime.Today.Year - dob.Value.Year;
@@ -296,9 +291,9 @@ public partial class MainWindow : Window
             AddHeaderFact("\uE787", FriendlyDate(ValueFor("Birthday")) + (years >= 0 ? $" ({years} years)" : ""));
         }
         if (ValueFor("Nationality") is string n && n.Length > 0)
-            AddHeaderFact("\uE774", "Nationality: " + Unmapped(n));
+            AddHeaderFact("\uE774", "Nationality: " + DisplayCode(n));
         if (ValueFor("Based_In") is string b && b.Length > 0)
-            AddHeaderFact("\uE80F", "Based in: " + Unmapped(b));
+            AddHeaderFact("\uE80F", "Based in: " + DisplayCode(b));
         if (ParseStoredDate(ValueFor("DebutDate")).HasValue)
             AddHeaderFact("\uE787", "Debut: " + FriendlyDate(ValueFor("DebutDate")));
 
@@ -310,9 +305,9 @@ public partial class MainWindow : Window
         {
             true => "Active", false => "Inactive", _ => "Not recorded"
         });
-        AddQuickFact("Nationality", Unmapped(ValueFor("Nationality")));
-        AddQuickFact("Based In", Unmapped(ValueFor("Based_In")));
-        AddQuickFact("Wrestling Style", Unmapped(ValueFor("Style")));
+        AddQuickFact("Nationality", DisplayCode(ValueFor("Nationality")));
+        AddQuickFact("Based In", DisplayCode(ValueFor("Based_In")));
+        AddQuickFact("Wrestling Style", DisplayCode(ValueFor("Style")));
         AddQuickFact("Debut Date", FriendlyDate(ValueFor("DebutDate")));
     }
 
@@ -329,23 +324,21 @@ public partial class MainWindow : Window
         };
         Grid.SetColumn(label, 0);
         grid.Children.Add(label);
-        bool gender = item.Table == "tblWorker" &&
-            item.Column.Equals("Gender", StringComparison.OrdinalIgnoreCase) &&
-            item.Value is "1" or "2";
-        if (item.ValueType == typeof(bool) || gender)
+        if (item.ValueType == typeof(bool))
         {
+            // True/False are Boolean values, not TEW IX enumeration codes.
             var combo = new ComboBox {
                 Style = (Style)FindResource("DarkComboBox"),
-                ItemsSource = gender ? new[] { "Male", "Female" } : new[] { "Yes", "No" },
-                SelectedIndex = gender ? item.Value == "1" ? 0 : 1 :
-                    item.Value.Equals("True", StringComparison.OrdinalIgnoreCase) || item.Value == "1" ? 0 : 1,
+                ItemsSource = new[] { "Yes", "No" },
+                SelectedIndex =
+                    item.Value.Equals("True", StringComparison.OrdinalIgnoreCase)
+                    || item.Value == "1" ? 0 : 1,
                 Height = 35,
-                ToolTip = gender ? "Stored as Gender 1 or 2 in TEW IX" : "Boolean field"
+                ToolTip = "Boolean field"
             };
             combo.SelectionChanged += (_, _) => {
                 if (combo.SelectedIndex < 0) return;
-                item.Value = gender ? (combo.SelectedIndex == 0 ? "1" : "2") :
-                    (combo.SelectedIndex == 0 ? "True" : "False");
+                item.Value = combo.SelectedIndex == 0 ? "True" : "False";
                 if (!_loading) { RefreshDirty(); BuildWorkerFacts(); }
             };
             Grid.SetColumn(combo, 1);
@@ -420,8 +413,10 @@ public partial class MainWindow : Window
                 Style = (Style)FindResource("FormTextBox"),
                 Text = item.Value,
                 ToolTip = item.Table + "." + item.Column +
-                    ((item.Column is "Nationality" or "Based_In" or "Style") ?
-                        " (TEW numerical code; label mapping not yet verified)" : "")
+                    ((item.Table == "tblWorker" && item.Column is
+                        "Gender" or "Nationality" or "Based_In" or "Style" or
+                        "Pronouns" or "Sexuality" or "CompetesAgainst") ?
+                        " (TEW numerical code; enter the stored code directly)" : "")
             };
             text.TextChanged += (_, _) => {
                 item.Value = text.Text;
@@ -434,7 +429,8 @@ public partial class MainWindow : Window
                     UpdateWorkerPortrait();
                 }
                 if (item.Table == "tblWorker" &&
-                    (item.Column == "Nationality" || item.Column == "Based_In" || item.Column == "Style"))
+                    (item.Column == "Gender" || item.Column == "Nationality" ||
+                     item.Column == "Based_In" || item.Column == "Style"))
                     BuildWorkerFacts();
                 if (item.Table == "tblWorker" && item.Column == "Picture")
                     UpdateWorkerPortrait();
