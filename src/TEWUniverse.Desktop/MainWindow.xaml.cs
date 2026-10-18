@@ -1445,6 +1445,77 @@ public partial class MainWindow : Window
         if (AdvancedApplyButton != null) ResetAdvancedDraft();
     }
 
+    private void AdvancedChronologyChanged(object sender, RoutedEventArgs e)
+    {
+        // Changing the constraints invalidates any generated but unimported history.
+        if (AdvancedApplyButton != null) ResetAdvancedDraft();
+    }
+
+    /// <summary>
+    /// Read existing wins from OTHER titles classified as Annual Tournament / Cup.
+    /// Only actual linked worker UIDs are matched. A tournament win recorded in
+    /// the SAME year as a pinned championship win is a lower-bound date, not
+    /// an assumption that winning every tournament guarantees a title reign.
+    /// </summary>
+    private (List<AnchoredHistoryPlanner.Anchor> Wins,
+        Dictionary<(int WorkerId, int Year), string> Notes)
+        ApplyTournamentChronology(IReadOnlyList<AnchoredHistoryPlanner.Anchor> anchored)
+    {
+        if (_session == null || _selectedExisting == null)
+            throw new InvalidOperationException("Select a championship before generating history.");
+
+        var wanted = anchored.Select(w => (w.WorkerId, Year: w.WinYear)).ToHashSet();
+        var constraints = new Dictionary<(int WorkerId, int Year),
+            (DateTime Date, string Title)>();
+        foreach (var tournament in _availableExistingRecords.Where(t =>
+            t.Id != _selectedExisting.Id &&
+            _settings.GetTitleDisplayKind(_session.PathOnDisk, t.Id) == "AnnualTournament"))
+        {
+            var history = _session.ReadTitleLineage(tournament.Id);
+            if (history.LinkField == null)
+                throw new InvalidOperationException(
+                    $"Cannot check tournament chronology for {tournament.Name}: {history.Message}");
+            if (!history.Rows.Columns.Contains("Holder1") ||
+                !history.Rows.Columns.Contains("BeltCaptured"))
+                throw new InvalidOperationException(
+                    $"Tournament {tournament.Name} is missing Holder1 or BeltCaptured history columns.");
+
+            foreach (DataRow row in history.Rows.Rows)
+            {
+                if (row["Holder1"] is DBNull || row["BeltCaptured"] is not DateTime captured)
+                    continue;
+                int workerId = Convert.ToInt32(row["Holder1"], CultureInfo.InvariantCulture);
+                var key = (WorkerId: workerId, Year: captured.Year);
+                if (workerId <= 0 || !wanted.Contains(key)) continue;
+
+                if (!constraints.TryGetValue(key, out var earlier) || captured.Date > earlier.Date)
+                    constraints[key] = (captured.Date, tournament.Name);
+            }
+        }
+
+        var notes = new Dictionary<(int WorkerId, int Year), string>();
+        var updated = new List<AnchoredHistoryPlanner.Anchor>(anchored.Count);
+        foreach (var win in anchored)
+        {
+            var key = (win.WorkerId, Year: win.WinYear);
+            if (!constraints.TryGetValue(key, out var earlier))
+            {
+                updated.Add(win);
+                continue;
+            }
+
+            // "Goes on to win" means after, not before or on the cup event.
+            var firstEligibleDate = earlier.Date.AddDays(1);
+            if (firstEligibleDate.Year != win.WinYear)
+                throw new InvalidOperationException(
+                    $"{win.Name} won {earlier.Title} on {earlier.Date:yyyy-MM-dd}, " +
+                    $"so a later {win.WinYear} title win cannot fit in that calendar year.");
+            updated.Add(win with { NotBefore = firstEligibleDate });
+            notes[key] = $"After {earlier.Title} ({earlier.Date:yyyy-MM-dd})";
+        }
+        return (updated, notes);
+    }
+
     private void AdvancedGenerate_Click(object sender, RoutedEventArgs e)
     {
         if (_session == null || _selectedExisting == null || _activeModule != "Titles") return;
@@ -1530,6 +1601,15 @@ public partial class MainWindow : Window
                 eventWeek = AnnualTournamentWeek.SelectedIndex + 1;
                 eventWeekday = (DayOfWeek)AnnualTournamentWeekday.SelectedIndex;
             }
+            var chronologyNotes = new Dictionary<(int WorkerId, int Year), string>();
+            if (!annualTournament && AdvancedRespectTournamentDates.IsChecked == true &&
+                anchored.Count > 0)
+            {
+                var aligned = ApplyTournamentChronology(anchored);
+                anchored = aligned.Wins;
+                chronologyNotes = aligned.Notes;
+            }
+
             var proposal = AnchoredHistoryPlanner.GenerateFromYears(
                 anchored, seeds, firstYear, lastYear,
                 annualTournament, eventMonth, eventWeek, eventWeekday);
@@ -1552,7 +1632,11 @@ public partial class MainWindow : Window
             preview.Columns.Add("Lost", typeof(DateTime));
             preview.Columns.Add("Defences", typeof(short));
             if (!annualTournament)
+            {
                 preview.Columns.Add("Days held", typeof(int));
+                if (chronologyNotes.Count > 0)
+                    preview.Columns.Add("Tournament chronology", typeof(string));
+            }
             for (int i = 0; i < proposal.Count; i++)
             {
                 var reign = proposal[i];
@@ -1562,6 +1646,14 @@ public partial class MainWindow : Window
                 if (annualTournament)
                     preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
                         predecessor, successor, reign.Captured, reign.Lost, reign.Defences);
+                else if (chronologyNotes.Count > 0)
+                {
+                    chronologyNotes.TryGetValue((reign.Holder1, reign.Captured.Year),
+                        out var source);
+                    preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                        predecessor, successor, reign.Captured, reign.Lost, reign.Defences,
+                        (reign.Lost - reign.Captured).Days + 1, source ?? "");
+                }
                 else
                     preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
                         predecessor, successor, reign.Captured, reign.Lost, reign.Defences,
@@ -1597,9 +1689,14 @@ public partial class MainWindow : Window
                   $"{((ComboBoxItem)AnnualTournamentWeekday.SelectedItem).Content} of " +
                   $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(eventMonth)}. "
                 : "";
+            string chronology = chronologyNotes.Count > 0
+                ? $"{chronologyNotes.Count} championship win(s) scheduled after recorded tournament victories. "
+                : !annualTournament && AdvancedRespectTournamentDates.IsChecked == true
+                    ? "No matching same-year tournament victories found for the selected superstars. "
+                    : "";
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
-                schedule +
+                schedule + chronology +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
                 $"{generated} NPC winner(s) across {firstYear}–{lastYear}. " +
                 variety +
@@ -1772,6 +1869,10 @@ public partial class MainWindow : Window
                 : "Championship: continuing reigns, title-loss dates and defences.";
             AnnualTournamentDateFields.Visibility = annual
                 ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedRespectTournamentDates.Visibility = annual
+                ? Visibility.Collapsed : Visibility.Visible;
+            AdvancedChronologyHelp.Visibility = annual
+                ? Visibility.Collapsed : Visibility.Visible;
             if (_activeModule == "Titles" && _selectedExisting != null)
                 ExistingRecordSubtitle.Text =
                     $"Record ID {_selectedExisting.Id}  •  tblBelt  •  " +
