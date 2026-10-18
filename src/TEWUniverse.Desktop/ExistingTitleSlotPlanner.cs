@@ -25,7 +25,8 @@ internal sealed record TitleSlotPatch(
 internal static class ExistingTitleSlotPlanner
 {
     private sealed record Wanted(TitleSlotRequest Owner, int? Year,
-        int? Days, int? Months, int? Years, int ReignIndex);
+        int? Days, int? Months, int? Years, int ReignIndex,
+        int EarliestYear, int LatestYear);
 
     private static bool SameMembers(ExistingTitleSlot slot, TitleSlotRequest request) =>
         slot.LinkedWorkers.SequenceEqual(request.WorkerIds.OrderBy(x => x));
@@ -106,7 +107,20 @@ internal static class ExistingTitleSlotPlanner
                     throw new InvalidOperationException(
                         $"{request.Name}: reign duration must be positive and within the supported range.");
             }
-            result.Add(new Wanted(request, year, days, months, years, i));
+            result.Add(new Wanted(request, year, days, months, years, i,
+                request.FirstYear, request.LastYear));
+        }
+
+        // Blank positions before / after known winning years cannot cross
+        // those pinned years. For example, '2011' followed by five omitted
+        // slots must not backdate the other five reigns into 2008–2010.
+        for (int i = 0; i < result.Count; i++)
+        {
+            int min = result.Take(i + 1).Where(w => w.Year.HasValue)
+                .Select(w => w.Year!.Value).DefaultIfEmpty(request.FirstYear).Max();
+            int max = result.Skip(i).Where(w => w.Year.HasValue)
+                .Select(w => w.Year!.Value).DefaultIfEmpty(request.LastYear).Min();
+            result[i] = result[i] with { EarliestYear = min, LatestYear = max };
         }
         return result;
     }
@@ -195,8 +209,8 @@ internal static class ExistingTitleSlotPlanner
 
         var choices = missing.Select(w => placeholders
                 .Select((slot, index) => (slot, index))
-                .Where(pair => pair.slot.Captured.Year >= w.Owner.FirstYear &&
-                    pair.slot.Captured.Year <= w.Owner.LastYear &&
+                .Where(pair => pair.slot.Captured.Year >= w.EarliestYear &&
+                    pair.slot.Captured.Year <= w.LatestYear &&
                     (!w.Year.HasValue || pair.slot.Captured.Year == w.Year.Value) &&
                     LengthMatches(pair.slot, w))
                 .OrderByDescending(pair => employmentScore?.Invoke(w.Owner, pair.slot) ?? 0)
