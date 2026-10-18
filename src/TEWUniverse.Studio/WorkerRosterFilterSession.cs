@@ -26,6 +26,12 @@ internal sealed partial class DatabaseSession
         ("Interviewer", "Interviewer")
     };
 
+    private static bool IsNumericFlag(Type type) =>
+        type == typeof(byte) || type == typeof(short) ||
+        type == typeof(int) || type == typeof(long) ||
+        type == typeof(float) || type == typeof(double) ||
+        type == typeof(decimal);
+
     /// <summary>
     /// Batch-read the same scenario data seen by the Workers editor.
     /// Company uses current tblContract links, NOT historical tblCV stints.
@@ -47,7 +53,7 @@ internal sealed partial class DatabaseSession
         var roles = KnownWorkerRoles
             .Where(role => schema.Columns.Contains(role.Column) &&
                 (schema.Columns[role.Column]!.DataType == typeof(bool) ||
-                 WorkerFieldCatalog.IsNumeric(schema.Columns[role.Column]!.DataType)))
+                 IsNumericFlag(schema.Columns[role.Column]!.DataType)))
             .ToArray();
         string? typeColumn = new[] { "WorkerType", "Worker_Type", "Role" }
             .FirstOrDefault(col => schema.Columns.Contains(col));
@@ -83,7 +89,7 @@ internal sealed partial class DatabaseSession
                     if (reader[col] is DBNull) continue;
                     var raw = reader[col];
                     bool enabled = raw is bool b ? b :
-                        WorkerFieldCatalog.IsNumeric(raw.GetType()) &&
+                        IsNumericFlag(raw.GetType()) &&
                         Convert.ToDecimal(raw, CultureInfo.InvariantCulture) != 0;
                     if (enabled) roleNames.Add(name);
                 }
