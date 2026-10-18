@@ -1635,12 +1635,12 @@ public partial class MainWindow : Window
                 }
                 try
                 {
-                    var generated = AnchoredHistoryPlanner.GenerateFromYears(
+                    var candidateHistory = AnchoredHistoryPlanner.GenerateFromYears(
                         candidate, seeds, firstYear, lastYear,
                         annualTournament, eventMonth, eventWeek, eventWeekday, startMonth);
                     anchored = candidate;
                     chronologyNotes = candidateNotes;
-                    proposal = generated;
+                    proposal = candidateHistory;
                     break;
                 }
                 catch (InvalidOperationException ex) when (attempt + 1 < attempts)
