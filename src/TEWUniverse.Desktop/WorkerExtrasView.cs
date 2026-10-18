@@ -302,6 +302,83 @@ public partial class MainWindow
         return flag;
     }
 
+    private void EmploymentRecordNameChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_settingWorkerExtraForm && !_settingGeneratedEmploymentName)
+            _employmentNameAutomatic = false;
+    }
+
+    private void EmploymentNameSourceChanged(object sender, TextChangedEventArgs e) =>
+        RefreshAutomaticEmploymentName();
+
+    private void RefreshAutomaticEmploymentName()
+    {
+        if (_settingWorkerExtraForm || !_employmentNameAutomatic ||
+            _employmentRecordName == null || _employmentFrom == null ||
+            _employmentUntil == null || _employmentInitials == null ||
+            string.IsNullOrWhiteSpace(_employmentInitials.Text) ||
+            !StudioDateFormat.TryParse(_employmentFrom.Text, out var start) ||
+            !StudioDateFormat.TryParse(_employmentUntil.Text, out var end) ||
+            end < start) return;
+        try
+        {
+            var generated = StudioRecordNames.Employment(_employmentInitials.Text, start, end);
+            _settingGeneratedEmploymentName = true;
+            _employmentRecordName.Text = generated;
+        }
+        finally { _settingGeneratedEmploymentName = false; }
+    }
+
+    private void GenerateEmploymentName_Click(object sender, RoutedEventArgs e)
+    {
+        if (_employmentInitials == null || _employmentFrom == null ||
+            _employmentUntil == null ||
+            string.IsNullOrWhiteSpace(_employmentInitials.Text) ||
+            !StudioDateFormat.TryParse(_employmentFrom.Text, out var start) ||
+            !StudioDateFormat.TryParse(_employmentUntil.Text, out var end) ||
+            end < start)
+        {
+            MessageBox.Show(this, "Enter company initials and valid From / Until " +
+                "dates in MM/DD/YYYY before generating a Record Name.");
+            return;
+        }
+        try
+        {
+            _employmentNameAutomatic = true;
+            RefreshAutomaticEmploymentName();
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void EmploymentCompanyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settingWorkerExtraForm || _session == null ||
+            _employmentCompany.SelectedItem is not ExistingRecordItem company ||
+            _employmentInitials == null) return;
+        if (string.IsNullOrWhiteSpace(_employmentInitials.Text))
+        {
+            string initials = "";
+            try
+            {
+                var record = _session.ReadExistingRecord("Companies", company.Id);
+                if (record.Data.Rows.Count > 0 &&
+                    record.Data.Columns.Contains("Initials") &&
+                    record.Data.Rows[0]["Initials"] is not DBNull)
+                    initials = Convert.ToString(record.Data.Rows[0]["Initials"],
+                        CultureInfo.InvariantCulture)?.Trim() ?? "";
+            }
+            catch { /* fallback to letters from company name */ }
+            if (initials.Length == 0)
+                initials = string.Concat(company.Name
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(token => token.Length > 0)
+                    .Select(token => char.ToUpperInvariant(token[0])));
+            if (initials.Length > 0)
+                _employmentInitials.Text = initials;
+        }
+        RefreshAutomaticEmploymentName();
+    }
+
     private void ResetWorkerExtras()
     {
         if (_attributesGrid == null) return;
@@ -315,6 +392,8 @@ public partial class MainWindow
             _attributeHidden.IsChecked = _attributePermanent.IsChecked = false;
             _employmentCompanies.Clear();
             _employmentCompany.ItemsSource = null;
+            _employmentNameAutomatic = true;
+            _employmentRecordName.Text = "";
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
             _employmentLoan.IsChecked = _employmentTrade.IsChecked =
                 _employmentTour.IsChecked = _employmentDevelopmental.IsChecked = false;
@@ -408,6 +487,8 @@ public partial class MainWindow
         {
             var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
             _employmentSave.IsEnabled = _employmentDelete.IsEnabled = item != null;
+            _employmentNameAutomatic = item == null;
+            _employmentRecordName.Text = item?.RecordName ?? "";
             _employmentCompany.SelectedItem = item == null ? null :
                 _employmentCompanies.FirstOrDefault(c => c.Id == item.FedUid);
             _employmentInitials.Text = item?.Initials ?? "";
@@ -446,13 +527,15 @@ public partial class MainWindow
             var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
             var company = _employmentCompany.SelectedItem as ExistingRecordItem;
             if (item == null)
-                return company != null || _employmentInitials.Text.Trim().Length > 0 ||
+                return company != null || _employmentRecordName.Text.Trim().Length > 0 ||
+                    _employmentInitials.Text.Trim().Length > 0 ||
                     _employmentFrom.Text.Trim().Length > 0 ||
                     _employmentUntil.Text.Trim().Length > 0 ||
                     _employmentLoan.IsChecked == true || _employmentTrade.IsChecked == true ||
                     _employmentTour.IsChecked == true ||
                     _employmentDevelopmental.IsChecked == true;
             return company?.Id != item.FedUid ||
+                !_employmentRecordName.Text.Trim().Equals(item.RecordName, StringComparison.Ordinal) ||
                 !_employmentInitials.Text.Trim().Equals(item.Initials, StringComparison.Ordinal) ||
                 !_employmentFrom.Text.Trim().Equals(StudioDateFormat.Format(item.FromDate), StringComparison.Ordinal) ||
                 !_employmentUntil.Text.Trim().Equals(StudioDateFormat.Format(item.UntilDate), StringComparison.Ordinal) ||
@@ -545,7 +628,8 @@ public partial class MainWindow
         return new WorkerEmploymentDraft(
             company.Id, _employmentInitials.Text.Trim(), from, until,
             _employmentLoan.IsChecked == true, _employmentTrade.IsChecked == true,
-            _employmentTour.IsChecked == true, _employmentDevelopmental.IsChecked == true);
+            _employmentTour.IsChecked == true, _employmentDevelopmental.IsChecked == true,
+            _employmentRecordName.Text.Trim(), _employmentNameAutomatic);
     }
 
     private void SaveEmploymentCore(bool createNew)
@@ -561,6 +645,7 @@ public partial class MainWindow
             if (!ConfirmExtraWrite(
                 (createNew ? "Add a new" : "Update this") +
                 $" historical employment period for {_worker.Name} at {company}?\n" +
+                $"Record Name: {(string.IsNullOrEmpty(draft.RequestedRecordName) ? "(generate)" : draft.RequestedRecordName)}\n" +
                 $"{StudioDateFormat.Format(draft.FromDate)} through {StudioDateFormat.Format(draft.UntilDate)}.\n\n" +
                 "This does not create or change an active worker contract.",
                 createNew ? "Add Employment History" : "Save Employment History")) return;
