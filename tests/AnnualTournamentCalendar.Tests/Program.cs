@@ -336,13 +336,13 @@ try
 {
     AnchoredHistoryPlanner.GenerateFromYears(new[]
     {
-        new AnchoredHistoryPlanner.Anchor("Zara Ellis", 4966, 2020,
+        new AnchoredHistoryPlanner.Anchor("Zara Ellis", 4966, 2021,
             2020, 2021, ReignDays: 719)
     }, npcSeeds, firstYear: 2020, lastYear: 2021);
 }
 catch (InvalidOperationException) { beyondHistoryRejected = true; }
 if (!beyondHistoryRejected)
-    throw new Exception("A 719-day reign was forced beyond the end of a 2021 timeline.");
+    throw new Exception("A late-2021 start was incorrectly allowed to run past the timeline end.");
 
 // Cross-title Cup victories still restrict when an exact reign may start.
 // Impossible lower and upper bounds must reject conflicting requirements.
