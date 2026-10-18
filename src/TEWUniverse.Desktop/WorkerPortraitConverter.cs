@@ -16,6 +16,8 @@ public sealed class WorkerPortraitConverter : IValueConverter
 {
     private string _folder = "";
     private readonly Dictionary<string, ImageBrush?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, bool> _pictureMatches =
+        new(StringComparer.OrdinalIgnoreCase);
     private const int MaxCachedPortraits = 250;
 
     private static readonly string[] Extensions = {
@@ -35,6 +37,22 @@ public sealed class WorkerPortraitConverter : IValueConverter
     {
         _folder = string.IsNullOrWhiteSpace(folder) ? "" : Path.GetFullPath(folder.Trim());
         _cache.Clear();
+        _pictureMatches.Clear();
+    }
+
+    /// <summary>
+    /// True when a matching portrait file exists in the configured folder
+    /// (including People), using the same name-first/MDB-fallback rules as
+    /// actual rendering. No image decoding is necessary for filtering.
+    /// </summary>
+    public bool HasPicture(string? workerName, string? databasePicture)
+    {
+        string key = (workerName ?? "") + "\u001F" + (databasePicture ?? "");
+        if (_pictureMatches.TryGetValue(key, out bool cached)) return cached;
+        bool result = _folder.Length > 0 && Directory.Exists(_folder) &&
+            CandidateFiles(workerName, databasePicture).Any();
+        _pictureMatches[key] = result;
+        return result;
     }
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
