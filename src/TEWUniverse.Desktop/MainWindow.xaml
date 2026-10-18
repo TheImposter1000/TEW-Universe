@@ -34,7 +34,7 @@
       </StackPanel>
       <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,12,0">
        <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,10,0" Foreground="#AFCBEA"/>
-       <TextBlock x:Name="ProjectPathLabel" Text="No working database open"
+       <TextBlock x:Name="ProjectPathLabel" Text="No active database open"
         Foreground="#A7BDDA" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
       </StackPanel>
       <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -62,17 +62,17 @@
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" Foreground="#32A3FF" FontSize="23" Margin="0,0,12,0"/>
               <StackPanel>
-                <TextBlock Text="Import Database" FontWeight="SemiBold"/>
-                <TextBlock Text="Create a new working copy" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
+                <TextBlock Text="Select Database" FontWeight="SemiBold"/>
+                <TextBlock Text="Edit this MDB directly" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
               </StackPanel>
             </StackPanel>
           </Button>
-          <Button Style="{StaticResource ActionButton}" Click="OpenProject_Click" Margin="0,0,9,0">
+          <Button Style="{StaticResource ActionButton}" Click="RefreshDatabase_Click" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE8A7;" FontFamily="Segoe MDL2 Assets" Foreground="#F5BC4C" FontSize="23" Margin="0,0,12,0"/>
               <StackPanel>
-                <TextBlock Text="Open Project" FontWeight="SemiBold"/>
-                <TextBlock Text="Use saved working copy" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
+                <TextBlock Text="Refresh Database" FontWeight="SemiBold"/>
+                <TextBlock Text="Reload external changes" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
               </StackPanel>
             </StackPanel>
           </Button>
@@ -81,7 +81,7 @@
               <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="24" Margin="0,0,12,0"/>
               <StackPanel>
                 <TextBlock Text="Save Changes" FontWeight="SemiBold"/>
-                <TextBlock Text="Write to working copy" FontWeight="Normal" FontSize="10"/>
+                <TextBlock Text="Write to active MDB" FontWeight="Normal" FontSize="10"/>
               </StackPanel>
             </StackPanel>
           </Button>
@@ -90,14 +90,14 @@
               <TextBlock Text="&#xE753;" FontFamily="Segoe MDL2 Assets" Foreground="#BE9CFF" FontSize="23" Margin="0,0,12,0"/>
               <StackPanel>
                 <TextBlock Text="Create Backup" FontWeight="SemiBold"/>
-                <TextBlock Text="Snapshot the saved copy" FontWeight="Normal" FontSize="10" Foreground="#C1B0EE"/>
+                <TextBlock Text="Manual snapshot of active MDB" FontWeight="Normal" FontSize="10" Foreground="#C1B0EE"/>
               </StackPanel>
             </StackPanel>
           </Button>
           <Button x:Name="SaveAsButton" Style="{StaticResource ActionButton}" Click="SaveAs_Click" IsEnabled="False" Margin="0,0,9,0">
             <StackPanel>
-              <TextBlock Text="Save Copy As..." FontWeight="SemiBold"/>
-              <TextBlock Text="New editable database" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
+              <TextBlock Text="Export Copy As..." FontWeight="SemiBold"/>
+              <TextBlock Text="Keep active MDB selected" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
             </StackPanel>
           </Button>
           <Button Style="{StaticResource ActionButton}" Click="Settings_Click" Margin="0,0,9,0">
@@ -126,11 +126,11 @@
         <StackPanel DockPanel.Dock="Bottom" Margin="10,10,10,16">
          <Border BorderBrush="#365371" BorderThickness="0,1,0,0" Margin="8,0,8,18"/>
          <TextBlock Text="PROJECT" Foreground="#8EAACA" FontSize="11" Margin="14,0,0,8"/>
-         <Button Style="{StaticResource NavigationButton}" Click="OpenProject_Click">
-          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Current Project"/></StackPanel>
+         <Button Style="{StaticResource NavigationButton}" Click="Import_Click">
+          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Select Database"/></StackPanel>
          </Button>
          <Button Style="{StaticResource NavigationButton}" Click="ProjectsFolder_Click">
-          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Project Folder"/></StackPanel>
+          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="35"/><TextBlock Text="Database Folder"/></StackPanel>
          </Button>
         </StackPanel>
         <StackPanel Margin="0,8,0,0"><Button x:Name="WorkersNav" Style="{StaticResource BlueButton}" HorizontalContentAlignment="Left" Click="WorkersNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Workers" VerticalAlignment="Center"/></StackPanel></Button>
@@ -401,7 +401,7 @@
                      TextTrimming="CharacterEllipsis" Margin="0,0,0,7"/>
           <TextBlock x:Name="ExistingRecordSubtitle" Text="Record IDs and linked references are protected."
                      Foreground="#BED5ED" FontSize="13"/>
-          <TextBlock Text="Save Changes updates the current working copy only. Create Backup is separate."
+          <TextBlock Text="Save Changes writes directly to the active MDB. Create Backup is separate."
                      Foreground="#8FE0D5" FontSize="12" TextWrapping="Wrap"
                      Margin="0,18,0,0"/>
          </StackPanel>
