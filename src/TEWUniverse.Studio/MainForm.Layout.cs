@@ -96,13 +96,32 @@ internal sealed partial class MainForm
             BackColor = Color.FromArgb(16, 30, 43),
             Padding = new Padding(10, 15, 10, 10)
         };
-        var product = new Label
+        // Official TEW Universe Studio mark, supplied with the application.
+        // Keep a text fallback for portable/dev builds missing the asset.
+        Control product;
+        var logoFile = Path.Combine(AppContext.BaseDirectory, "Brand", "tew-universe-logo.png");
+        if (File.Exists(logoFile))
         {
-            Dock = DockStyle.Top, Height = 66,
-            Text = "TEW UNIVERSE\nSTUDIO  |  TEW IX",
-            ForeColor = _light, Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            Padding = new Padding(6, 5, 0, 0)
-        };
+            using var source = Image.FromFile(logoFile);
+            product = new PictureBox
+            {
+                Dock = DockStyle.Top,
+                Height = 78,
+                Image = new Bitmap(source),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.FromArgb(16, 30, 43)
+            };
+        }
+        else
+        {
+            product = new Label
+            {
+                Dock = DockStyle.Top, Height = 66,
+                Text = "TEW UNIVERSE\nSTUDIO  |  TEW IX",
+                ForeColor = _light, Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Padding = new Padding(6, 5, 0, 0)
+            };
+        }
         var navButtons = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,

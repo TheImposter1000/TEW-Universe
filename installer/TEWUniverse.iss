@@ -22,6 +22,7 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayIcon={app}\TEWUniverse.Studio.exe
 WizardStyle=modern
+SetupIconFile=..\src\TEWUniverse.Studio\Brand\app.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 

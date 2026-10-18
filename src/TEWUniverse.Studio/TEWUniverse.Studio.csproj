@@ -8,9 +8,13 @@
     <AssemblyName>TEWUniverse.Studio</AssemblyName>
     <RootNamespace>TEWUniverse.Studio</RootNamespace>
     <Version>0.1.0</Version>
+    <ApplicationIcon>Brand\app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Data.OleDb" Version="8.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Brand\tew-universe-logo.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
