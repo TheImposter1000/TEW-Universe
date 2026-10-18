@@ -567,6 +567,15 @@ if (carsonChanges.Count != 4 ||
         p.Defences != existingReigns.Single(s => s.Uid == p.Uid).Defences))
     throw new Exception("Targeted Carson assignment overwrote a linked reign or changed history dates.");
 
+// If a previous historical author already wrote "Carson Cade" as a
+// name-only champion, link that existing name before replacing strangers.
+var namedCarson = existingReigns.ToArray();
+namedCarson[7] = namedCarson[7] with { Name1 = "Carson Cade" };
+var namedMatch = ExistingTitleSlotPlanner.Plan(namedCarson,
+    new[] { carson with { Reigns = 1 } }, TitleCompetitorFormat.Singles);
+if (namedMatch.Count != 1 || namedMatch[0].Uid != namedCarson[7].Uid)
+    throw new Exception("A pre-existing name-only Carson reign was not prioritized for linking.");
+
 // Existing Carson wins count toward the requested total of four.
 var alreadyHasTwo = existingReigns.ToArray();
 alreadyHasTwo[1] = alreadyHasTwo[1] with { Holder1 = 4966, Name1 = "Carson Cade" };
