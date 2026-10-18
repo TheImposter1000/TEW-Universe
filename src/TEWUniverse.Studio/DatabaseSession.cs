@@ -35,27 +35,47 @@ internal sealed class DatabaseSession : IDisposable
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "TEW Universe Studio", "Projects");
 
-    public static DatabaseSession ImportSource(string sourceFile, string password)
+    public static DatabaseSession ImportSource(string sourceFile, string password, string? destinationFile = null)
     {
         if (!File.Exists(sourceFile) || !sourceFile.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Select an existing .mdb file.");
-        Directory.CreateDirectory(ProjectRoot);
-        var folder = Path.Combine(ProjectRoot, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture));
-        Directory.CreateDirectory(folder);
-        var target = Path.Combine(folder, "TEW9.mdb");
+            throw new InvalidOperationException("Select an existing original .mdb file.");
+
+        string target;
+        if (string.IsNullOrWhiteSpace(destinationFile))
+        {
+            Directory.CreateDirectory(ProjectRoot);
+            var folder = Path.Combine(ProjectRoot,
+                DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture));
+            target = Path.Combine(folder, "TEW9.mdb");
+        }
+        else
+        {
+            target = Path.GetFullPath(destinationFile.Trim());
+            if (!target.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Current Copy must have the .mdb extension.");
+        }
+        if (AppSettings.SamePath(sourceFile, target))
+            throw new InvalidOperationException("The working copy cannot be the original database.");
+        if (File.Exists(target))
+            throw new InvalidOperationException(
+                "The Current Copy destination already exists. Open that working copy instead, " +
+                "or choose a different destination in Settings. Existing databases are never overwritten by Import.");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(sourceFile, target, overwrite: false);
-        try { return new DatabaseSession(target, password); }
-        catch { /* Preserve the imported working copy for troubleshooting. */ throw; }
+        // Preserve the imported copy if an Access provider refuses to connect.
+        return new DatabaseSession(target, password);
     }
 
-    public static DatabaseSession OpenWorkingCopy(string path, string password)
+    public static DatabaseSession OpenWorkingCopy(string path, string password, string? originalPath = null)
     {
-        var full = Path.GetFullPath(path);
-        var root = Path.GetFullPath(ProjectRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Only working copies inside TEW Universe Studio's Projects folder can be opened for editing. Use Import to make a copy.");
+        var full = Path.GetFullPath(path.Trim());
         if (!File.Exists(full) || !full.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("The selected working .mdb file is missing.");
+            throw new InvalidOperationException("The selected working .mdb file does not exist.");
+        if (AppSettings.SamePath(full, originalPath))
+            throw new InvalidOperationException(
+                "This file is configured as the original Default Database. " +
+                "It cannot be opened for editing. Import it to create a separate working copy.");
         return new DatabaseSession(full, password);
     }
 
@@ -138,23 +158,29 @@ internal sealed class DatabaseSession : IDisposable
         return new RecordSection(table, key, result);
     }
 
-    public string Backup()
+    public string Backup(string? customBackupFolder)
     {
-        // A backup is created with the connection closed so the copy is consistent.
-        _connection.Dispose();
-        var folder = Path.Combine(ProjectFolder, "Backups");
+        var folder = string.IsNullOrWhiteSpace(customBackupFolder)
+            ? Path.Combine(ProjectFolder, "Backups")
+            : Path.GetFullPath(customBackupFolder.Trim());
+
+        // Validate backup destination before closing the live database connection.
         Directory.CreateDirectory(folder);
-        var destination = Path.Combine(folder, "TEW9-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture) + ".mdb");
+        var destination = Path.Combine(folder,
+            Path.GetFileNameWithoutExtension(PathOnDisk) + "-" +
+            DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture) +
+            "-" + Guid.NewGuid().ToString("N")[..6] + ".mdb");
+        _connection.Dispose();
         try { File.Copy(PathOnDisk, destination, overwrite: false); }
         finally { _connection = Connect(); }
         return destination;
     }
 
-    public (int Modified, string BackupFile) Save(int workerId, IReadOnlyCollection<FieldEdit> edits)
+    public (int Modified, string BackupFile) Save(int workerId, IReadOnlyCollection<FieldEdit> edits, string? backupFolder = null)
     {
         if (edits.Count == 0) return (0, "");
-        // If backup or reopen fails, no database updates are performed.
-        var backup = Backup();
+        // No database updates are attempted unless the backup is successfully created.
+        var backup = Backup(backupFolder);
         using var transaction = _connection.BeginTransaction();
         try
         {

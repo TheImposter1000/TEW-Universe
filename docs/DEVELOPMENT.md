@@ -22,9 +22,15 @@ Import makes a fresh working copy of an .mdb file in:
 
     %LOCALAPPDATA%\TEW Universe Studio\Projects\
 
-The imported source is never edited. The app only opens editable projects under this directory. Every Save closes its database connection, copies the working file into that project's Backups folder, reopens, and performs parameterized updates within a transaction. Keep additional independent backups and never test on a live game save.
+The imported source is never edited. Settings persists three local paths in `%LOCALAPPDATA%\TEW Universe Studio\settings.json`: **Default Database** (source, read only), **Current Copy** (editable MDB opened on the next launch), and **Backup Folder** (pre-save snapshots). The user may select working copies outside the app Projects folder. The editor refuses to open the configured Default Database as a writable working copy, and importing never overwrites an existing file. Be careful when selecting a Current Copy: it must not be an original game database. Every Save closes its database connection, creates a copy in the selected backup folder (or the copy's Backups folder by default), reopens, and performs parameterized updates within a transaction. The database password is asked for every session, not saved. Keep additional independent backups and never test on a live game save.
 
 The password is provided at runtime and is not hardcoded in this source tree or stored on disk. Do **not** commit .mdb, .accdb, saved games, passwords, or developer/game assets to this public repository. The .gitignore excludes common database files, but review commits before pushing.
+
+## Settings workflow
+
+Open **Settings** from the toolbar. Set the original TEW IX MDB path, an editable current-copy MDB path, and a backup folder. The file paths persist through application updates. If Current Copy already exists, the program reopens it on startup after prompting for the database password. If you enter a *new* Current Copy path that does not yet exist, **Import TEW9.mdb** creates that file. Settings warns when using an existing editable MDB; never select the installed scenario as the working copy.
+
+Users updating from early v0.1 releases can choose their existing MDB from the original app's Projects directory as Current Copy. They do not need to import again.
 
 ## Runtime requirements
 

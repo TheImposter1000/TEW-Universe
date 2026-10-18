@@ -12,6 +12,7 @@ internal sealed class MainForm : Form
     private readonly Color _panel = Color.FromArgb(28, 39, 55);
     private readonly Color _accent = Color.FromArgb(60, 205, 171);
     private readonly Color _muted = Color.FromArgb(174, 187, 204);
+    private AppSettings _settings = AppSettings.Load();
     private DatabaseSession? _session;
     private WorkerItem? _currentWorker;
     private List<WorkerItem> _workers = new();
@@ -57,6 +58,9 @@ internal sealed class MainForm : Form
         var folder = MakeButton("Projects folder", 147);
         folder.Click += (_, _) => OpenProjectsFolder();
         bar.Controls.Add(folder);
+        var settingsButton = MakeButton("Settings", 110);
+        settingsButton.Click += (_, _) => OpenSettings();
+        bar.Controls.Add(settingsButton);
         _saveButton.Text = "Save worker changes";
         ConfigureButton(_saveButton, 190, true);
         _saveButton.Enabled = false;
@@ -156,7 +160,11 @@ internal sealed class MainForm : Form
         Controls.Add(footer);
         Controls.Add(bar);
 
-        Shown += async (_, _) => await CheckForUpdatesAsync(false);
+        Shown += async (_, _) =>
+        {
+            RestoreSavedProject();
+            await CheckForUpdatesAsync(false);
+        };
         FormClosed += (_, _) => _session?.Dispose();
     }
 
@@ -211,15 +219,38 @@ internal sealed class MainForm : Form
     private void ImportDatabase()
     {
         if (!MayReplaceProject()) return;
-        using var dlg = new OpenFileDialog { Title = "Select an original TEW IX scenario MDB", Filter = "Access database (*.mdb)|*.mdb" };
+        using var dlg = new OpenFileDialog {
+            Title = "Select an original TEW IX scenario MDB",
+            Filter = "Access database (*.mdb)|*.mdb"
+        };
+        if (File.Exists(_settings.DefaultDatabasePath))
+        {
+            dlg.FileName = _settings.DefaultDatabasePath;
+            dlg.InitialDirectory = Path.GetDirectoryName(_settings.DefaultDatabasePath);
+        }
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        string? destination = _settings.CurrentCopyPath;
+        if (!string.IsNullOrWhiteSpace(destination) && File.Exists(destination))
+        {
+            if (MessageBox.Show(this,
+                "The saved Current Copy already exists and will not be overwritten. " +
+                "Create a new working copy in the Studio Projects folder and set it as current?",
+                "Protect existing working copy", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes) return;
+            destination = null;
+        }
         var password = AskPassword(this);
         if (password == null) return;
         try
         {
-            var opened = DatabaseSession.ImportSource(dlg.FileName, password);
+            var opened = DatabaseSession.ImportSource(dlg.FileName, password, destination);
+            // Save a default source location only after a successful import.
+            _settings.DefaultDatabasePath = Path.GetFullPath(dlg.FileName);
             ReplaceSession(opened);
-            MessageBox.Show(this, "A separate working copy was created in your local Projects folder.\nYour selected original was not modified.", "Working copy ready");
+            MessageBox.Show(this,
+                "A separate persistent working copy has been created. Its path was saved in Settings.\n" +
+                "Your original TEW IX file remains untouched.", "Working copy ready");
         }
         catch (Exception ex) { ShowError(ex); }
     }
@@ -229,13 +260,78 @@ internal sealed class MainForm : Form
         if (!MayReplaceProject()) return;
         Directory.CreateDirectory(DatabaseSession.ProjectRoot);
         using var dlg = new OpenFileDialog {
-            Title = "Open an existing TEW Universe Studio working copy",
-            Filter = "Access database (*.mdb)|*.mdb", InitialDirectory = DatabaseSession.ProjectRoot
+            Title = "Open an editable working COPY (not the original game database)",
+            Filter = "Access database (*.mdb)|*.mdb",
+            InitialDirectory = File.Exists(_settings.CurrentCopyPath)
+                ? Path.GetDirectoryName(_settings.CurrentCopyPath)
+                : DatabaseSession.ProjectRoot
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (AppSettings.SamePath(dlg.FileName, _settings.DefaultDatabasePath))
+        {
+            MessageBox.Show(this, "The Default Database is protected. Import it first.", "Original protected");
+            return;
+        }
+        if (MessageBox.Show(this,
+            "Confirm that the selected file is a COPY. TEW Universe Studio will write changes to this file. " +
+            "Never select an original game scenario here.",
+            "Confirm working copy", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            return;
         var password = AskPassword(this);
         if (password == null) return;
-        try { ReplaceSession(DatabaseSession.OpenWorkingCopy(dlg.FileName, password)); }
+        try { ReplaceSession(DatabaseSession.OpenWorkingCopy(dlg.FileName, password, _settings.DefaultDatabasePath)); }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    private void OpenSettings()
+    {
+        using var dlg = new SettingsForm(_settings);
+        if (dlg.ShowDialog(this) != DialogResult.OK || dlg.ResultSettings == null) return;
+        var candidate = dlg.ResultSettings;
+        var copyChanged = !AppSettings.SamePath(_settings.CurrentCopyPath, candidate.CurrentCopyPath) &&
+            !(string.IsNullOrEmpty(_settings.CurrentCopyPath) && string.IsNullOrEmpty(candidate.CurrentCopyPath));
+        if (copyChanged && !MayReplaceProject()) return;
+        try
+        {
+            // Persist choices independently of the installed program and its updates.
+            candidate.Save();
+            _settings = candidate;
+            if (copyChanged)
+            {
+                _session?.Dispose();
+                _session = null;
+                _currentWorker = null;
+                _workers.Clear();
+                _search.Clear();
+                FilterWorkers();
+                ClearEditor();
+                RestoreSavedProject();
+            }
+            else SetStatus("Paths saved. Changes will be written to the current copy and backups to the configured folder.");
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    private void RestoreSavedProject()
+    {
+        var path = _settings.CurrentCopyPath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            SetStatus("No current copy configured. Import a database or choose one in Settings.");
+            return;
+        }
+        if (!File.Exists(path))
+        {
+            SetStatus("Saved Current Copy path was not found. Check Settings, or import the original database.");
+            return;
+        }
+        var password = AskPassword(this);
+        if (password == null)
+        {
+            SetStatus("Current Copy location remembered. Open the working project when you're ready.");
+            return;
+        }
+        try { ReplaceSession(DatabaseSession.OpenWorkingCopy(path, password, _settings.DefaultDatabasePath)); }
         catch (Exception ex) { ShowError(ex); }
     }
 
@@ -246,6 +342,8 @@ internal sealed class MainForm : Form
             var workers = opened.ListWorkers();
             _session?.Dispose();
             _session = opened;
+            _settings.CurrentCopyPath = opened.PathOnDisk;
+            _settings.Save();
             _workers = workers;
             _currentWorker = null;
             _search.Text = "";
@@ -373,7 +471,7 @@ internal sealed class MainForm : Form
                 $"Save {edits.Count} changed field(s) for {_currentWorker.Name} to the working copy?\nA new backup will be created first.",
                 "Confirm database update", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             var savedId = _currentWorker.Id;
-            var result = _session.Save(savedId, edits);
+            var result = _session.Save(savedId, edits, _settings.BackupFolderPath);
             _workers = _session.ListWorkers();
             var updated = _workers.FirstOrDefault(w => w.Id == savedId);
             if (updated != null) LoadWorker(updated);
