@@ -1782,7 +1782,7 @@ public partial class MainWindow : Window
                 ? $"Event rule: {((ComboBoxItem)AnnualTournamentWeek.SelectedItem).Content} " +
                   $"{((ComboBoxItem)AnnualTournamentWeekday.SelectedItem).Content} of " +
                   $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(eventMonth)}. "
-                : $"History begins {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(startMonth)} 1, {firstYear}. ";
+                : $"History begins {proposal[0].Captured:MMMM d, yyyy}. ";
             int protectedReigns = anchored.Count(w =>
                 w.ReignDays.HasValue || w.ReignYears.HasValue);
             string durationStatus = !annualTournament && protectedReigns > 0
