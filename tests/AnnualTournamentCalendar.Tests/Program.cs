@@ -780,9 +780,10 @@ if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 3 ||
     !brendanCv.Changes.Any(x => x.NewName == "PWA (2015-2021) #3"))
     throw new Exception("Existing Brendan employment names were not migrated or collision-safe.");
 var wholeCv = RecordNameRepairPlanner.Employment(cv, null);
-if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 4 ||
+if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 3 ||
     wholeCv.Changes.Select(x => x.NewName)
-        .Distinct(StringComparer.OrdinalIgnoreCase).Count() != wholeCv.Changes.Count)
+        .Distinct(StringComparer.OrdinalIgnoreCase).Count() != wholeCv.Changes.Count ||
+    wholeCv.Changes.Any(x => x.OwnerUid == 77))
     throw new Exception("Database-wide employment record names were not made unique.");
 
 // Special TEW 1666 sentinel / damaged historical dates cannot be guessed.
