@@ -639,7 +639,8 @@
              <StackPanel>
               <TextBlock Text="NPC HISTORY  ·  GENERATED NAMES"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="Set the history's first and last year. The app chooses NPC champions from tblGenerateWorker for every year without a fixed superstar victory. No NPC reign counts to enter."
+              <TextBlock x:Name="AdvancedNpcDescription"
+                         Text="Set the history's start and end. Championships get varied reigns lasting weeks, months or longer. Annual tournaments get one winner per year. NPC names come from tblGenerateWorker."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel>
