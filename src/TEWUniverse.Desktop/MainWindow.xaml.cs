@@ -279,12 +279,13 @@ public partial class MainWindow : Window
     private static string DisplayCode(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "Not recorded" : "Code " + value.Trim();
 
-    private static DateTime? ParseStoredDate(string? raw)
-        => DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) &&
-            d.Year is >= 1800 and <= 2200 ? d : null;
+    private static DateTime? ParseStoredDate(string? raw) =>
+        StudioDateFormat.TryParse(raw, out var d) && d.Year is >= 1800 and <= 2200
+            ? d : null;
 
     private static string FriendlyDate(string? raw) =>
-        ParseStoredDate(raw)?.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) ?? "Not recorded";
+        ParseStoredDate(raw) is DateTime date
+            ? StudioDateFormat.Format(date) : "Not recorded";
 
     private void AddHeaderFact(string glyph, string value)
     {
@@ -428,7 +429,7 @@ public partial class MainWindow : Window
                     selecting = false;
                     dd = last;
                 }
-                item.Value = new DateTime(yyyy, mm, dd).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                item.Value = StudioDateFormat.Format(new DateTime(yyyy, mm, dd));
                 RefreshDirty();
                 BuildWorkerFacts();
             }
@@ -1090,7 +1091,7 @@ public partial class MainWindow : Window
             col.MaxWidth = 230;
             if (e.PropertyType == typeof(DateTime))
                 col.Binding = new System.Windows.Data.Binding(e.PropertyName) {
-                    StringFormat = "MMM d, yyyy"
+                    StringFormat = StudioDateFormat.Pattern
                 };
         }
     }
@@ -1311,8 +1312,8 @@ public partial class MainWindow : Window
             lines.AddRange(_generatedTitleReigns.Select(r => string.Join(",",
                 Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
                 Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
-                Csv(r.Captured.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
-                Csv(r.Lost.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Csv(StudioDateFormat.Format(r.Captured)),
+                Csv(StudioDateFormat.Format(r.Lost)),
                 Csv(r.Defences))));
             File.WriteAllLines(dialog.FileName, lines, System.Text.Encoding.UTF8);
             SetStatus("Exported title-lineage draft CSV. Not verified for direct TEW IX import.");
@@ -1532,10 +1533,10 @@ public partial class MainWindow : Window
             var firstEligibleDate = earlier.Date.AddDays(1);
             if (firstEligibleDate.Year != win.WinYear)
                 throw new InvalidOperationException(
-                    $"{win.Name} won {earlier.Title} on {earlier.Date:yyyy-MM-dd}, " +
+                    $"{win.Name} won {earlier.Title} on {StudioDateFormat.Format(earlier.Date)}, " +
                     $"so a later {win.WinYear} title win cannot fit in that calendar year.");
             updated.Add(win with { NotBefore = firstEligibleDate });
-            notes[key] = $"After {earlier.Title} ({earlier.Date:yyyy-MM-dd})";
+            notes[key] = $"After {earlier.Title} ({StudioDateFormat.Format(earlier.Date)})";
         }
         return (updated, notes);
     }
@@ -1856,8 +1857,8 @@ public partial class MainWindow : Window
             lines.AddRange(_advancedDraft.Select(r => string.Join(",",
                 Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
                 Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
-                Csv(r.Captured.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
-                Csv(r.Lost.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Csv(StudioDateFormat.Format(r.Captured)),
+                Csv(StudioDateFormat.Format(r.Lost)),
                 Csv(r.Defences))));
             File.WriteAllLines(dialog.FileName, lines, System.Text.Encoding.UTF8);
             SetStatus("Exported constrained lineage as CSV (not verified as a TEW import file).");
@@ -2165,7 +2166,7 @@ public partial class MainWindow : Window
                 VerticalContentAlignment = multiline
                     ? VerticalAlignment.Top : VerticalAlignment.Center,
                 ToolTip = field.ValueType == typeof(DateTime)
-                    ? "Date format: YYYY-MM-DD (stored in the original date field)"
+                    ? "Date format: MM/DD/YYYY (stored as a native MDB date)"
                     : $"{field.Table}.{field.Column} ({field.ValueType.Name})"
             };
             entry.TextChanged += (_, _) =>
