@@ -16,8 +16,8 @@ internal static class WorkerFieldCatalog
         ["Shortname"] = "Short Name",
         ["Birthday"] = "Date of Birth",
         ["Active"] = "Active",
-        ["User"] = "User Created",
-        ["Regen"] = "Regenerated",
+        ["User"] = "User Flag",
+        ["Regen"] = "Regeneration Flag",
         ["Outsiderel"] = "Outside Relationship",
         ["CompetesAgainst"] = "Competes Against",
         ["Pronouns"] = "Pronouns",
@@ -51,7 +51,7 @@ internal static class WorkerFieldCatalog
         if (type == typeof(bool)) return raw + ". True, False, or blank (database null).";
         if (type == typeof(DateTime)) return raw + ". Date stored in the MDB.";
         if (type == typeof(string)) return raw + ". Text field.";
-        return raw + ". Original database value is preserved until edited.";
+        return IsNumeric(type) ? raw + ". Numeric value; storage type checked when saving. Original value is unchanged until edited." : raw + ". Original database value is preserved until edited.";
     }
 
     public static int ProfileOrder(string name) => name.ToLowerInvariant() switch

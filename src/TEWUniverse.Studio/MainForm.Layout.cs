@@ -237,7 +237,7 @@ internal sealed partial class MainForm
         };
         var workerHeader = new Panel
         {
-            Dock = DockStyle.Top, Height = 80,
+            Dock = DockStyle.Top, Height = 81,
             BackColor = Color.FromArgb(18, 31, 45),
             Padding = new Padding(12, 7, 10, 6)
         };
@@ -272,7 +272,7 @@ internal sealed partial class MainForm
         var profileTitle = new Label
         {
             Dock = DockStyle.Top, Height = 44,
-            Text = "PROFILE  |  EXISTING WORKER FIELDS",
+            Text = "PROFILE EDITOR  |  SAVES TO WORKING COPY",
             ForeColor = _cyan,
             Font = new Font("Segoe UI", 10, FontStyle.Bold),
             Padding = new Padding(5, 8, 0, 0)

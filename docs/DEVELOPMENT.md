@@ -65,3 +65,12 @@ The Worker Profile tab now renders the actual MDB columns as clearly labeled for
 The Skills, Popularity and Physical tabs retain their dense editable grids, but names are humanized and the source column is exposed in tooltips. Unverified enumerations such as Gender, Pronouns and Sexuality explicitly say "(code)" and stay numeric until mappings have been tested against the game; no speculative code conversion is performed. The search library now filters by the database's actual Active boolean with All, Active and Inactive filters. The profile side panel shows real worker status and a skills snapshot drawn only from recorded numeric skill fields.
 
 **Do not confuse friendly field names with game-rule validation.** TEW IX internal relationships and numeric enum meanings still need testing, and the application only edits existing worker records. Save Changes writes to Current Copy without automatic backup. Create Backup remains a separate operation.
+
+
+## Phase 2, Step 2: profile form
+
+The worker Profile tab now groups **Identity**, **Status & Dates**, **Game Codes** and **Additional Database Fields** into scrollable two-column form sections built from the actual loaded \`tblWorker\` columns. Every editing control is bound to its source MDB field, and only changed values are sent through the existing validated transactional save pipeline. Names use text inputs, Boolean values use three-state checkboxes with null support, date columns use date pickers where representable, integer values use bounded numeric inputs when non-null, and unknown or nullable numeric values use validated text fields.
+
+TEW IX's numeric enumeration meanings have not been confirmed. They are explicitly labeled as codes and remain editable as raw stored values without speculative dropdown labels. No worker creation, relationship editing, or implicit creation of missing linked rows is included. Changes still save only to the selected working copy, while **Create Backup** remains a separate manual action.
+
+Windows compilation and installer packaging are verified through GitHub Actions. Actual read/write compatibility and layout behavior still require a test with a local expendable TEW IX working-copy MDB.
