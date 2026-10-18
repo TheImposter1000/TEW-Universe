@@ -276,6 +276,65 @@ internal sealed class DatabaseSession : IDisposable
         return ReadSection(spec.Table, id);
     }
 
+    /// <summary>
+    /// Belts have many numeric switches and codes that the simple existing-record
+    /// editor previously exposed read-only. Permit supported scalar columns,
+    /// retaining primary keys, internal record names, and unknown relationships
+    /// as read-only. The two recognized linked references are checked below.
+    /// </summary>
+    public static bool CanEditTitleColumn(DataColumn column)
+    {
+        if (!IsEditable(column.DataType) || column.ReadOnly ||
+            column.AutoIncrement || !string.IsNullOrEmpty(column.Expression))
+            return false;
+
+        var field = column.ColumnName;
+        if (field.Equals("UID", StringComparison.OrdinalIgnoreCase) ||
+            field.Equals("Recordname", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Explicitly mapped relationships can be edited after verifying
+        // that their target actually exists. Other unknown relationship keys
+        // are kept read-only until their semantics can be confirmed.
+        if (field.Equals("OriginalFed", StringComparison.OrdinalIgnoreCase) ||
+            field.Equals("CardUID", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (field.EndsWith("UID", StringComparison.OrdinalIgnoreCase) ||
+            field.EndsWith("_ID", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
+    }
+
+    private void ValidateTitleReference(FieldEdit edit)
+    {
+        string? referencedTable = edit.Field switch
+        {
+            "OriginalFed" => "tblFed",
+            "CardUID" => "tblCard",
+            _ => null
+        };
+        if (referencedTable == null) return;
+
+        // Zero and -1 appear as unassigned-link sentinels in TEW databases.
+        if (!int.TryParse(edit.NewText, NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out int target))
+            throw new InvalidOperationException(
+                $"{edit.Field} must contain an existing record ID, 0, or -1.");
+        if (target is 0 or -1) return;
+        if (target < -1)
+            throw new InvalidOperationException(
+                $"{edit.Field} cannot refer to record {target}.");
+
+        using var cmd = new OleDbCommand(
+            $"SELECT COUNT(*) FROM [{referencedTable}] WHERE [UID] = ?", _connection);
+        cmd.Parameters.Add("linkedId", OleDbType.Integer).Value = target;
+        if (Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) != 1)
+            throw new InvalidOperationException(
+                $"{edit.Field} refers to ID {target}, but that record was not found in {referencedTable}. " +
+                "Choose an existing record, or use a known unassigned value.");
+    }
+
     public int SaveExistingRecord(string section, int id, IReadOnlyCollection<FieldEdit> edits)
     {
         if (!ExistingEditors.TryGet(section, out var spec))
@@ -287,14 +346,28 @@ internal sealed class DatabaseSession : IDisposable
         var sectionData = ReadSection(spec.Table, id);
         if (!sectionData.Exists || sectionData.Data.Rows.Count != 1)
             throw new InvalidOperationException("The existing record could not be found.");
-        if (edits.Any(x => !x.Table.Equals(spec.Table, StringComparison.OrdinalIgnoreCase)
-            || !x.Key.Equals("UID", StringComparison.OrdinalIgnoreCase)
-            || !allowed.Contains(x.Field)
-            || !sectionData.Data.Columns.Contains(x.Field)
-            || sectionData.Data.Columns[x.Field]!.DataType != x.FieldType))
-            throw new InvalidOperationException("Editing an ID, linked relationship, or unapproved field is blocked.");
 
-        // Reuse the established parameterized transaction without generating records.
+        foreach (var edit in edits)
+        {
+            if (!edit.Table.Equals(spec.Table, StringComparison.OrdinalIgnoreCase) ||
+                !edit.Key.Equals("UID", StringComparison.OrdinalIgnoreCase) ||
+                !sectionData.Data.Columns.Contains(edit.Field))
+                throw new InvalidOperationException(
+                    "The requested edit does not belong to the selected existing record.");
+
+            var column = sectionData.Data.Columns[edit.Field]!;
+            if (column.DataType != edit.FieldType ||
+                (section == "Titles"
+                    ? !CanEditTitleColumn(column)
+                    : !allowed.Contains(edit.Field)))
+                throw new InvalidOperationException(
+                    $"Editing {edit.Field} is not supported or would modify a protected identifier.");
+
+            if (section == "Titles")
+                ValidateTitleReference(edit);
+        }
+
+        // Parameterized transactional updates to the already-selected MDB.
         return Save(id, edits);
     }
 
