@@ -675,7 +675,9 @@ if (TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
     TitleEmploymentValidator.Check(50, new DateTime(2016, 1, 1),
         new DateTime(2016, 2, 1), new[] {
             new EmploymentWindow(50, new DateTime(2015, 1, 1), new DateTime(1666, 1, 1))
-        }) != EmploymentVerification.Unverified)
+        }) != EmploymentVerification.Unverified ||
+    TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
+        new DateTime(1666, 1, 1), employment) != EmploymentVerification.Unverified)
     throw new Exception("Title employment verification produced an unsafe result.");
 
 Console.WriteLine("Passed title-format, protected-placeholder and employment coverage checks.");
