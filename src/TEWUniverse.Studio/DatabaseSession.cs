@@ -92,7 +92,7 @@ internal sealed class DatabaseSession : IDisposable
                 catch (Exception ex)
                 {
                     cn?.Dispose();
-                    var message = ex.Message.Replace(_password, "[REDACTED]", StringComparison.Ordinal);
+                    var message = string.IsNullOrEmpty(_password) ? ex.Message : ex.Message.Replace(_password, "[REDACTED]", StringComparison.Ordinal);
                     message = message.Replace(PathOnDisk, "[DATABASE PATH]", StringComparison.OrdinalIgnoreCase);
                     failures.Add($"{provider}, connection format {variant}: {message}");
                 }
@@ -145,8 +145,8 @@ internal sealed class DatabaseSession : IDisposable
         var folder = Path.Combine(ProjectFolder, "Backups");
         Directory.CreateDirectory(folder);
         var destination = Path.Combine(folder, "TEW9-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture) + ".mdb");
-        File.Copy(PathOnDisk, destination, overwrite: false);
-        _connection = Connect();
+        try { File.Copy(PathOnDisk, destination, overwrite: false); }
+        finally { _connection = Connect(); }
         return destination;
     }
 
