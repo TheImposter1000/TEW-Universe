@@ -186,7 +186,9 @@ internal static class AnchoredHistoryPlanner
     {
         const int maxReigns = 500;
         const int minimumTransitionDays = 7;
-        var firstDay = new DateTime(firstYear, startMonth, 1);
+        // The chosen starting month is an earliest-date restriction, not
+        // a command to establish the first reign on its first calendar day.
+        var firstAllowedDay = new DateTime(firstYear, startMonth, 1);
         var lastDay = new DateTime(lastYear, 12, 31);
 
         // Fixed winning years are preserved, but any relevant prior tournament
@@ -194,7 +196,7 @@ internal static class AnchoredHistoryPlanner
         var pinned = ChampionshipWinScheduler.Schedule(fixedWins.Select(w =>
             new ChampionshipWinScheduler.Win(w.WorkerId, w.Name, w.WinYear,
                 w.NotBefore, w.ReignDays, w.ReignYears))
-            .ToArray(), firstDay, lastDay).Select(w => new ChampionshipEvent(
+            .ToArray(), firstAllowedDay, lastDay).Select(w => new ChampionshipEvent(
                 w.Date, w.WorkerId, w.Name,
                 ChampionshipWinScheduler.RequiredNextCaptureDate(w))).ToList();
 
@@ -232,6 +234,19 @@ internal static class AnchoredHistoryPlanner
                 PickNpc(events.Count == 0 ? null : events[^1].Name, upcoming),
                 ForcedNpcBridge: forcedBridge));
         }
+
+        // Prefer an unpredictable 2nd-or-later day of the opening month.
+        // If a pinned title win is already scheduled inside that month,
+        // cap the random opening at the pin so NPC history never starts
+        // after (and consequently misses) the first real champion.
+        // Only an unavoidable 1st-day pinned win can force day one.
+        int latestOpeningDay = DateTime.DaysInMonth(firstYear, startMonth);
+        if (pinned.Count > 0 && pinned[0].Date.Year == firstYear &&
+            pinned[0].Date.Month == startMonth)
+            latestOpeningDay = Math.Min(latestOpeningDay, pinned[0].Date.Day);
+        int openingDay = latestOpeningDay > 1
+            ? Random.Shared.Next(2, latestOpeningDay + 1) : 1;
+        var firstDay = new DateTime(firstYear, startMonth, openingDay);
 
         if (pinned.Count == 0 || pinned[0].Date > firstDay)
             AddNpc(firstDay, pinned.Count > 0 ? pinned[0].Name : null);
