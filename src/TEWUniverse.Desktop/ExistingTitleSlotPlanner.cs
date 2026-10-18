@@ -213,7 +213,15 @@ internal static class ExistingTitleSlotPlanner
                     pair.slot.Captured.Year <= w.LatestYear &&
                     (!w.Year.HasValue || pair.slot.Captured.Year == w.Year.Value) &&
                     LengthMatches(pair.slot, w))
-                .OrderByDescending(pair => employmentScore?.Invoke(w.Owner, pair.slot) ?? 0)
+                // If the existing history already names a worker but lacks
+                // their UID, prefer linking THAT historical reign before
+                // displacing an unrelated name-only champion.
+                .OrderByDescending(pair => new[] {
+                    pair.slot.Name1, pair.slot.Name2, pair.slot.Name3
+                }.Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Count(name => w.Owner.Names.Contains(
+                        name, StringComparer.OrdinalIgnoreCase)))
+                .ThenByDescending(pair => employmentScore?.Invoke(w.Owner, pair.slot) ?? 0)
                 .ThenBy(pair => pair.slot.Captured)
                 .Select(pair => pair.index).ToArray())
             .ToArray();
