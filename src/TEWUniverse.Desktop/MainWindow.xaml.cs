@@ -76,7 +76,7 @@ public partial class MainWindow : Window
     private void RefreshDirty()
     {
         bool dirty = HasEdits();
-        SaveButton.IsEnabled = _session != null && _worker != null && dirty;
+        SaveButton.IsEnabled = _session != null && _worker != null;
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
         WorkingText.Text = _session == null ? "No working copy" :
@@ -354,11 +354,12 @@ public partial class MainWindow : Window
                 if (!int.TryParse(year.SelectedItem as string, NumberStyles.None,
                     CultureInfo.InvariantCulture, out var yyyy))
                 {
-                    if (mm == 0 && dd == 0) item.Value = "";
+                    item.Value = "";
+                    BuildWorkerFacts();
                     RefreshDirty();
                     return;
                 }
-                if (mm == 0 || dd == 0) { RefreshDirty(); return; }
+                if (mm == 0 || dd == 0) { item.Value = ""; BuildWorkerFacts(); RefreshDirty(); return; }
                 int last = DateTime.DaysInMonth(yyyy,mm);
                 if (dd > last)
                 {
