@@ -103,7 +103,8 @@
    <Setter Property="MinHeight" Value="39"/>
   </Style>
 
-  <!-- Consistent dark dropdowns. Preserve the native SelectionBoxItem presentation and keyboard behavior. -->
+  <!-- Shared dark dropdowns: the selected-content presenter handles read-only
+       controls, while PART_EditableTextBox handles editable choices and search. -->
   <Style TargetType="ComboBoxItem">
    <Setter Property="Background" Value="#13273D"/>
    <Setter Property="Foreground" Value="#ECF4FF"/>
