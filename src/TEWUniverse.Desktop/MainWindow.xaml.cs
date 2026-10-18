@@ -1782,57 +1782,137 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// A comprehensive inspector for every extra tblBelt column. All fields
-    /// outside the fixed safe edit allowlist are read-only: showing a numeric
-    /// foreign key must never imply it can be safely reassigned.
+    /// Build real editors for all supported scalar tblBelt columns. The field
+    /// drafts join the ordinary Save Changes pipeline, so they are transactional
+    /// and included in dirty-state and navigation confirmation logic.
     /// </summary>
     private void AddExtendedTitleDetails(RecordSection record, ExistingEditorSpec spec)
     {
-        var unapproved = record.Data.Columns.Cast<DataColumn>()
+        var extra = record.Data.Columns.Cast<DataColumn>()
             .Where(c => !spec.EditableColumns.Contains(c.ColumnName,
                 StringComparer.OrdinalIgnoreCase)).ToList();
-        if (unapproved.Count == 0) return;
-        var body = new StackPanel();
-        var recordRow = record.Data.Rows[0];
-        foreach (var column in unapproved)
+        if (extra.Count == 0) return;
+
+        var editableGrid = new Grid();
+        editableGrid.ColumnDefinitions.Add(new ColumnDefinition {
+            Width = new GridLength(1, GridUnitType.Star)
+        });
+        editableGrid.ColumnDefinitions.Add(new ColumnDefinition {
+            Width = new GridLength(1, GridUnitType.Star)
+        });
+        var protectedFields = new StackPanel();
+        int editableCount = 0, lockedCount = 0;
+        var row = record.Data.Rows[0];
+        foreach (var column in extra)
         {
-            var row = new Grid { Margin = new Thickness(0,0,0,6) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(185) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            bool identity = column.ColumnName.Equals("UID", StringComparison.OrdinalIgnoreCase)
-                || column.ColumnName.EndsWith("_ID", StringComparison.OrdinalIgnoreCase)
-                || column.ColumnName.EndsWith("UID", StringComparison.OrdinalIgnoreCase);
-            var label = new TextBlock {
-                Text = FriendlyName(column.ColumnName) + (identity ? "  [linked ID]" : ""),
-                FontSize = 12, Foreground = Muted, Margin = new Thickness(0,4,10,4),
-                TextWrapping = TextWrapping.Wrap, ToolTip = "tblBelt." + column.ColumnName
-            };
-            Grid.SetColumn(label,0);
-            row.Children.Add(label);
-            string raw = DatabaseSession.Display(recordRow[column]);
-            var value = new TextBlock {
-                Text = string.IsNullOrWhiteSpace(raw) ? "—" : raw,
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DDEAFE")!),
-                FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,4,0,4),
-                ToolTip = $"{column.ColumnName} ({column.DataType.Name}) • Read-only"
-            };
-            Grid.SetColumn(value,1);
-            row.Children.Add(value);
-            body.Children.Add(row);
+            if (DatabaseSession.CanEditTitleColumn(column))
+            {
+                string original = DatabaseSession.Display(row[column]);
+                var field = new FieldDraft {
+                    Table = spec.Table, Key = "UID", Column = column.ColumnName,
+                    ValueType = column.DataType, Original = original, Value = original
+                };
+                _existingFields.Add(field);
+
+                int columnIndex = editableCount % 2;
+                int rowIndex = editableCount / 2;
+                if (columnIndex == 0)
+                    editableGrid.RowDefinitions.Add(new RowDefinition {
+                        Height = GridLength.Auto
+                    });
+
+                var cell = new StackPanel {
+                    Margin = columnIndex == 0
+                        ? new Thickness(0, 0, 8, 0)
+                        : new Thickness(8, 0, 0, 0)
+                };
+                AddExistingField(field, cell);
+                Grid.SetRow(cell, rowIndex);
+                Grid.SetColumn(cell, columnIndex);
+                editableGrid.Children.Add(cell);
+                editableCount++;
+            }
+            else
+            {
+                var grid = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+                grid.ColumnDefinitions.Add(new ColumnDefinition {
+                    Width = new GridLength(200)
+                });
+                grid.ColumnDefinitions.Add(new ColumnDefinition {
+                    Width = new GridLength(1, GridUnitType.Star)
+                });
+                bool identity = column.ColumnName.Equals("UID",
+                    StringComparison.OrdinalIgnoreCase) ||
+                    column.ColumnName.Equals("Recordname",
+                    StringComparison.OrdinalIgnoreCase);
+                var caption = new TextBlock {
+                    Text = FriendlyName(column.ColumnName) +
+                        (identity ? "  [identity]" : "  [protected]"),
+                    FontSize = 12, Foreground = Muted, TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 4, 12, 4),
+                    ToolTip = $"tblBelt.{column.ColumnName} cannot be safely changed here."
+                };
+                Grid.SetColumn(caption, 0);
+                grid.Children.Add(caption);
+                var value = new TextBlock {
+                    Text = string.IsNullOrWhiteSpace(DatabaseSession.Display(row[column]))
+                        ? "—" : DatabaseSession.Display(row[column]),
+                    FontSize = 12, Foreground = Brushes.White,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 4, 0, 4)
+                };
+                Grid.SetColumn(value, 1);
+                grid.Children.Add(value);
+                protectedFields.Children.Add(grid);
+                lockedCount++;
+            }
         }
-        var inspector = new Expander {
-            Header = $"Additional TEW IX fields  ({unapproved.Count})  ·  Read-only",
+
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock {
+            Text = $"Editable settings: {editableCount}. Values are stored directly in tblBelt.",
+            Foreground = new SolidColorBrush(
+                (Color)ColorConverter.ConvertFromString("#9AD8EE")!),
+            FontSize = 12, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
+        });
+        content.Children.Add(new TextBlock {
+            Text = "Numeric TEW IX codes are entered as stored. " +
+                "Original Fed and Card UID are validated against existing records when saved.",
+            Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 14)
+        });
+        if (editableCount > 0)
+            content.Children.Add(editableGrid);
+        if (lockedCount > 0)
+        {
+            var locked = new Expander {
+                Header = $"Protected identifiers and unknown links ({lockedCount})",
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString("#162B45")!),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 6, 0, 0),
+                Content = protectedFields
+            };
+            content.Children.Add(locked);
+        }
+
+        var editor = new Expander {
+            Header = $"Additional TEW IX title settings ({editableCount} editable)",
             Foreground = Brushes.White,
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#162B45")!),
-            Padding = new Thickness(12,10,12,10),
-            Margin = new Thickness(0,8,0,12),
-            Content = body,
-            ToolTip = "Raw fields are preserved without editing linked records or undocumented numeric codes."
+            Background = new SolidColorBrush(
+                (Color)ColorConverter.ConvertFromString("#162B45")!),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 8, 0, 12),
+            IsExpanded = true,
+            Content = content,
+            ToolTip = "Edit settings, then select Save Changes to write them to the active MDB."
         };
-        ExistingFieldsPanel.Children.Add(inspector);
+        ExistingFieldsPanel.Children.Add(editor);
     }
 
-    private void AddExistingField(FieldDraft field)
+    private void AddExistingField(FieldDraft field, Panel? host = null)
     {
         var card = new Border {
             Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#142840")!),
@@ -1895,7 +1975,7 @@ public partial class MainWindow : Window
             stack.Children.Add(entry);
         }
         card.Child = stack;
-        ExistingFieldsPanel.Children.Add(card);
+        (host ?? ExistingFieldsPanel).Children.Add(card);
     }
 
     private void SaveExisting()
@@ -1903,9 +1983,15 @@ public partial class MainWindow : Window
         if (_session == null || _selectedExisting == null) return;
         var edits = _existingFields.Where(x => x.Dirty).Select(x => x.ToEdit()).ToList();
         if (edits.Count == 0) { SetStatus("No changes to save"); return; }
+        bool changesLinks = _activeModule == "Titles" && edits.Any(x =>
+            x.Field is "OriginalFed" or "CardUID");
+        string linkWarning = changesLinks
+            ? "\n\nYou are also changing linked company/event references. " +
+              "The target IDs will be checked before saving."
+            : "";
         if (MessageBox.Show(this,
                 $"Update {edits.Count} field(s) of {_selectedExisting.Name} directly in the active MDB?\n\n" +
-                "The record UID stays the same. No backup is created automatically.",
+                "The record UID stays the same. No backup is created automatically." + linkWarning,
                 "Confirm Existing Record Update", MessageBoxButton.YesNo,
                 MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
