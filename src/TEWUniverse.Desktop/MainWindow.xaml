@@ -145,7 +145,7 @@
       </Border>
 
       <!-- Searchable, sortable worker list -->
-      <Border Grid.Column="1" Margin="10,10,7,10" Style="{StaticResource CardBorder}">
+      <Border x:Name="WorkerBrowserPanel" Grid.Column="1" Margin="10,10,7,10" Style="{StaticResource CardBorder}">
        <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
          <StackPanel Orientation="Horizontal" Margin="3,4,0,14">
@@ -214,7 +214,7 @@
       </Border>
 
       <!-- Detail editor -->
-      <Grid Grid.Column="2" Margin="4,10,11,10">
+      <Grid x:Name="WorkerDetailPanel" Grid.Column="2" Margin="4,10,11,10">
         <Grid.RowDefinitions>
           <RowDefinition Height="149"/>
           <RowDefinition Height="54"/>
@@ -346,6 +346,81 @@
             </DockPanel>
           </Border>
         </Grid>
+      </Grid>
+      <!-- Existing-record editor for companies, titles, events, and stables.
+           All fields are bound to allowlisted existing MDB records. -->
+      <Grid x:Name="ExistingWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
+            Visibility="Collapsed" Margin="10,10,11,10">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="335"/>
+        <ColumnDefinition Width="*"/>
+       </Grid.ColumnDefinitions>
+
+       <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,9,0">
+        <DockPanel Margin="14">
+         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+          <TextBlock x:Name="ExistingListTitle" Text="Existing Records"
+                     FontSize="22" FontWeight="Bold" Margin="2,2,0,9"/>
+          <TextBlock Text="Reuse existing records. IDs are preserved."
+                     Foreground="{StaticResource TextBrushMuted}"
+                     FontSize="12" TextWrapping="Wrap" Margin="2,0,0,13"/>
+          <TextBox x:Name="ExistingSearch" Style="{StaticResource SearchBox}"
+                   TextChanged="ExistingSearch_TextChanged"
+                   ToolTip="Search existing records by name or ID"/>
+          <TextBlock x:Name="ExistingCount" Foreground="{StaticResource TextBrushMuted}"
+                     Text="No records loaded" FontSize="12" Margin="2,12,0,0"/>
+         </StackPanel>
+         <ListBox x:Name="ExistingList" BorderThickness="0" Background="Transparent"
+                  SelectionChanged="ExistingList_SelectionChanged"
+                  VirtualizingStackPanel.IsVirtualizing="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling">
+          <ListBox.ItemTemplate>
+           <DataTemplate>
+            <StackPanel Margin="0,2">
+             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                        TextTrimming="CharacterEllipsis"/>
+             <TextBlock Text="{Binding Id, StringFormat=Record ID {0}}"
+                        FontSize="11" Foreground="#B1CAE8" Margin="0,4,0,0"/>
+            </StackPanel>
+           </DataTemplate>
+          </ListBox.ItemTemplate>
+         </ListBox>
+        </DockPanel>
+       </Border>
+
+       <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+         <RowDefinition Height="154"/>
+         <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="19"
+                Margin="0,0,0,10" Background="#19334D">
+         <StackPanel>
+          <TextBlock x:Name="ExistingRecordTitle" Text="Select an existing record"
+                     FontWeight="Bold" FontSize="25"
+                     TextTrimming="CharacterEllipsis" Margin="0,0,0,7"/>
+          <TextBlock x:Name="ExistingRecordSubtitle" Text="Record IDs and linked references are protected."
+                     Foreground="#BED5ED" FontSize="13"/>
+          <TextBlock Text="Save Changes updates the current working copy only. Create Backup is separate."
+                     Foreground="#8FE0D5" FontSize="12" TextWrapping="Wrap"
+                     Margin="0,18,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="17">
+         <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+           <TextBlock x:Name="ExistingFieldsTitle" Text="Editable Information"
+                      FontSize="18" FontWeight="Bold"/>
+           <TextBlock Text="Fields with unverified TEW IX enumerations or foreign keys are not offered for editing."
+                      Foreground="{StaticResource TextBrushMuted}" FontSize="12"
+                      TextWrapping="Wrap" Margin="0,6,0,0"/>
+          </StackPanel>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+           <StackPanel x:Name="ExistingFieldsPanel" Margin="0,0,12,12"/>
+          </ScrollViewer>
+         </DockPanel>
+        </Border>
+       </Grid>
       </Grid>
     </Grid>
 
