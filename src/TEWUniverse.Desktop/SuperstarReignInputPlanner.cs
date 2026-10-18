@@ -27,8 +27,9 @@ internal static class SuperstarReignInputPlanner
             if (request.WorkerId <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
                 request.Name.Length > 30 || request.Name.Any(char.IsControl) ||
                 request.Reigns is < 1 or > 500 ||
-                request.FirstYear < firstYear || request.LastYear > lastYear ||
-                request.FirstYear > request.LastYear)
+                request.FirstYear > request.LastYear ||
+                Math.Max(request.FirstYear, firstYear) >
+                    Math.Min(request.LastYear, lastYear))
                 throw new InvalidOperationException(
                     $"Invalid wrestler, active years, or reign count for {request.Name}.");
 
@@ -44,8 +45,10 @@ internal static class SuperstarReignInputPlanner
                     $"{request.Name} has {request.Reigns} reign(s), but " +
                     $"{yearTokens.Length} winning-year entries.");
 
+            int earliestYear = Math.Max(request.FirstYear, firstYear);
+            int latestYear = Math.Min(request.LastYear, lastYear);
             int?[] years = new int?[request.Reigns];
-            int previous = request.FirstYear;
+            int previous = earliestYear;
             for (int i = 0; i < yearTokens.Length; i++)
             {
                 var token = yearTokens[i];
@@ -53,7 +56,7 @@ internal static class SuperstarReignInputPlanner
                     continue;
                 if (!int.TryParse(token, NumberStyles.None,
                         CultureInfo.InvariantCulture, out int year) ||
-                    year < request.FirstYear || year > request.LastYear)
+                    year < earliestYear || year > latestYear)
                     throw new InvalidOperationException(
                         $"Invalid winning year '{token}' for {request.Name}. " +
                         "Use a year in their active window, '-' or auto.");
@@ -121,8 +124,8 @@ internal static class SuperstarReignInputPlanner
                 if (years[i].HasValue) { i++; continue; }
                 int start = i;
                 while (i < years.Length && !years[i].HasValue) i++;
-                int lower = start > 0 ? years[start - 1]!.Value : request.FirstYear;
-                int upper = i < years.Length ? years[i]!.Value : request.LastYear;
+                int lower = start > 0 ? years[start - 1]!.Value : earliestYear;
+                int upper = i < years.Length ? years[i]!.Value : latestYear;
                 if (upper < lower)
                     throw new InvalidOperationException(
                         $"Unassigned winning years for {request.Name} have no valid interval.");
