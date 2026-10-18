@@ -2,6 +2,16 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
+## Worker Attributes and Employment History
+
+The **Workers** editor has two additional worker-specific tabs: **Attributes** and **Employment History**.
+
+**Attributes** reads actual `tblAttribute` rows linked by `WorkerUID` and displays their names and `Hidden` / `Permanent` flags. You can add, update, or remove an attribute with explicit confirmation. The selector suggests attribute names already used in the active scenario; typing a new name is possible but Studio warns when it cannot establish that the name is a valid TEW IX attribute. Studio does not silently discard clashing attributes or pretend to know every game attribute definition. Worker IDs, unrelated attributes, and profile fields are preserved.
+
+**Employment History** reads `tblCV` (not `tblContract`) and displays historical company periods with their actual `FedUID`, company initials, `CVFromDate` / `CVUntilDate` and Loan / Trade / Tour / Developmental flags. Users can add, update, or remove individual periods, selecting a valid existing company and specifying the actual dates. The data layer rejects invalid company links, nonsensical dates, duplicates of an identical stint, unsupported schema layouts, and stale database changes. Writes are transactional, confined to the selected worker, and always require explicit confirmation; manual backups remain recommended but optional.
+
+These are direct scenario MDB modifications, so test a copied scenario with TEW IX Data Check before editing important data. The UI does not create active contracts, new workers or companies. Attributes and employment periods have their own Add / Save Selected / Remove actions rather than the main worker scalar-field Save Changes button.
+
 ## Tag Teams module
 
 The sidebar now includes **Tag Teams**, integrated into the existing three-column workspace. You can search existing `tblTeam` records, edit their supported fields, and select linked workers and companies from actual `tblWorker` and `tblFed` records. Team-type values remain **raw numeric codes**, drawn from existing teams in the selected MDB until the numeric mapping to Permanent Unit, Unit, and Individuals is verified.
