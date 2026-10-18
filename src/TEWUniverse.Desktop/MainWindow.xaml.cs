@@ -1593,6 +1593,23 @@ public partial class MainWindow : Window
                     "NPC History needs a valid first and last year (1800–2100).");
 
             bool annualTournament = IsAnnualTournament();
+            var savedHistory = _session.ReadTitleLineage(_selectedExisting.Id);
+            if (AdvancedGenerationMode.SelectedIndex == 0)
+            {
+                if (savedHistory.Rows.Rows.Count == 0)
+                    throw new InvalidOperationException(
+                        "This title has no recorded lineage to patch. " +
+                        "Choose Build new full history instead.");
+                GenerateSelectivePreview(savedHistory);
+                return;
+            }
+            if (CurrentTitleFormat() != TitleCompetitorFormat.Singles)
+                throw new InvalidOperationException(
+                    "The full-history generator creates singles reigns only. " +
+                    "For Tag Team or Trios titles use the safe mode to link existing " +
+                    "name-only history slots with complete two- or three-worker lineups. " +
+                    "No records were changed.");
+            _titleEmploymentCache.Clear();
             // Each row now describes a COUNT of wins inside its active
             // interval. Years and durations are independently optional by
             // ordinal position. Repeat years (2016, 2016) are legitimate.
@@ -1755,6 +1772,7 @@ public partial class MainWindow : Window
                             (reign.Lost - reign.Captured).Days + 1, request);
                 }
             }
+            ApplyEmploymentPreview(preview, proposal, annualTournament);
             AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
             AdvancedCandidatesGrid.Items.Refresh();
 
@@ -1809,6 +1827,9 @@ public partial class MainWindow : Window
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
                 schedule + chronology + durationStatus +
+                (_advancedEmploymentWarnings > 0
+                    ? $"WARNING: {_advancedEmploymentWarnings} reign(s) lack verified title-company employment coverage. "
+                    : "Employment history checked for linked workers. ") +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
                 $"{npcSummary} across {firstYear}–{lastYear}. " +
                 npcLimitNote + variety +
