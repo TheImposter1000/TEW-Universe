@@ -28,6 +28,14 @@ Each row in the candidate list has a history name, an optional linked worker UID
 
 As with the original generator, the apply action updates the selected belt's existing `tblBeltPreHistory` rows **only when the draft reign count exactly matches existing slots**. History UIDs, BeltUID and BeltOrder remain unchanged; no new records are inserted or borrowed. Real worker UIDs are verified against `tblWorker`, while name-only champions intentionally use the TEW convention `-1` and a populated holder-name field. An existing worker can use a historical alias in that field. The current constrained generator handles singles; it does not overwrite existing tag-team reigns. The button requires a confirmation and the user should create a separate backup first. In-game compatibility of generated dates and history requires testing against a sacrificial scenario before production use.
 
+## Championship details and presentation classification
+
+The Titles editor now exposes all additional `tblBelt` columns through an expandable **Additional TEW IX fields** inspector, with protected IDs/references read-only. Basic text/description columns from a strict allowlist are editable when present; the app does not enable arbitrary linked-field editing.
+
+The **Title Classification** control offers **Championship** or **Annual Tournament / Cup**. It is *app-only*, keyed by database filename/path and `tblBelt.UID` in `settings.json`; there is no new type column and no change to existing TEW IX numeric enums. The label persists across launches and survives other settings changes. Championship previews generate ongoing reign records. Annual tournaments generate winners rather than ongoing reigns: one winner per calendar year (unless a championship title is selected), a supplied common month/day for the competition, `BeltLost = 1666-01-01`, and `Defences = -1`, matching the sentinel convention observed in the provided TEW IX screenshot. The tournament viewer omits these no-reign fields, relabeling winning dates and holders. This is not a guarantee that every scenario uses the same sentinel semantics; test in TEW IX Data Check using a disposable MDB before rebuilding any production title history.
+
+The legacy reign-based generator remains for championship titles only. Rebuild operations still delete/reinsert only the selected `tblBeltPreHistory` rows transactionally, and require a manual backup and explicit confirmation.
+
 ### Superstar and NPC history sections
 
 The Advanced Generator interface is deliberately separated into two areas:

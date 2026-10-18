@@ -51,6 +51,8 @@ public partial class MainWindow : Window
     private int? _advancedConfiguredTitleId;
     private int _advancedExistingSlots;
     private bool _advancedFullRebuild;
+    private bool _advancedDraftIsAnnualTournament;
+    private bool _loadingTitleKind;
     private string? _lastManualBackup;
     private string? _lastBackupDatabase;
     private DateTime? _lastSaved;
@@ -862,6 +864,8 @@ public partial class MainWindow : Window
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+        TitleClassificationOptions.Visibility = section == "Titles"
+            ? Visibility.Visible : Visibility.Collapsed;
         ClearGeneratedLineage();
         TitleEditorTabs.Visibility = section == "Titles" ? Visibility.Visible : Visibility.Collapsed;
         ShowTitleDetails();
@@ -991,6 +995,7 @@ public partial class MainWindow : Window
                 $"Record ID {selected.Id}  •  {spec.Table}  •  Existing record only";
             ExistingFieldsTitle.Text = _activeModule == "Titles"
                 ? "Championship Information" : _activeModule + " Information";
+            if (_activeModule == "Titles") UpdateTitleKindUI();
 
             var row = record.Data.Rows[0];
             foreach (var name in spec.EditableColumns)
@@ -1006,6 +1011,8 @@ public partial class MainWindow : Window
                 _existingFields.Add(field);
                 AddExistingField(field);
             }
+            if (_activeModule == "Titles")
+                AddExtendedTitleDetails(record, spec);
             if (_existingFields.Count == 0)
                 ExistingFieldsPanel.Children.Add(new TextBlock {
                     Text = "No approved fields are present in this database record.",
@@ -1022,6 +1029,22 @@ public partial class MainWindow : Window
     private void TitleLineageGrid_AutoGeneratingColumn(object sender,
         DataGridAutoGeneratingColumnEventArgs e)
     {
+        if (IsAnnualTournament() &&
+            (e.PropertyName is "BeltLost" or "Defences" or "Lost"))
+        {
+            e.Cancel = true;
+            return;
+        }
+        if (IsAnnualTournament())
+        {
+            if (e.PropertyName == "BeltCaptured" || e.PropertyName == "Captured")
+                e.Column.Header = "Winning date";
+            else if (e.PropertyName == "HolderName1" || e.PropertyName == "Holder_Name1" ||
+                e.PropertyName == "Champion")
+                e.Column.Header = "Tournament winner";
+            else if (e.PropertyName == "BeltOrder" || e.PropertyName == "Reign")
+                e.Column.Header = "Edition";
+        }
         if (e.Column is DataGridTextColumn col)
         {
             col.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
@@ -1064,6 +1087,14 @@ public partial class MainWindow : Window
     private void GenerateLineage_Click(object sender, RoutedEventArgs e)
     {
         if (_activeModule != "Titles" || _selectedExisting == null || _session == null) return;
+        if (IsAnnualTournament())
+        {
+            MessageBox.Show(this,
+                "The original reign-based generator cannot model an annual competition. " +
+                "Open Advanced Generator to create one winner per year without a reign length or defences.",
+                "Annual Tournament", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         try
         {
             if (!int.TryParse(LineageReignCount.Text.Trim(), out int count) || count < 1 || count > 100)
@@ -1182,6 +1213,13 @@ public partial class MainWindow : Window
         if (_session == null || _activeModule != "Titles" ||
             _selectedExisting == null || _draftTitleId != _selectedExisting.Id ||
             _generatedTitleReigns.Count == 0) return;
+        if (IsAnnualTournament())
+        {
+            MessageBox.Show(this,
+                "This generator records title reigns and must not overwrite annual tournament winners. " +
+                "Use Advanced Generator for this title.");
+            return;
+        }
         if (HasEdits())
         {
             MessageBox.Show(this, "Save or discard unsaved championship details before replacing lineage.");
@@ -1261,6 +1299,7 @@ public partial class MainWindow : Window
         _advancedDraftTitleId = null;
         _advancedExistingSlots = 0;
         _advancedFullRebuild = false;
+        _advancedDraftIsAnnualTournament = false;
         if (AdvancedApplyButton != null) AdvancedApplyButton.IsEnabled = false;
         if (AdvancedExportButton != null) AdvancedExportButton.IsEnabled = false;
         if (AdvancedPreviewGrid != null) AdvancedPreviewGrid.ItemsSource = null;
@@ -1449,13 +1488,25 @@ public partial class MainWindow : Window
             // The NPC source table is read-only: no generated workers are inserted.
             var seeds = _session.ReadGeneratedWorkerNames(
                 AdvancedNpcGender.Text, AdvancedNpcRace.Text);
+            bool annualTournament = IsAnnualTournament();
+            int eventMonth = 0, eventDay = 0;
+            if (annualTournament &&
+                (!int.TryParse(AnnualTournamentMonth.Text.Trim(), NumberStyles.Integer,
+                     CultureInfo.InvariantCulture, out eventMonth) ||
+                 !int.TryParse(AnnualTournamentDay.Text.Trim(), NumberStyles.Integer,
+                     CultureInfo.InvariantCulture, out eventDay)))
+                throw new InvalidOperationException(
+                    "Annual tournaments need a winning month and day. " +
+                    "Set the actual event date in the NPC History section.");
             var proposal = AnchoredHistoryPlanner.GenerateFromYears(
-                anchored, seeds, firstYear, lastYear);
+                anchored, seeds, firstYear, lastYear,
+                annualTournament, eventMonth, eventDay);
 
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             ResetAdvancedDraft();
             _advancedDraft = proposal;
             _advancedFullRebuild = true;
+            _advancedDraftIsAnnualTournament = annualTournament;
             _advancedDraftTitleId = _selectedExisting.Id;
             _advancedExistingSlots = history.Rows.Rows.Count;
 
@@ -1491,6 +1542,7 @@ public partial class MainWindow : Window
             AdvancedExportButton.IsEnabled = true;
             int generated = proposal.Count(r => r.Holder1 == -1);
             AdvancedGenerationStatus.Text =
+                (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
                 $"{generated} NPC winner(s) across {firstYear}–{lastYear}. " +
                 $"{_advancedExistingSlots} existing title-history row(s). " +
@@ -1544,7 +1596,7 @@ public partial class MainWindow : Window
         {
             int changed = _advancedFullRebuild
                 ? _session.RebuildTitleLineage(_selectedExisting.Id, _advancedDraft,
-                    _advancedExistingSlots)
+                    _advancedExistingSlots, _advancedDraftIsAnnualTournament)
                 : _session.ReplaceExistingTitleLineage(_selectedExisting.Id, _advancedDraft);
             _lastSaved = DateTime.Now;
             bool rebuilt = _advancedFullRebuild;
@@ -1629,7 +1681,9 @@ public partial class MainWindow : Window
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             TitleLineageGrid.ItemsSource = history.LinkField == null
                 ? null : history.Rows.DefaultView;
-            TitleLineageSummary.Text = history.Message;
+            TitleLineageSummary.Text = (IsAnnualTournament()
+                ? "Annual tournament winners  •  no reign length or defences.  "
+                : "Championship reigns  •  ") + history.Message;
             if (_generatedTitleReigns.Count == 0 && history.Rows.Rows.Count > 0)
             {
                 LineageReignCount.Text = history.Rows.Rows.Count.ToString(CultureInfo.InvariantCulture);
@@ -1649,6 +1703,109 @@ public partial class MainWindow : Window
             TitleLineageGrid.ItemsSource = null;
             TitleLineageSummary.Text = "Unable to load title lineage. " + ex.Message;
         }
+    }
+
+    private bool IsAnnualTournament() =>
+        _session != null && _selectedExisting != null &&
+        _settings.GetTitleDisplayKind(_session.PathOnDisk, _selectedExisting.Id) == "AnnualTournament";
+
+    private void UpdateTitleKindUI()
+    {
+        if (TitleKindCombo == null) return;
+        _loadingTitleKind = true;
+        try
+        {
+            bool annual = IsAnnualTournament();
+            TitleKindCombo.SelectedIndex = annual ? 1 : 0;
+            TitleClassificationHelp.Text = annual
+                ? "Annual tournament: one winner per edition, no title-loss date or defences."
+                : "Championship: continuing reigns, title-loss dates and defences.";
+            AnnualTournamentDateFields.Visibility = annual
+                ? Visibility.Visible : Visibility.Collapsed;
+            if (_activeModule == "Titles" && _selectedExisting != null)
+                ExistingRecordSubtitle.Text =
+                    $"Record ID {_selectedExisting.Id}  •  tblBelt  •  " +
+                    (annual ? "Annual Tournament (studio label)" : "Championship (studio label)");
+        }
+        finally { _loadingTitleKind = false; }
+    }
+
+    private void TitleKindCombo_SelectionChanged(object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_loadingTitleKind || _session == null || _selectedExisting == null ||
+            _activeModule != "Titles") return;
+        try
+        {
+            var next = _settings.Copy();
+            var kind = TitleKindCombo.SelectedIndex == 1
+                ? "AnnualTournament" : "Championship";
+            next.SetTitleDisplayKind(_session.PathOnDisk, _selectedExisting.Id, kind);
+            next.Save();
+            _settings = next;
+            ResetAdvancedDraft();
+            ClearGeneratedLineage();
+            UpdateTitleKindUI();
+            if (TitleLineagePanel.Visibility == Visibility.Visible)
+                LoadTitleLineage();
+            SetStatus("Saved title classification locally (not written into the MDB).");
+        }
+        catch (Exception ex)
+        {
+            UpdateTitleKindUI();
+            Error(ex);
+        }
+    }
+
+    /// <summary>
+    /// A comprehensive inspector for every extra tblBelt column. All fields
+    /// outside the fixed safe edit allowlist are read-only: showing a numeric
+    /// foreign key must never imply it can be safely reassigned.
+    /// </summary>
+    private void AddExtendedTitleDetails(RecordSection record, ExistingEditorSpec spec)
+    {
+        var unapproved = record.Data.Columns.Cast<DataColumn>()
+            .Where(c => !spec.EditableColumns.Contains(c.ColumnName,
+                StringComparer.OrdinalIgnoreCase)).ToList();
+        if (unapproved.Count == 0) return;
+        var body = new StackPanel();
+        var recordRow = record.Data.Rows[0];
+        foreach (var column in unapproved)
+        {
+            var row = new Grid { Margin = new Thickness(0,0,0,6) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(185) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            bool identity = column.ColumnName.Equals("UID", StringComparison.OrdinalIgnoreCase)
+                || column.ColumnName.EndsWith("_ID", StringComparison.OrdinalIgnoreCase)
+                || column.ColumnName.EndsWith("UID", StringComparison.OrdinalIgnoreCase);
+            var label = new TextBlock {
+                Text = FriendlyName(column.ColumnName) + (identity ? "  [linked ID]" : ""),
+                FontSize = 12, Foreground = Muted, Margin = new Thickness(0,4,10,4),
+                TextWrapping = TextWrapping.Wrap, ToolTip = "tblBelt." + column.ColumnName
+            };
+            Grid.SetColumn(label,0);
+            row.Children.Add(label);
+            string raw = DatabaseSession.Display(recordRow[column]);
+            var value = new TextBlock {
+                Text = string.IsNullOrWhiteSpace(raw) ? "—" : raw,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DDEAFE")!),
+                FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,4,0,4),
+                ToolTip = $"{column.ColumnName} ({column.DataType.Name}) • Read-only"
+            };
+            Grid.SetColumn(value,1);
+            row.Children.Add(value);
+            body.Children.Add(row);
+        }
+        var inspector = new Expander {
+            Header = $"Additional TEW IX fields  ({unapproved.Count})  ·  Read-only",
+            Foreground = Brushes.White,
+            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#162B45")!),
+            Padding = new Thickness(12,10,12,10),
+            Margin = new Thickness(0,8,0,12),
+            Content = body,
+            ToolTip = "Raw fields are preserved without editing linked records or undocumented numeric codes."
+        };
+        ExistingFieldsPanel.Children.Add(inspector);
     }
 
     private void AddExistingField(FieldDraft field)

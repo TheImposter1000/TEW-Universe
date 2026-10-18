@@ -7,10 +7,13 @@ namespace TEWUniverse.Desktop;
 public partial class SettingsWindow : Window
 {
     internal AppSettings? ResultSettings { get; private set; }
+    private readonly AppSettings _original;
+
 
     internal SettingsWindow(AppSettings current)
     {
         InitializeComponent();
+        _original = current.Copy();
         ActivePath.Text = current.ActiveDatabasePath;
         BackupPath.Text = current.BackupFolderPath;
         PicturePath.Text = current.WorkerPicturesFolderPath;
@@ -45,12 +48,12 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var next = new AppSettings {
-                ActiveDatabasePath = ActivePath.Text,
-                BackupFolderPath = BackupPath.Text,
-                WorkerPicturesFolderPath = PicturePath.Text,
-                RememberDatabasePassword = RememberPassword.IsChecked == true
-            };
+            // Preserve app-only title categories when other settings change.
+            var next = _original.Copy();
+            next.ActiveDatabasePath = ActivePath.Text;
+            next.BackupFolderPath = BackupPath.Text;
+            next.WorkerPicturesFolderPath = PicturePath.Text;
+            next.RememberDatabasePassword = RememberPassword.IsChecked == true;
             next.NormalizeAndValidate();
             if (!string.IsNullOrWhiteSpace(next.ActiveDatabasePath))
             {

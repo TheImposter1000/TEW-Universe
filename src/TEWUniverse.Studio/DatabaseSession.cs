@@ -33,7 +33,11 @@ internal static class ExistingEditors
                 new[] { "Name", "Initials", "URL", "Logo", "Backdrop", "Banner", "Prestige",
                     "Influence", "Money", "Momentum" }),
             ["Titles"] = new("Titles", "tblBelt",
-                new[] { "Name", "Picture", "Profile", "Prestige", "Active" }),
+                new[] { "Name", "Picture", "Profile", "Prestige", "Active",
+                    // Presentation and descriptive fields only; foreign keys,
+                    // ownership, holders and cross-table references stay locked.
+                    "ShortName", "Initials", "Description", "Backdrop",
+                    "Banner", "Logo", "Website", "URL" }),
             ["Events"] = new("Events", "tblCard",
                 new[] { "Name", "Logo", "Dormant" }),
             ["Stables"] = new("Stables", "tblStable",
@@ -521,7 +525,7 @@ internal sealed class DatabaseSession : IDisposable
     /// No changes to tblWorker or tblGenerateWorker are ever made.
     /// </summary>
     public int RebuildTitleLineage(int beltId, IReadOnlyList<GeneratedTitleReign> proposed,
-        int expectedExistingRows)
+        int expectedExistingRows, bool annualTournament = false)
     {
         if (beltId <= 0 || proposed.Count is < 1 or > 500)
             throw new InvalidOperationException("Choose a valid title and 1–500 reigns.");
@@ -535,11 +539,15 @@ internal sealed class DatabaseSession : IDisposable
                 string.IsNullOrWhiteSpace(reign.HolderName1) ||
                 reign.HolderName1.Length > 30 || reign.HolderName1.Any(char.IsControl) ||
                 reign.Captured.Year is < 1800 or > 2100 ||
-                reign.Lost.Year is < 1800 or > 2100 ||
-                reign.Captured > reign.Lost || reign.Defences < 0)
+                (annualTournament
+                    ? (reign.Lost != new DateTime(1666, 1, 1) || reign.Defences != -1)
+                    : (reign.Lost.Year is < 1800 or > 2100 ||
+                       reign.Captured > reign.Lost || reign.Defences < 0)))
                 throw new InvalidOperationException(
                     $"Generated reign #{i + 1} is invalid or contains an unknown linked worker.");
-            if (i > 0 && reign.Captured <= proposed[i-1].Lost)
+            if (i > 0 && (annualTournament
+                ? reign.Captured <= proposed[i-1].Captured
+                : reign.Captured <= proposed[i-1].Lost))
                 throw new InvalidOperationException(
                     "Generated capture and loss dates must be chronological and non-overlapping.");
         }

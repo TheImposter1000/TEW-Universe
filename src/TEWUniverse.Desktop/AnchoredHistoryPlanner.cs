@@ -21,7 +21,8 @@ internal static class AnchoredHistoryPlanner
     /// </summary>
     internal static List<GeneratedTitleReign> GenerateFromYears(
         IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
-        int firstYear, int lastYear)
+        int firstYear, int lastYear, bool annualTournament = false,
+        int eventMonth = 0, int eventDay = 0)
     {
         if (firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
             throw new InvalidOperationException(
@@ -31,6 +32,14 @@ internal static class AnchoredHistoryPlanner
         if (npcNames.Count == 0)
             throw new InvalidOperationException(
                 "tblGenerateWorker did not provide any usable NPC names with these filters.");
+
+        if (annualTournament)
+        {
+            if (eventMonth is < 1 or > 12 || eventDay is < 1 or > 28)
+                throw new InvalidOperationException(
+                    "Annual tournament winning dates require a month (1–12) and day (1–28). " +
+                    "A consistent calendar date is used for each yearly edition.");
+        }
 
         var reserved = new Dictionary<int, List<Anchor>>();
         foreach (var win in fixedWins)
@@ -49,6 +58,10 @@ internal static class AnchoredHistoryPlanner
                     $"{win.Name} has the year {win.WinYear} entered more than once.");
             wins.Add(win);
         }
+
+        if (annualTournament && reserved.Any(pair => pair.Value.Count != 1))
+            throw new InvalidOperationException(
+                "Annual Tournament mode permits only one winner in each calendar year.");
 
         int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
             .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
@@ -84,8 +97,10 @@ internal static class AnchoredHistoryPlanner
                 // in one year get separate dates without generating NPC winners.
                 for (int i = 0; i < wins.Count; i++)
                 {
-                    DateTime day = new DateTime(year, 1, 1)
-                        .AddDays((int)((long)i * 365 / wins.Count));
+                    DateTime day = annualTournament
+                        ? new DateTime(year, eventMonth, eventDay)
+                        : new DateTime(year, 1, 1)
+                            .AddDays((int)((long)i * 365 / wins.Count));
                     events.Add((day, wins[i].WorkerId, wins[i].Name));
                     previous = wins[i].Name;
                 }
@@ -96,7 +111,9 @@ internal static class AnchoredHistoryPlanner
                     StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (choices.Length == 0) choices = pool.ToArray();
                 var selected = choices[Random.Shared.Next(choices.Length)];
-                events.Add((new DateTime(year, 1, 1), -1, selected));
+                events.Add((annualTournament
+                    ? new DateTime(year, eventMonth, eventDay)
+                    : new DateTime(year, 1, 1), -1, selected));
                 previous = selected;
             }
         }
@@ -105,11 +122,18 @@ internal static class AnchoredHistoryPlanner
         for (int i = 0; i < events.Count; i++)
         {
             var e = events[i];
-            var lost = i + 1 < events.Count
-                ? events[i + 1].Date.AddDays(-1) : lastDay;
-            if (lost < e.Date)
-                throw new InvalidOperationException("Historical winning dates overlap.");
-            short defenses = (short)Math.Max(0, (lost - e.Date).Days / 48);
+            // Annual cups record the one winning date only. TEW's existing
+            // tournament histories use 1666-01-01 and -1 as the no-reign
+            // sentinels (unlike an ongoing championship's BeltLost/Defences).
+            var lost = annualTournament
+                ? new DateTime(1666, 1, 1)
+                : (i + 1 < events.Count
+                    ? events[i + 1].Date.AddDays(-1) : lastDay);
+            if (!annualTournament && lost < e.Date)
+                throw new InvalidOperationException("Historical title dates overlap.");
+            short defenses = annualTournament
+                ? (short)-1
+                : (short)Math.Max(0, (lost - e.Date).Days / 48);
             reigns.Add(new GeneratedTitleReign(
                 i + 1, e.UID, e.Name, -1, "", e.Date, lost, defenses));
         }
