@@ -15,6 +15,29 @@ internal sealed class AppSettings
     public string WorkerPicturesFolderPath { get; set; } = "";
     public bool RememberDatabasePassword { get; set; } = false;
 
+    // App-only presentation categories. Not TEW IX title-type values and
+    // never inserted into tblBelt. Keys combine database path with title UID.
+    public Dictionary<string, string> TitleDisplayKinds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public static string TitleDisplayKey(string databasePath, int titleUid) =>
+        Path.GetFullPath(databasePath.Trim()).ToUpperInvariant() + "|" +
+        titleUid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public string GetTitleDisplayKind(string databasePath, int titleUid) =>
+        TitleDisplayKinds != null &&
+        TitleDisplayKinds.TryGetValue(TitleDisplayKey(databasePath, titleUid), out var kind) &&
+        kind == "AnnualTournament" ? "AnnualTournament" : "Championship";
+
+    public void SetTitleDisplayKind(string databasePath, int titleUid, string kind)
+    {
+        TitleDisplayKinds ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string key = TitleDisplayKey(databasePath, titleUid);
+        if (kind == "AnnualTournament")
+            TitleDisplayKinds[key] = kind;
+        else
+            TitleDisplayKinds.Remove(key);
+    }
+
     public static string SettingsFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "TEW Universe Studio", "settings.json");
@@ -42,7 +65,8 @@ internal sealed class AppSettings
         CurrentCopyPath = CurrentCopyPath,
         BackupFolderPath = BackupFolderPath,
         WorkerPicturesFolderPath = WorkerPicturesFolderPath,
-        RememberDatabasePassword = RememberDatabasePassword
+        RememberDatabasePassword = RememberDatabasePassword,
+        TitleDisplayKinds = new Dictionary<string, string>(TitleDisplayKinds ?? new(), StringComparer.OrdinalIgnoreCase)
     };
 
     public static bool SamePath(string? a, string? b) =>
@@ -66,6 +90,8 @@ internal sealed class AppSettings
         if (WorkerPicturesFolderPath.Length > 0 && File.Exists(WorkerPicturesFolderPath))
             throw new InvalidOperationException("Worker Picture Folder must be a directory.");
 
+        TitleDisplayKinds ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        TitleDisplayKinds = new Dictionary<string, string>(TitleDisplayKinds, StringComparer.OrdinalIgnoreCase);
         // Direct editing deliberately permits the previously protected source path.
         if (BackupFolderPath.Length > 0 && File.Exists(BackupFolderPath))
             throw new InvalidOperationException("Backup Folder must be a directory, not a file.");
