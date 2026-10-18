@@ -12,6 +12,112 @@ internal static class AnchoredHistoryPlanner
     internal sealed record Anchor(string Name, int WorkerId, int WinYear,
         int FirstEligibleYear, int LastEligibleYear);
     private sealed record Event(DateTime Won, Anchor? FixedWinner);
+    /// <summary>
+    /// One historical winner per calendar year by default. A linked superstar
+    /// occupies a pinned winning year; every otherwise unoccupied year gets a
+    /// name-only NPC from tblGenerateWorker. No NPC reign count is requested.
+    /// Multiple fixed human wins in a year are supported for non-annual titles,
+    /// but never inferred from NPC controls.
+    /// </summary>
+    internal static List<GeneratedTitleReign> GenerateFromYears(
+        IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
+        int firstYear, int lastYear)
+    {
+        if (firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
+            throw new InvalidOperationException(
+                "Choose an NPC history range between 1800 and 2100 with start year before end year.");
+
+        if (fixedWins.Count == 0)
+            throw new InvalidOperationException(
+                "Add at least one superstar with a title-winning year.");
+        if (npcNames.Count == 0)
+            throw new InvalidOperationException(
+                "tblGenerateWorker did not provide any usable NPC names with these filters.");
+
+        var reserved = new Dictionary<int, List<Anchor>>();
+        foreach (var win in fixedWins)
+        {
+            if (win.WorkerId <= 0 || string.IsNullOrWhiteSpace(win.Name) ||
+                win.Name.Length > 30 || win.Name.Any(char.IsControl) ||
+                win.WinYear < firstYear || win.WinYear > lastYear ||
+                win.FirstEligibleYear > win.WinYear || win.LastEligibleYear < win.WinYear ||
+                win.FirstEligibleYear > win.LastEligibleYear)
+                throw new InvalidOperationException(
+                    $"The pinned win for {win.Name} ({win.WinYear}) is outside its allowed years.");
+            if (!reserved.TryGetValue(win.WinYear, out var wins))
+                reserved[win.WinYear] = wins = new List<Anchor>();
+            if (wins.Any(x => x.WorkerId == win.WorkerId))
+                throw new InvalidOperationException(
+                    $"{win.Name} has the year {win.WinYear} entered more than once.");
+            wins.Add(win);
+        }
+
+        int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
+            .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
+        if (total > 500)
+            throw new InvalidOperationException(
+                "The selected years and superstar wins require more than 500 records.");
+
+        // Populate a recurring historical cast, rather than creating a unique
+        // name for every year. All NPCs are title-history names only.
+        var pool = npcNames
+            .Select(x => x.Name)
+            .Where(name => !fixedWins.Any(win =>
+                name.Equals(win.Name, StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(_ => Random.Shared.Next())
+            .ToList();
+        int npcYears = Enumerable.Range(firstYear, lastYear - firstYear + 1)
+            .Count(y => !reserved.ContainsKey(y));
+        if (npcYears > 0 && pool.Count == 0)
+            throw new InvalidOperationException(
+                "There are no available NPC names distinct from the pinned superstars.");
+        int castSize = Math.Min(pool.Count, Math.Max(3,
+            (int)Math.Ceiling(npcYears / 3.0)));
+        pool = pool.Take(castSize).ToList();
+
+        var events = new List<(DateTime Date, int UID, string Name)>();
+        string? previous = null;
+        foreach (int year in Enumerable.Range(firstYear, lastYear - firstYear + 1))
+        {
+            if (reserved.TryGetValue(year, out var wins))
+            {
+                // Each specified winning year is fixed. Multiple anchored wins
+                // in one year get separate dates without generating NPC winners.
+                for (int i = 0; i < wins.Count; i++)
+                {
+                    DateTime day = new DateTime(year, 1, 1)
+                        .AddDays((int)((long)i * 365 / wins.Count));
+                    events.Add((day, wins[i].WorkerId, wins[i].Name));
+                    previous = wins[i].Name;
+                }
+            }
+            else
+            {
+                var choices = pool.Where(name => !string.Equals(name, previous,
+                    StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (choices.Length == 0) choices = pool.ToArray();
+                var selected = choices[Random.Shared.Next(choices.Length)];
+                events.Add((new DateTime(year, 1, 1), -1, selected));
+                previous = selected;
+            }
+        }
+        var lastDay = new DateTime(lastYear, 12, 31);
+        var reigns = new List<GeneratedTitleReign>(events.Count);
+        for (int i = 0; i < events.Count; i++)
+        {
+            var e = events[i];
+            var lost = i + 1 < events.Count
+                ? events[i + 1].Date.AddDays(-1) : lastDay;
+            if (lost < e.Date)
+                throw new InvalidOperationException("Historical winning dates overlap.");
+            short defenses = (short)Math.Max(0, (lost - e.Date).Days / 48);
+            reigns.Add(new GeneratedTitleReign(
+                i + 1, e.UID, e.Name, -1, "", e.Date, lost, defenses));
+        }
+        return reigns;
+    }
+
 
     internal static List<GeneratedTitleReign> Generate(
         IReadOnlyList<Anchor> fixedWins,
