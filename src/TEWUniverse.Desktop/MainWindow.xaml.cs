@@ -1421,8 +1421,10 @@ public partial class MainWindow : Window
         var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
             ? worker.Name : AdvancedWorkerAlias.Text.Trim();
         var format = CurrentTitleFormat();
-        var partner2 = AdvancedPartner2Picker.SelectedItem as WorkerItem;
-        var partner3 = AdvancedPartner3Picker.SelectedItem as WorkerItem;
+        var partner2 = format >= TitleCompetitorFormat.TagTeam
+            ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
+        var partner3 = format == TitleCompetitorFormat.Trios
+            ? AdvancedPartner3Picker.SelectedItem as WorkerItem : null;
         if (format >= TitleCompetitorFormat.TagTeam && partner2 == null ||
             format == TitleCompetitorFormat.Trios && partner3 == null ||
             new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
