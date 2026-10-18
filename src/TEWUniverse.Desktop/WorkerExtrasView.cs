@@ -354,6 +354,51 @@ public partial class MainWindow
         finally { _settingWorkerExtraForm = false; }
     }
 
+    /// <summary>
+    /// Unlike normal worker profile fields, these linked rows use dedicated
+    /// Add/Save Selected actions. Protect typed but unapplied values when users
+    /// switch workers or navigate away.
+    /// </summary>
+    private bool HasUnappliedWorkerExtraForm()
+    {
+        if (_settingWorkerExtraForm || _worker == null || _attributesGrid == null)
+            return false;
+        if (_currentTab == "Attributes")
+        {
+            var entry = _attributesGrid.SelectedItem as WorkerAttributeEntry;
+            string name = _attributeName.Text.Trim();
+            if (entry == null)
+                return name.Length != 0 || _attributeHidden.IsChecked == true ||
+                    _attributePermanent.IsChecked == true;
+            return !name.Equals(entry.Attribute, StringComparison.Ordinal) ||
+                (_attributeHidden.IsChecked == true) != entry.Hidden ||
+                (_attributePermanent.IsChecked == true) != entry.Permanent;
+        }
+        if (_currentTab == "Employment")
+        {
+            var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
+            var company = _employmentCompany.SelectedItem as ExistingRecordItem;
+            if (item == null)
+                return company != null || _employmentInitials.Text.Trim().Length > 0 ||
+                    _employmentFrom.Text.Trim().Length > 0 ||
+                    _employmentUntil.Text.Trim().Length > 0 ||
+                    _employmentLoan.IsChecked == true || _employmentTrade.IsChecked == true ||
+                    _employmentTour.IsChecked == true ||
+                    _employmentDevelopmental.IsChecked == true;
+            return company?.Id != item.FedUid ||
+                !_employmentInitials.Text.Trim().Equals(item.Initials, StringComparison.Ordinal) ||
+                !_employmentFrom.Text.Trim().Equals(item.FromDate.ToString(
+                    "yyyy-MM-dd", CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+                !_employmentUntil.Text.Trim().Equals(item.UntilDate.ToString(
+                    "yyyy-MM-dd", CultureInfo.InvariantCulture), StringComparison.Ordinal) ||
+                (_employmentLoan.IsChecked == true) != item.Loan ||
+                (_employmentTrade.IsChecked == true) != item.Trade ||
+                (_employmentTour.IsChecked == true) != item.Tour ||
+                (_employmentDevelopmental.IsChecked == true) != item.Developmental;
+        }
+        return false;
+    }
+
     private bool ConfirmExtraWrite(string message, string title) =>
         MessageBox.Show(this, message + "\n\nThis changes the active MDB directly. " +
             "Creating a backup first is recommended but optional.",
