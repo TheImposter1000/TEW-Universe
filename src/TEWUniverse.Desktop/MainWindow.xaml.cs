@@ -23,6 +23,11 @@ internal sealed class LineageParticipant
     public bool FillGaps { get; set; }
 }
 
+internal sealed record TagTeamChoice(int Id, string Label)
+{
+    public override string ToString() => Label;
+}
+
 public partial class MainWindow : Window
 {
     private AppSettings _settings = AppSettings.Load();
@@ -868,12 +873,20 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         ClearGeneratedLineage();
         TitleEditorTabs.Visibility = section == "Titles" ? Visibility.Visible : Visibility.Collapsed;
+        CreateTagTeamButton.Visibility = section == "Tag Teams"
+            ? Visibility.Visible : Visibility.Collapsed;
+        ExistingFieldsDescription.Text = section switch {
+            "Titles" => "Edit supported title fields, including annual settings and raw numeric codes. Protected identifiers remain read-only.",
+            "Tag Teams" => "Edit actual tblTeam fields. Worker and company references use existing database records; team type codes remain untranslated.",
+            _ => "Edit supported record fields. Identifiers and unverified relationships remain protected."
+        };
         ShowTitleDetails();
 
         var navigation = new[] {
             (Section: "Workers", Button: WorkersNav),
             (Section: "Companies", Button: CompaniesNav),
             (Section: "Titles", Button: TitlesNav),
+            (Section: "Tag Teams", Button: TagTeamsNav),
             (Section: "Events", Button: EventsNav),
             (Section: "Stables", Button: StablesNav)
         };
@@ -1009,7 +1022,10 @@ public partial class MainWindow : Window
                     ValueType = column.DataType, Original = original, Value = original
                 };
                 _existingFields.Add(field);
-                AddExistingField(field);
+                if (_activeModule == "Tag Teams" && name is "Worker1" or "Worker2" or "Fed" or "Type")
+                    AddTagTeamReferenceField(field);
+                else
+                    AddExistingField(field);
             }
             if (_activeModule == "Titles")
                 AddExtendedTitleDetails(record, spec);
@@ -2001,16 +2017,129 @@ public partial class MainWindow : Window
         (host ?? ExistingFieldsPanel).Children.Add(card);
     }
 
+
+    private void AddTagTeamReferenceField(FieldDraft field)
+    {
+        var container = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        container.Children.Add(new TextBlock {
+            Text = field.Column switch {
+                "Worker1" => "First worker",
+                "Worker2" => "Second worker",
+                "Fed" => "Company / game-wide",
+                _ => "Team type (stored code)"
+            },
+            Foreground = Muted, FontSize = 12, FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 7)
+        });
+        var combo = new ComboBox {
+            Style = (Style)FindResource("DarkComboBox"),
+            MinHeight = 35, MaxDropDownHeight = 260,
+            IsEditable = true, IsTextSearchEnabled = true
+        };
+        try
+        {
+            List<TagTeamChoice> choices = field.Column switch {
+                "Worker1" or "Worker2" => _allWorkers.Select(w =>
+                    new TagTeamChoice(w.Id, $"{w.Name}  |  Worker ID {w.Id}")).ToList(),
+                "Fed" => _session!.ListTagTeamGlobalCompanyCodes().Select(code =>
+                    new TagTeamChoice(code, $"None / game-wide (stored {code})"))
+                    .Concat(_session.ListExistingRecords("Companies").Select(c =>
+                        new TagTeamChoice(c.Id, $"{c.Name}  |  Company ID {c.Id}"))).ToList(),
+                "Type" => _session!.ListTagTeamTypeCodes().Select(code =>
+                    new TagTeamChoice(code, $"Stored team type code {code}")).ToList(),
+                _ => new()
+            };
+            combo.ItemsSource = choices;
+            if (int.TryParse(field.Value, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int original))
+                combo.SelectedItem = choices.FirstOrDefault(x => x.Id == original);
+            combo.SelectionChanged += (_, _) =>
+            {
+                if (combo.SelectedItem is not TagTeamChoice choice) return;
+                field.Value = choice.Id.ToString(CultureInfo.InvariantCulture);
+                RefreshDirty();
+            };
+            container.Children.Add(combo);
+        }
+        catch (Exception ex)
+        {
+            container.Children.Add(new TextBlock {
+                Text = "Unable to resolve linked options: " + ex.Message,
+                Foreground = Brushes.Orange, TextWrapping = TextWrapping.Wrap
+            });
+        }
+        ExistingFieldsPanel.Children.Add(container);
+    }
+
+    private void CreateTagTeam_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _activeModule != "Tag Teams")
+        {
+            MessageBox.Show(this, "Open a scenario database and select Tag Teams first.");
+            return;
+        }
+        if (HasEdits())
+        {
+            MessageBox.Show(this, "Save or discard unsaved edits before creating a tag team.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_lastManualBackup) ||
+            !File.Exists(_lastManualBackup) ||
+            !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk))
+        {
+            MessageBox.Show(this,
+                "Creating a new team adds a record to the active MDB. Use CREATE BACKUP " +
+                "before adding teams. Your original database should be recoverable.",
+                "Create a backup first", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        try
+        {
+            var types = _session.ListTagTeamTypeCodes();
+            if (types.Count == 0)
+                throw new InvalidOperationException(
+                    "The database has no existing team type codes to validate against.");
+            var dialog = new TagTeamCreateDialog(_allWorkers,
+                _session.ListExistingRecords("Companies"), types,
+                _session.ListTagTeamGlobalCompanyCodes(),
+                _session.GetTagTeamColumnType("Formed")) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.Draft == null) return;
+            var draft = dialog.Draft;
+            if (MessageBox.Show(this,
+                    $"Create '{draft.Name}' as a NEW team in the active MDB?\n\n" +
+                    $"Workers: #{draft.Worker1} and #{draft.Worker2}\n" +
+                    $"Company ID: {draft.CompanyId}\n" +
+                    $"Team type (stored code): {draft.TypeCode}\n\n" +
+                    "This creates one new tblTeam record, without changing other records. " +
+                    "The backup will not be created automatically.",
+                    "Confirm New Tag Team", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            int id = _session.CreateTagTeam(draft);
+            _lastSaved = DateTime.Now;
+            _availableExistingRecords = _session.ListExistingRecords("Tag Teams");
+            ExistingSearch.Text = "";
+            var created = _availableExistingRecords.FirstOrDefault(x => x.Id == id);
+            if (created == null)
+                throw new InvalidOperationException(
+                    $"Team UID {id} was created, but it could not be found after refreshing.");
+            LoadExistingRecord(created);
+            FilterExistingRecords(id);
+            SetStatus($"Created tag team '{draft.Name}' as UID {id}. Check it in TEW IX.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
     private void SaveExisting()
     {
         if (_session == null || _selectedExisting == null) return;
         var edits = _existingFields.Where(x => x.Dirty).Select(x => x.ToEdit()).ToList();
         if (edits.Count == 0) { SetStatus("No changes to save"); return; }
-        bool changesLinks = _activeModule == "Titles" && edits.Any(x =>
-            x.Field is "OriginalFed" or "CardUID");
+        bool changesLinks = (_activeModule == "Titles" && edits.Any(x =>
+            x.Field is "OriginalFed" or "CardUID")) ||
+            (_activeModule == "Tag Teams" && edits.Any(x =>
+                x.Field is "Worker1" or "Worker2" or "Fed"));
         string linkWarning = changesLinks
-            ? "\n\nYou are also changing linked company/event references. " +
-              "The target IDs will be checked before saving."
+            ? "\n\nYou are changing linked references. Their target IDs will be checked before saving."
             : "";
         if (MessageBox.Show(this,
                 $"Update {edits.Count} field(s) of {_selectedExisting.Name} directly in the active MDB?\n\n" +

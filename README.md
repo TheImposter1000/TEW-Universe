@@ -2,6 +2,14 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
+## Tag Teams module
+
+The sidebar now includes **Tag Teams**, integrated into the existing three-column workspace. You can search existing `tblTeam` records, edit their supported fields, and select linked workers and companies from actual `tblWorker` and `tblFed` records. Team-type values remain **raw numeric codes**, drawn from existing teams in the selected MDB until the numeric mapping to Permanent Unit, Unit, and Individuals is verified.
+
+**Create Tag Team** opens a dedicated editor for a pair of existing workers, company-specific or game-wide affiliation (using only None codes observed in this MDB), team-type code, experience, formation, finisher, and active state. A manual **Create Backup** is required before creating a team. The app validates the MDB schema, linked IDs and duplicate partnerships, then inserts exactly one new `tblTeam` row transactionally, allocating a unique UID and Recordname. Unsupported mandatory schema fields block creation; no tables besides `tblTeam` are modified.
+
+This initial module must be tested in TEW IX's Data Check using a backed-up scenario before editing your main scenario. Its form fields and mappings may be adjusted as MDB-specific details are validated.
+
 ## Desktop application
 
 The published Windows app now uses **WPF and .NET 8**. Its source is in `src/TEWUniverse.Desktop`, sharing the existing Access data layer and settings from `src/TEWUniverse.Studio`.

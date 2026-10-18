@@ -1,5 +1,15 @@
 # Development and compatibility
 
+## Tag Teams: existing editing and safe team insertion
+
+The new **Tag Teams** navigation entry reuses the current existing-record list and detail editor. `ExistingEditors` targets `tblTeam` and allowlists `Name`, `Worker1`, `Worker2`, `Fed`, `Type`, `Experience`, `Formed`, `Finisher`, `TagFinisherDesc`, and `Active`. References are selectable from existing workers and companies, while numeric team-type codes are intentionally raw until we have confirmed the game's internal mapping. Save Changes calls the normal parameterized transactional update path, validates both worker IDs, company ID, and type code, and preserves UID/Recordname.
+
+**Create Tag Team** is guarded by an on-demand manual backup and confirmation. The database service checks the actual table schema, allocates a record UID and unique internal record name, verifies worker/company/type references against the active MDB and protects against duplicate partnerships in the same company. All inserts happen in a single transaction with rollback. Unknown mandatory schema columns and unverified global-company sentinel values fail closed rather than writing guessed data. Creation does not insert wrestlers, companies, or championship records. The uploaded sample MDB is never modified during development.
+
+This feature has Windows WPF build validation but cannot be considered TEW IX-compatible without testing on a copied scenario using TEW IX Data Check. Formation input follows the active MDB field type. Type descriptions (Permanent Unit, Unit, Individuals) remain unmapped until verified.
+
+
+
 ## Annual tournament calendar dates and lineage import
 
 For an **Annual Tournament / Cup** title, the Advanced Generator no longer asks for a fixed winning day number. Choose a month (1–12), week of month (First, Second, Third, Fourth, or Last), and weekday (Sunday through Saturday). Every historical year resolves its own valid date, allowing events that always occur on a given weekday. For example, First Sunday of March produces **1994-03-06** and **1997-03-02**. The first four occurrences always exist, and Last selects the last matching weekday of the month. Changing the calendar controls invalidates the current preview.
