@@ -611,10 +611,12 @@ if (!incompatibleLengthRejected)
 
 // Singles, Tag Team and Trios must target the corresponding number of real
 // worker UID fields without silently replacing linked real workers.
+var nameOnlyTeamSlots = existingReigns.Select(x =>
+    x with { Holder1 = -1, Name1 = "Unlinked team" }).ToArray();
 var teamRequest = new TitleSlotRequest("Pair",
     new[] { 10, 20 }, new[] { "Worker A", "Worker B" }, 2010, 2020,
     1, "2011", "");
-var teamPlan = ExistingTitleSlotPlanner.Plan(existingReigns,
+var teamPlan = ExistingTitleSlotPlanner.Plan(nameOnlyTeamSlots,
     new[] { teamRequest }, TitleCompetitorFormat.TagTeam);
 if (teamPlan.Count != 1 || teamPlan[0].Holder1 != 10 ||
     teamPlan[0].Holder2 != 20 || teamPlan[0].Holder3 != -1)
@@ -623,10 +625,20 @@ if (teamPlan.Count != 1 || teamPlan[0].Holder1 != 10 ||
 var trio = new TitleSlotRequest("Trio",
     new[] { 10, 20, 30 }, new[] { "One", "Two", "Three" },
     2010, 2020, 1, "2011", "");
-var trioPlan = ExistingTitleSlotPlanner.Plan(existingReigns,
+var trioPlan = ExistingTitleSlotPlanner.Plan(nameOnlyTeamSlots,
     new[] { trio }, TitleCompetitorFormat.Trios);
 if (trioPlan.Count != 1 || trioPlan[0].Holder3 != 30)
     throw new Exception("Trio history substitution did not write three linked members.");
+
+bool incompatibleExistingFormatRejected = false;
+try
+{
+    ExistingTitleSlotPlanner.Plan(existingReigns,
+        new[] { teamRequest }, TitleCompetitorFormat.TagTeam);
+}
+catch (InvalidOperationException) { incompatibleExistingFormatRejected = true; }
+if (!incompatibleExistingFormatRejected)
+    throw new Exception("A linked singles reign was overwritten during team substitution.");
 
 bool invalidFormatRejected = false;
 try
