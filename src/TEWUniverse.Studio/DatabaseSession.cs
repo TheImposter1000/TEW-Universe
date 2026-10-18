@@ -180,7 +180,7 @@ internal sealed class DatabaseSession : IDisposable
     public List<NpcNameSeed> ReadGeneratedWorkerNames(string? genderCode = null, string? raceCode = null)
     {
         var schema = new DataTable("GeneratedWorkerSchema");
-        using (var schemaCmd = new OleDbCommand("SELECT TOP 0 * FROM [tblGenerateWorker]", _connection))
+        using (var schemaCmd = new OleDbCommand("SELECT * FROM [tblGenerateWorker] WHERE 1 = 0", _connection))
         using (var adapter = new OleDbDataAdapter(schemaCmd))
             adapter.Fill(schema);
 
@@ -569,7 +569,7 @@ internal sealed class DatabaseSession : IDisposable
         // DataTable schema supplies actual max lengths and nullability.
         var schema = new DataTable();
         using (var schemaCmd = new OleDbCommand(
-            "SELECT TOP 0 * FROM [tblBeltPreHistory]", _connection))
+            "SELECT * FROM [tblBeltPreHistory] WHERE 1 = 0", _connection))
         using (var adapter = new OleDbDataAdapter(schemaCmd))
             adapter.FillSchema(schema, SchemaType.Source);
 
