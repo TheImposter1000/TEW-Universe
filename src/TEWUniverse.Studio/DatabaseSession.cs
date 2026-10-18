@@ -193,11 +193,11 @@ internal sealed class DatabaseSession : IDisposable
         return destination;
     }
 
-    public (int Modified, string BackupFile) Save(int workerId, IReadOnlyCollection<FieldEdit> edits, string? backupFolder = null)
+    // Save directly modifies the already-selected working copy.
+    // A backup is created only when the user explicitly chooses Create Backup.
+    public int Save(int workerId, IReadOnlyCollection<FieldEdit> edits)
     {
-        if (edits.Count == 0) return (0, "");
-        // No database updates are attempted unless the backup is successfully created.
-        var backup = Backup(backupFolder);
+        if (edits.Count == 0) return 0;
         using var transaction = _connection.BeginTransaction();
         try
         {
@@ -224,7 +224,7 @@ internal sealed class DatabaseSession : IDisposable
                 changed++;
             }
             transaction.Commit();
-            return (changed, backup);
+            return changed;
         }
         catch
         {

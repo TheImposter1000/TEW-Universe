@@ -42,7 +42,7 @@ internal sealed class SettingsForm : Form
             "Working MDB that is edited and reopened on startup. You can type a new destination.",
             () => BrowseMdb(_currentPath, "Choose an existing editable working copy"));
         AddRow(219, "Backup Folder", _backupPath,
-            "Location for automatic pre-save backup files. Leave blank to use the copy's Backups folder.",
+            "Location for manual Create Backup snapshots. Blank uses the copy's Backups folder.",
             () => BrowseFolder());
 
         _rememberPassword.Text = "Remember database password on this Windows account";

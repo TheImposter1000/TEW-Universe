@@ -30,6 +30,7 @@ internal sealed class MainForm : Form
     private string _originalBio = "";
     private bool _changingSelection;
     private readonly Button _saveButton = new();
+    private readonly Button _backupButton = new();
     private readonly Button _updatesButton = new();
     private readonly string[] _tables = { "tblWorker", "tblWorkerSkill", "tblWorkerOver", "tblWorkerPhysical" };
 
@@ -47,8 +48,8 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10);
 
         var bar = new FlowLayoutPanel {
-            Dock = DockStyle.Top, Height = 70, Padding = new Padding(16, 13, 12, 8),
-            WrapContents = false, BackColor = _panel
+            Dock = DockStyle.Top, Height = 111, Padding = new Padding(16, 13, 12, 8),
+            WrapContents = true, AutoScroll = false, BackColor = _panel
         };
         var import = MakeButton("Import TEW9.mdb", 172);
         import.Click += (_, _) => ImportDatabase();
@@ -65,11 +66,16 @@ internal sealed class MainForm : Form
         var settingsButton = MakeButton("Settings", 110);
         settingsButton.Click += (_, _) => OpenSettings();
         bar.Controls.Add(settingsButton);
-        _saveButton.Text = "Save worker changes";
-        ConfigureButton(_saveButton, 190, true);
+        _saveButton.Text = "Save Changes";
+        ConfigureButton(_saveButton, 165, true);
         _saveButton.Enabled = false;
         _saveButton.Click += (_, _) => SaveWorker();
         bar.Controls.Add(_saveButton);
+        ConfigureButton(_backupButton, 151, false);
+        _backupButton.Text = "Create Backup";
+        _backupButton.Enabled = false;
+        _backupButton.Click += (_, _) => CreateBackup();
+        bar.Controls.Add(_backupButton);
         ConfigureButton(_updatesButton, 150, false);
         _updatesButton.Text = "Check for updates";
         _updatesButton.Click += async (_, _) => await CheckForUpdatesAsync(true);
@@ -391,6 +397,7 @@ internal sealed class MainForm : Form
                 _session?.Dispose();
                 _session = null;
                 _sessionPassword = null;
+                _backupButton.Enabled = false;
                 _currentWorker = null;
                 _workers.Clear();
                 _search.Clear();
@@ -442,6 +449,7 @@ internal sealed class MainForm : Form
             var previous = _session;
             _session = opened;
             _sessionPassword = password;
+            _backupButton.Enabled = true;
             _settings = updatedSettings;
             previous?.Dispose();
             _workers = workers;
@@ -584,16 +592,52 @@ internal sealed class MainForm : Form
             var edits = GetEdits();
             if (edits.Count == 0) { SetStatus("Nothing changed. No save required."); return; }
             if (MessageBox.Show(this,
-                $"Save {edits.Count} changed field(s) for {_currentWorker.Name} to the working copy?\nA new backup will be created first.",
-                "Confirm database update", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                $"Save {edits.Count} changed field(s) for {_currentWorker.Name} directly to the current working database?\n\nNo backup will be created. Use Create Backup separately.",
+                "Save to current copy", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes) return;
             var savedId = _currentWorker.Id;
-            var result = _session.Save(savedId, edits, _settings.BackupFolderPath);
+            var count = _session.Save(savedId, edits);
             _workers = _session.ListWorkers();
             var updated = _workers.FirstOrDefault(w => w.Id == savedId);
             if (updated != null) LoadWorker(updated);
-            SetStatus($"Saved {result.Modified} changes. Backup: {result.BackupFile}");
-            MessageBox.Show(this, $"Saved {result.Modified} field(s) to your working copy.\nBackup created at:\n{result.BackupFile}\n\nCheck TEW IX's Data Check before using the scenario.",
+            SetStatus($"Saved {count} field(s) to {_session.PathOnDisk}. No backup created.");
+            MessageBox.Show(this,
+                $"Saved {count} field(s) to your current working database:\n{_session.PathOnDisk}\n\nNo backup was created.",
                 "Save completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    private void CreateBackup()
+    {
+        if (_session == null)
+        {
+            MessageBox.Show(this, "Open a working database before creating a backup.",
+                "No working database", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        try
+        {
+            var edits = GetEdits();
+            if (edits.Count > 0 && MessageBox.Show(this,
+                "You have unsaved worker edits. A backup copies the CURRENT SAVED database, not edits that haven't been saved.\n\nCreate that backup anyway?",
+                "Unsaved edits not included", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+            var folder = string.IsNullOrWhiteSpace(_settings.BackupFolderPath)
+                ? Path.Combine(_session.ProjectFolder, "Backups")
+                : _settings.BackupFolderPath;
+            if (MessageBox.Show(this,
+                $"Create a separate snapshot of the current working database in:\n{folder}\n\nNo worker changes will be saved by this action.",
+                "Create database backup", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+            var destination = _session.Backup(_settings.BackupFolderPath);
+            SetStatus($"Backup created: {destination}");
+            MessageBox.Show(this,
+                $"Backup saved successfully:\n{destination}\n\nThe current working database was not modified.",
+                "Backup completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex) { ShowError(ex); }
     }
