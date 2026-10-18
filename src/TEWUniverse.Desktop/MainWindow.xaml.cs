@@ -21,6 +21,8 @@ internal sealed class LineageParticipant
     public string RequiredReigns { get; set; } = "0";
     public string WinYears { get; set; } = "";
     public string ReignLengths { get; set; } = "";
+    public string Partner2Uid { get; set; } = "";
+    public string Partner3Uid { get; set; } = "";
     public bool FillGaps { get; set; }
 }
 
@@ -774,6 +776,8 @@ public partial class MainWindow : Window
             _lastManualBackup = null;
             _lastBackupDatabase = null;
             AdvancedWorkerPicker.ItemsSource = _allWorkers;
+            AdvancedPartner2Picker.ItemsSource = _allWorkers;
+            AdvancedPartner3Picker.ItemsSource = _allWorkers;
             ResetAdvancedTitle();
             _worker = null;
             WorkerPortraitEllipse.Fill = Brushes.Transparent;
@@ -1343,6 +1347,9 @@ public partial class MainWindow : Window
         _advancedExistingSlots = 0;
         _advancedFullRebuild = false;
         _advancedDraftIsAnnualTournament = false;
+        _advancedSlotMode = false;
+        _advancedSlotPatches.Clear();
+        _advancedEmploymentWarnings = 0;
         if (AdvancedApplyButton != null) AdvancedApplyButton.IsEnabled = false;
         if (AdvancedExportButton != null) AdvancedExportButton.IsEnabled = false;
         if (AdvancedPreviewGrid != null) AdvancedPreviewGrid.ItemsSource = null;
@@ -1367,9 +1374,15 @@ public partial class MainWindow : Window
         if (_advancedConfiguredTitleId == _selectedExisting.Id) return;
         ResetAdvancedTitle();
         _advancedConfiguredTitleId = _selectedExisting.Id;
-        // A month selected for one title must not silently carry over to another.
+        // Controls for one title must not carry over to another.
         AdvancedStartMonth.SelectedIndex = 0;
+        AdvancedPartner2Picker.SelectedItem = null;
+        AdvancedPartner3Picker.SelectedItem = null;
+        ConfigureEmploymentCompanyPicker();
         var history = _session.ReadTitleLineage(_selectedExisting.Id);
+        // Completed histories default to holder-only substitution, never an
+        // accidental destructive full rebuild.
+        AdvancedGenerationMode.SelectedIndex = history.Rows.Rows.Count > 0 ? 0 : 1;
         if (history.LinkField == null)
         {
             AdvancedGenerationStatus.Text = history.Message;
@@ -1391,7 +1404,10 @@ public partial class MainWindow : Window
         AdvancedGenerationStatus.Text =
             $"{history.Rows.Rows.Count:N0} existing history entry/entries. " +
             "Set the NPC history years below, add the linked superstars above, " +
-            "and enter one fixed winning year for each real superstar reign.";
+            "and optionally enter known winning years or reign lengths. " +
+            (history.Rows.Rows.Count > 0
+                ? "Default mode: preserve this lineage and replace name-only placeholders only."
+                : "No existing history: use Build new full history.");
     }
 
     private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e)
@@ -1404,8 +1420,21 @@ public partial class MainWindow : Window
         }
         var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
             ? worker.Name : AdvancedWorkerAlias.Text.Trim();
+        var format = CurrentTitleFormat();
+        var partner2 = AdvancedPartner2Picker.SelectedItem as WorkerItem;
+        var partner3 = AdvancedPartner3Picker.SelectedItem as WorkerItem;
+        if (format >= TitleCompetitorFormat.TagTeam && partner2 == null ||
+            format == TitleCompetitorFormat.Trios && partner3 == null ||
+            new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+                .Take((int)format).Distinct().Count() != (int)format)
+        {
+            MessageBox.Show(this,
+                $"Choose {(int)format} different linked workers for this {format} title.");
+            return;
+        }
         if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
-            x.DisplayName.Equals(alias, StringComparison.OrdinalIgnoreCase)))
+            x.Partner2Uid == (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "") &&
+            x.Partner3Uid == (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "")))
         {
             MessageBox.Show(this,
                 "This superstar is already in the list. Edit their reigns and years in the table.");
@@ -1418,10 +1447,17 @@ public partial class MainWindow : Window
         _advancedParticipants.Add(new LineageParticipant {
             DisplayName = alias, WorkerId = worker.Id,
             FirstYear = AdvancedStartYear.Text.Trim(), LastYear = AdvancedEndYear.Text.Trim(),
-            RequiredReigns = "1", WinYears = winning, ReignLengths = "", FillGaps = false
+            RequiredReigns = "1", WinYears = winning, ReignLengths = "",
+            Partner2Uid = format >= TitleCompetitorFormat.TagTeam
+                ? partner2!.Id.ToString(CultureInfo.InvariantCulture) : "",
+            Partner3Uid = format == TitleCompetitorFormat.Trios
+                ? partner3!.Id.ToString(CultureInfo.InvariantCulture) : "",
+            FillGaps = false
         });
         ResetAdvancedDraft();
         AdvancedWorkerAlias.Clear();
+        AdvancedPartner2Picker.SelectedItem = null;
+        AdvancedPartner3Picker.SelectedItem = null;
         AdvancedCandidatesGrid.Items.Refresh();
         AdvancedGenerationStatus.Text = winning.Length > 0
             ? $"Added {alias} with a fixed win in {winning}. Generate when ready."
