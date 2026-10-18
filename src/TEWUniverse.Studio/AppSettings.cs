@@ -5,6 +5,9 @@ namespace TEWUniverse.Studio;
 /// <summary>Paths and the opt-in preference only. The password is saved separately with Windows DPAPI.</summary>
 internal sealed class AppSettings
 {
+    // Explicit direct-edit target. We do not auto-activate a legacy working copy.
+    public string ActiveDatabasePath { get; set; } = "";
+    // Old settings retained for backward-compatible JSON reading only.
     public string DefaultDatabasePath { get; set; } = "";
     public string CurrentCopyPath { get; set; } = "";
     public string BackupFolderPath { get; set; } = "";
@@ -34,6 +37,7 @@ internal sealed class AppSettings
 
     public AppSettings Copy() => new()
     {
+        ActiveDatabasePath = ActiveDatabasePath,
         DefaultDatabasePath = DefaultDatabasePath,
         CurrentCopyPath = CurrentCopyPath,
         BackupFolderPath = BackupFolderPath,
@@ -49,7 +53,8 @@ internal sealed class AppSettings
 
     public void NormalizeAndValidate()
     {
-        DefaultDatabasePath = NormalizeFilePath(DefaultDatabasePath, "Default Database");
+        ActiveDatabasePath = NormalizeFilePath(ActiveDatabasePath, "Active Database");
+        DefaultDatabasePath = NormalizeFilePath(DefaultDatabasePath, "Legacy Default Database");
         CurrentCopyPath = NormalizeFilePath(CurrentCopyPath, "Current Copy");
         BackupFolderPath = string.IsNullOrWhiteSpace(BackupFolderPath)
             ? ""
@@ -61,10 +66,7 @@ internal sealed class AppSettings
         if (WorkerPicturesFolderPath.Length > 0 && File.Exists(WorkerPicturesFolderPath))
             throw new InvalidOperationException("Worker Picture Folder must be a directory.");
 
-        if (SamePath(DefaultDatabasePath, CurrentCopyPath))
-            throw new InvalidOperationException(
-                "Default Database and Current Copy cannot be the same file. " +
-                "Keep the original scenario untouched and edit a separate copy.");
+        // Direct editing deliberately permits the previously protected source path.
         if (BackupFolderPath.Length > 0 && File.Exists(BackupFolderPath))
             throw new InvalidOperationException("Backup Folder must be a directory, not a file.");
     }

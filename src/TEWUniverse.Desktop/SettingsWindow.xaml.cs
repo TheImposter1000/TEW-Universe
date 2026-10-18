@@ -11,30 +11,20 @@ public partial class SettingsWindow : Window
     internal SettingsWindow(AppSettings current)
     {
         InitializeComponent();
-        DefaultPath.Text = current.DefaultDatabasePath;
-        CopyPath.Text = current.CurrentCopyPath;
+        ActivePath.Text = current.ActiveDatabasePath;
         BackupPath.Text = current.BackupFolderPath;
         PicturePath.Text = current.WorkerPicturesFolderPath;
         RememberPassword.IsChecked = current.RememberDatabasePassword;
     }
 
-    private static string? ChooseMdb(Window owner, string current)
+    private void ActiveBrowse_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "Microsoft Access database (*.mdb)|*.mdb" };
-        if (File.Exists(current)) dialog.FileName = current;
-        return dialog.ShowDialog(owner) == true ? dialog.FileName : null;
-    }
-
-    private void DefaultBrowse_Click(object sender, RoutedEventArgs e)
-    {
-        var path = ChooseMdb(this, DefaultPath.Text);
-        if (path != null) DefaultPath.Text = path;
-    }
-
-    private void CopyBrowse_Click(object sender, RoutedEventArgs e)
-    {
-        var path = ChooseMdb(this, CopyPath.Text);
-        if (path != null) CopyPath.Text = path;
+        var dialog = new OpenFileDialog {
+            Title = "Select the TEW IX scenario database to edit directly",
+            Filter = "Microsoft Access database (*.mdb)|*.mdb"
+        };
+        if (File.Exists(ActivePath.Text)) dialog.FileName = ActivePath.Text;
+        if (dialog.ShowDialog(this) == true) ActivePath.Text = dialog.FileName;
     }
 
     private void BackupBrowse_Click(object sender, RoutedEventArgs e)
@@ -56,23 +46,33 @@ public partial class SettingsWindow : Window
         try
         {
             var next = new AppSettings {
-                DefaultDatabasePath = DefaultPath.Text,
-                CurrentCopyPath = CopyPath.Text,
+                ActiveDatabasePath = ActivePath.Text,
                 BackupFolderPath = BackupPath.Text,
                 WorkerPicturesFolderPath = PicturePath.Text,
                 RememberDatabasePassword = RememberPassword.IsChecked == true
             };
             next.NormalizeAndValidate();
-            if (!string.IsNullOrWhiteSpace(next.CurrentCopyPath) && File.Exists(next.CurrentCopyPath) &&
-                MessageBox.Show(this, "Confirm that Current Copy is an EDITABLE copy, not the original TEW IX scenario.",
-                    "Protect original database", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-                != MessageBoxResult.Yes) return;
+            if (!string.IsNullOrWhiteSpace(next.ActiveDatabasePath))
+            {
+                if (!File.Exists(next.ActiveDatabasePath))
+                    throw new InvalidOperationException("The Active Database MDB does not exist.");
+                if (Path.GetFileName(next.ActiveDatabasePath)
+                    .Equals("TEW9Save.mdb", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Do not select a TEW IX save-game database.");
+                if (MessageBox.Show(this,
+                    "Save Changes will modify this MDB IN PLACE:\n\n" + next.ActiveDatabasePath +
+                    "\n\nClose the TEW IX database editor first. Create Backup remains manual. Continue?",
+                    "Confirm direct database editing", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    return;
+            }
             ResultSettings = next;
             DialogResult = true;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, ex.Message, "Invalid settings",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
