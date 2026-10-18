@@ -163,6 +163,58 @@
     </ControlTemplate></Setter.Value>
    </Setter>
   </Style>
+  <!-- Dark scrollbars remove the bright OS-default scrollbars from every pane. -->
+  <Style x:Key="InvisibleRepeat" TargetType="RepeatButton">
+   <Setter Property="IsTabStop" Value="False"/>
+   <Setter Property="Template">
+    <Setter.Value><ControlTemplate TargetType="RepeatButton">
+     <Border Background="Transparent"/>
+    </ControlTemplate></Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="DarkThumb" TargetType="Thumb">
+   <Setter Property="Template">
+    <Setter.Value><ControlTemplate TargetType="Thumb">
+     <Border x:Name="ThumbFace" Background="#527292" CornerRadius="5" Margin="2"/>
+     <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+       <Setter TargetName="ThumbFace" Property="Background" Value="#81ABCE"/>
+      </Trigger>
+      <Trigger Property="IsDragging" Value="True">
+       <Setter TargetName="ThumbFace" Property="Background" Value="#3094F2"/>
+      </Trigger>
+     </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="ScrollBar">
+   <Setter Property="Width" Value="12"/>
+   <Setter Property="MinWidth" Value="10"/>
+   <Setter Property="Background" Value="#102238"/>
+   <Setter Property="Template">
+    <Setter.Value><ControlTemplate TargetType="ScrollBar">
+     <Border Background="{TemplateBinding Background}" CornerRadius="5">
+      <Track x:Name="PART_Track" IsDirectionReversed="True" Focusable="False">
+       <Track.DecreaseRepeatButton>
+        <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource InvisibleRepeat}"/>
+       </Track.DecreaseRepeatButton>
+       <Track.Thumb>
+        <Thumb Style="{StaticResource DarkThumb}"/>
+       </Track.Thumb>
+       <Track.IncreaseRepeatButton>
+        <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource InvisibleRepeat}"/>
+       </Track.IncreaseRepeatButton>
+      </Track>
+     </Border>
+     <ControlTemplate.Triggers>
+      <Trigger Property="Orientation" Value="Horizontal">
+       <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+      </Trigger>
+     </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value>
+   </Setter>
+  </Style>
+
   <Style TargetType="ListBoxItem">
    <Setter Property="Foreground" Value="{StaticResource TextBrushLight}"/>
    <Setter Property="Padding" Value="11,9"/>
