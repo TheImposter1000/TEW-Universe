@@ -1,11 +1,15 @@
 <Window x:Class="TEWUniverse.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="TEW Universe Studio | TEW IX"
-        Width="1540" Height="930" MinWidth="1150" MinHeight="680"
+        Width="1580" Height="930" MinWidth="1150" MinHeight="700" WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen" Background="{StaticResource WindowBrush}"
         FontFamily="Segoe UI" Foreground="{StaticResource TextBrushLight}"
         Closing="MainWindow_Closing">
+  <shell:WindowChrome.WindowChrome>
+   <shell:WindowChrome CaptionHeight="54" GlassFrameThickness="0" ResizeBorderThickness="7" CornerRadius="0" UseAeroCaptionButtons="False"/>
+  </shell:WindowChrome.WindowChrome>
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="55"/>
@@ -14,25 +18,36 @@
       <RowDefinition Height="37"/>
     </Grid.RowDefinitions>
 
-    <!-- Brand strip and current database -->
-    <Border Grid.Row="0" Background="#101E2F" BorderBrush="#334964" BorderThickness="0,0,0,1">
-      <Grid Margin="19,0">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-        <Border Width="29" Height="29" Background="#147CF0" CornerRadius="7" VerticalAlignment="Center">
-          <TextBlock Text="U" FontWeight="Bold" FontSize="20" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-        </Border>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="13,0,0,0">
-          <TextBlock Text="TEW Universe Studio" FontSize="21" FontWeight="Bold"/>
-          <TextBlock Text="  |  TEW IX" FontSize="15" Foreground="{StaticResource TextBrushMuted}" VerticalAlignment="Center"/>
-        </StackPanel>
-        <TextBlock Grid.Column="2" x:Name="ProjectPathLabel" Text="No working database open"
-                   Foreground="{StaticResource TextBrushMuted}" FontSize="12"
-                   TextTrimming="CharacterEllipsis" Margin="26,0,0,0" VerticalAlignment="Center"/>
-      </Grid>
+    <Border Grid.Row="0" Background="#102139" BorderBrush="#34516E" BorderThickness="0,0,0,1">
+     <Grid Margin="18,0,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="138"/></Grid.ColumnDefinitions>
+      <Border Width="29" Height="29" Background="#147AF1" CornerRadius="6" VerticalAlignment="Center">
+       <TextBlock Text="◈" FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="13,0,0,0">
+       <TextBlock Text="TEW Universe Studio" FontSize="21" FontWeight="Bold"/>
+       <TextBlock Text="  |  TEW IX" FontSize="14" Foreground="#90ACD0" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,12,0">
+       <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="15" Margin="0,0,10,0" Foreground="#AFCBEA"/>
+       <TextBlock x:Name="ProjectPathLabel" Text="No working database open"
+        Foreground="#A7BDDA" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
+       <Button Width="46" Height="48" Background="Transparent" BorderThickness="0"
+        shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="Minimize_Click" ToolTip="Minimize">
+        <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+       </Button>
+       <Button Width="46" Height="48" Background="Transparent" BorderThickness="0"
+        shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="Maximize_Click" ToolTip="Maximize or restore">
+        <TextBlock x:Name="MaximizeGlyph" Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="11"/>
+       </Button>
+       <Button Width="46" Height="48" Background="Transparent" BorderThickness="0"
+        shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="Close_Click" ToolTip="Close">
+        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+       </Button>
+      </StackPanel>
+     </Grid>
     </Border>
 
     <!-- Main commands; horizontal scrollbar avoids clipped commands on smaller screens -->
@@ -96,8 +111,8 @@
 
     <Grid Grid.Row="2">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="175"/>
-        <ColumnDefinition Width="305"/>
+        <ColumnDefinition Width="210"/>
+        <ColumnDefinition Width="345"/>
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
 
@@ -160,8 +175,8 @@
       <!-- Detail editor -->
       <Grid Grid.Column="2" Margin="4,10,11,10">
         <Grid.RowDefinitions>
-          <RowDefinition Height="124"/>
-          <RowDefinition Height="52"/>
+          <RowDefinition Height="142"/>
+          <RowDefinition Height="54"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
