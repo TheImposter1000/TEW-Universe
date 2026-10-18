@@ -18,6 +18,8 @@
     <Compile Include="..\TEWUniverse.Studio\WorkerExtrasSession.cs" Link="Services\WorkerExtrasSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerContractSession.cs" Link="Services\WorkerContractSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\StudioRecordNames.cs" Link="Services\StudioRecordNames.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\RecordNameRepairPlanner.cs" Link="Services\RecordNameRepairPlanner.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\RecordNameRepairSession.cs" Link="Services\RecordNameRepairSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\TitleSlotSession.cs" Link="Services\TitleSlotSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\StudioDateFormat.cs" Link="Services\StudioDateFormat.cs"/>
     <Compile Include="..\TEWUniverse.Studio\AppSettings.cs" Link="Services\AppSettings.cs"/>

@@ -716,6 +716,100 @@ if (!invalidRecordNameRejected)
 
 Console.WriteLine("Passed TEW-style title and employment RecordName conventions.");
 
+// Migration of ALREADY-SAVED history must not recreate title holders,
+// change capture dates, or rewrite unrelated titles. The plan is entirely
+// separate from destructive full lineage generation.
+var oldHistory = new[]
+{
+    new TitleRecordNameRow(101, 10, 1, "BCW Championship", "TUS00010_00001"),
+    new TitleRecordNameRow(102, 10, 2, "BCW Championship", "TUS00010_00002"),
+    new TitleRecordNameRow(103, 10, 3, "BCW Championship", "BCW Championship003"),
+    new TitleRecordNameRow(201, 20, 1, "UWE National Championship", "TUS00020_00001")
+};
+var oneTitle = RecordNameRepairPlanner.Titles(oldHistory, 10);
+if (oneTitle.ScannedCount != 3 || oneTitle.Changes.Count != 2 ||
+    oneTitle.Changes[0].NewName != "BCW Championship001" ||
+    oneTitle.Changes[1].NewName != "BCW Championship002" ||
+    oneTitle.Changes.Any(x => x.OwnerUid != 10 || x.Uid is not (101 or 102)))
+    throw new Exception("Repair of one existing title did not preserve correct existing names.");
+var everyTitle = RecordNameRepairPlanner.Titles(oldHistory, null);
+if (everyTitle.Changes.Count != 3 ||
+    everyTitle.Changes.Single(x => x.OwnerUid == 20).NewName !=
+        "UWE National Championship001")
+    throw new Exception("Database-wide existing title name migration was not scoped safely.");
+
+// Two old records exchanging existing names is legal because database writes
+// stage all changes with temporary identifiers inside a transaction.
+var swapped = RecordNameRepairPlanner.Titles(new[]
+{
+    oldHistory[0] with { OldName = "BCW Championship002" },
+    oldHistory[1] with { OldName = "BCW Championship001" }
+}, 10);
+if (swapped.Changes.Count != 2 ||
+    swapped.Changes[0].NewName != "BCW Championship001" ||
+    swapped.Changes[1].NewName != "BCW Championship002")
+    throw new Exception("Swapped historical record names were not planned correctly.");
+
+// Identical belt names for different UID ownership must not collide, even in
+// a selected-only migration where another title's name is reserved.
+var titleConflict = RecordNameRepairPlanner.Titles(new[]
+{
+    new TitleRecordNameRow(1, 5, 1, "BCW Championship", "BCW Championship001"),
+    new TitleRecordNameRow(2, 6, 1, "BCW Championship", "TUS00006_00001")
+}, 6);
+if (titleConflict.Changes.Count != 1 ||
+    titleConflict.Changes[0].NewName != "BCW Championship002")
+    throw new Exception("Existing title record name collision was not prevented.");
+
+var cv = new[]
+{
+    new EmploymentRecordNameRow(4963, 11, "PWA",
+        new DateTime(2015, 6, 20), new DateTime(2021, 12, 12), "TUSCV0001"),
+    new EmploymentRecordNameRow(4963, 22, "NCW",
+        new DateTime(2008, 10, 25), new DateTime(2012, 8, 18), "TUSCV0002"),
+    new EmploymentRecordNameRow(77, 11, "PWA",
+        new DateTime(2015, 1, 1), new DateTime(2021, 12, 12), "PWA (2015-2021)"),
+    new EmploymentRecordNameRow(4963, 11, "PWA",
+        new DateTime(2015, 4, 1), new DateTime(2021, 11, 1), "TUSCV0003")
+};
+var brendanCv = RecordNameRepairPlanner.Employment(cv, 4963);
+if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 3 ||
+    brendanCv.Changes.Any(x => x.OwnerUid != 4963) ||
+    !brendanCv.Changes.Any(x => x.NewName == "NCW (2008-2012)") ||
+    !brendanCv.Changes.Any(x => x.NewName == "PWA (2015-2021) #2") ||
+    !brendanCv.Changes.Any(x => x.NewName == "PWA (2015-2021) #3"))
+    throw new Exception("Existing Brendan employment names were not migrated or collision-safe.");
+var wholeCv = RecordNameRepairPlanner.Employment(cv, null);
+if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 3 ||
+    wholeCv.Changes.Select(x => x.NewName)
+        .Distinct(StringComparer.OrdinalIgnoreCase).Count() != wholeCv.Changes.Count ||
+    wholeCv.Changes.Any(x => x.OwnerUid == 77))
+    throw new Exception("Database-wide employment record names were not made unique.");
+
+// Special TEW 1666 sentinel / damaged historical dates cannot be guessed.
+// Such rows should be shown as skipped rather than silently moved.
+var unknown = RecordNameRepairPlanner.Employment(new[]
+{
+    new EmploymentRecordNameRow(90, 11, "PWA",
+        new DateTime(1666, 1, 1), new DateTime(2021, 1, 1), "UnknownCV")
+}, 90);
+if (unknown.Changes.Count != 0 || unknown.Warnings.Count != 1)
+    throw new Exception("An incomplete employment period was renamed by guessing its years.");
+
+bool duplicateKeysRejected = false;
+try
+{
+    RecordNameRepairPlanner.Titles(new[]
+    {
+        oldHistory[0], oldHistory[1] with { OldName = oldHistory[0].OldName }
+    }, null);
+}
+catch (InvalidOperationException) { duplicateKeysRejected = true; }
+if (!duplicateKeysRejected)
+    throw new Exception("Ambiguous duplicate old title RecordName values were accepted.");
+
+Console.WriteLine("Passed selected and global existing-record name migration checks.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);

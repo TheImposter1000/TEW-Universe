@@ -509,6 +509,19 @@
                        TextWrapping="Wrap" Margin="0,6,0,7"/>
             <TextBlock x:Name="TitleLineageSummary" Text="Select a championship to view its lineage."
                        Foreground="#B9D4ED" FontSize="12" TextWrapping="Wrap"/>
+            <WrapPanel Margin="0,10,0,0">
+             <Button Content="Review / Repair This Title's Record Names"
+                     Style="{StaticResource ActionButton}" Tag="Selected"
+                     Click="ReviewExistingTitleRecordNames_Click"
+                     Margin="0,0,9,6" Padding="12,7"/>
+             <Button Content="Review / Repair All Title Record Names"
+                     Style="{StaticResource ActionButton}" Tag="All"
+                     Click="ReviewExistingTitleRecordNames_Click"
+                     Margin="0,0,9,6" Padding="12,7"/>
+            </WrapPanel>
+            <TextBlock Text="Changes only existing Recordname text. All reign holders, dates, defenses, order numbers and UIDs are preserved. Review the changes and confirm before writing."
+                       Foreground="#99B8D6" TextWrapping="Wrap" FontSize="11"
+                       Margin="0,0,0,5"/>
             <Expander x:Name="LineageGeneratorOptions" Header="Generate Title Reigns"
                       Foreground="#EAF5FF" Margin="0,10,0,8"
                       Background="#172C46">
