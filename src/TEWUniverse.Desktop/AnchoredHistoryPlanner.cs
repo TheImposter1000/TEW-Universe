@@ -13,29 +13,6 @@ internal static class AnchoredHistoryPlanner
         int FirstEligibleYear, int LastEligibleYear);
     private sealed record Event(DateTime Won, Anchor? FixedWinner);
 
-    // Resolve a recurring event's calendar date separately for each year.
-    // Occurrences 1–4 are ordinal weekdays; 5 means the last such weekday.
-    // Not offering "fifth" avoids silently moving an event into another month.
-    internal static DateTime ResolveAnnualEventDate(int year, int month, int occurrence,
-        DayOfWeek weekday)
-    {
-        if (year is < 1800 or > 2100 || month is < 1 or > 12 ||
-            occurrence is < 1 or > 5 || weekday is < DayOfWeek.Sunday or > DayOfWeek.Saturday)
-            throw new InvalidOperationException(
-                "Annual tournaments require a month (1–12), a week (first, second, third, fourth or last), " +
-                "and a weekday (Sunday–Saturday).");
-
-        if (occurrence == 5)
-        {
-            var end = new DateTime(year, month, DateTime.DaysInMonth(year, month));
-            int back = ((int)end.DayOfWeek - (int)weekday + 7) % 7;
-            return end.AddDays(-back);
-        }
-
-        var start = new DateTime(year, month, 1);
-        int offset = ((int)weekday - (int)start.DayOfWeek + 7) % 7;
-        return start.AddDays(offset + 7 * (occurrence - 1));
-    }
     /// <summary>
     /// One historical winner per calendar year by default. A linked superstar
     /// occupies a pinned winning year; every otherwise unoccupied year gets a
@@ -59,7 +36,7 @@ internal static class AnchoredHistoryPlanner
                 "tblGenerateWorker did not provide any usable NPC names with these filters.");
 
         if (annualTournament)
-            _ = ResolveAnnualEventDate(firstYear, eventMonth, eventWeek, eventWeekday);
+            _ = AnnualTournamentCalendar.ResolveDate(firstYear, eventMonth, eventWeek, eventWeekday);
 
         var reserved = new Dictionary<int, List<Anchor>>();
         foreach (var win in fixedWins)
@@ -122,7 +99,7 @@ internal static class AnchoredHistoryPlanner
                 // in one year get separate dates without generating NPC winners.
                 for (int i = 0; i < wins.Count; i++)
                 {
-                    DateTime day = ResolveAnnualEventDate(
+                    DateTime day = AnnualTournamentCalendar.ResolveDate(
                         year, eventMonth, eventWeek, eventWeekday);
                     events.Add((day, wins[i].WorkerId, wins[i].Name));
                     previous = wins[i].Name;
@@ -134,7 +111,7 @@ internal static class AnchoredHistoryPlanner
                     StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (choices.Length == 0) choices = pool.ToArray();
                 var selected = choices[Random.Shared.Next(choices.Length)];
-                events.Add((ResolveAnnualEventDate(
+                events.Add((AnnualTournamentCalendar.ResolveDate(
                     year, eventMonth, eventWeek, eventWeekday), -1, selected));
                 previous = selected;
             }
