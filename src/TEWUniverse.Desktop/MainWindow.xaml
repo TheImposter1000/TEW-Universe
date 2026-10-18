@@ -418,6 +418,9 @@
                   Margin="0,0,9,0" Padding="18,11"/>
           <Button x:Name="TitleLineageTab" Content="Title Lineage"
                   Style="{StaticResource ActionButton}" Click="TitleLineageTab_Click"
+                  Padding="18,11" Margin="0,0,9,0"/>
+          <Button x:Name="AdvancedLineageTab" Content="Advanced Generator"
+                  Style="{StaticResource ActionButton}" Click="AdvancedLineageTab_Click"
                   Padding="18,11"/>
          </StackPanel>
          <Border x:Name="ExistingDetailsPanel" Grid.Row="1"
@@ -527,6 +530,128 @@
               <Setter Property="BorderThickness" Value="0,0,1,1"/>
               <Setter Property="Padding" Value="11,8"/>
               <Setter Property="HorizontalContentAlignment" Value="Left"/>
+             </Style>
+            </DataGrid.ColumnHeaderStyle>
+           </DataGrid>
+          </DockPanel>
+         </Border>
+         <!-- The advanced generator is a deliberate separate workflow. It can
+              reference real worker UIDs or name-only historical champions. -->
+         <Border x:Name="AdvancedLineagePanel" Grid.Row="1" Visibility="Collapsed"
+                 Style="{StaticResource CardBorder}" Padding="16">
+          <DockPanel>
+           <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="Build a Championship History" FontSize="20" FontWeight="Bold"/>
+            <TextBlock Text="Give champions required reign counts and the years they worked here. Name-only historical champions do not require worker records."
+                       Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
+                       Margin="0,5,0,10"/>
+            <WrapPanel Margin="0,0,0,8">
+             <ComboBox x:Name="AdvancedWorkerPicker" Width="240"
+                       Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
+                       ToolTip="Select an existing worker by name and UID"/>
+             <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
+                      Width="160" Margin="0,0,8,6"
+                      ToolTip="Optional historical ring name for the selected worker"/>
+             <Button Content="Add MDB Worker" Style="{StaticResource ActionButton}"
+                     Click="AdvancedAddWorker_Click" Padding="10,6" Margin="0,0,12,6"/>
+             <TextBox x:Name="AdvancedHistoricalName" Style="{StaticResource FormTextBox}"
+                      Width="180" Margin="0,0,8,6"
+                      ToolTip="Champion name with no worker record"/>
+             <Button Content="Add Name-only Holder" Style="{StaticResource ActionButton}"
+                     Click="AdvancedAddHistorical_Click" Padding="10,6" Margin="0,0,8,6"/>
+             <Button Content="Load Recorded Holders" Style="{StaticResource ActionButton}"
+                     Click="AdvancedLoadRecorded_Click" Padding="10,6" Margin="0,0,8,6"/>
+            </WrapPanel>
+            <TextBlock Text="Edit each person's historical display name, first/last eligible year, and exact required reign count. Check Fill gaps only for background champions who may receive additional reigns."
+                       Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
+                       Margin="0,0,0,6"/>
+            <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
+                      Height="174" ItemsSource="{Binding}"
+                      IsReadOnly="False" CanUserAddRows="False"
+                      CanUserDeleteRows="True" CanUserResizeColumns="True"
+                      BorderBrush="#426080" BorderThickness="1"
+                      Background="#12263D" Foreground="#EDF6FF"
+                      RowBackground="#142B45" AlternatingRowBackground="#1D3852"
+                      ColumnHeaderHeight="28" RowHeight="28"
+                      PreviewKeyDown="AdvancedCandidatesGrid_PreviewKeyDown"
+                      CellEditEnding="AdvancedCandidatesGrid_CellEditEnding">
+             <DataGrid.ColumnHeaderStyle>
+              <Style TargetType="DataGridColumnHeader">
+               <Setter Property="Background" Value="#234263"/>
+               <Setter Property="Foreground" Value="White"/>
+               <Setter Property="Padding" Value="8,5"/>
+               <Setter Property="FontWeight" Value="SemiBold"/>
+              </Style>
+             </DataGrid.ColumnHeaderStyle>
+             <DataGrid.Columns>
+              <DataGridTextColumn Header="History name / alias" Binding="{Binding DisplayName, UpdateSourceTrigger=LostFocus}"
+                                  Width="2*"/>
+              <DataGridTextColumn Header="Worker UID" Binding="{Binding WorkerId}"
+                                  Width="90" IsReadOnly="True"/>
+              <DataGridTextColumn Header="From year" Binding="{Binding FirstYear, UpdateSourceTrigger=LostFocus}"
+                                  Width="100"/>
+              <DataGridTextColumn Header="To year" Binding="{Binding LastYear, UpdateSourceTrigger=LostFocus}"
+                                  Width="100"/>
+              <DataGridTextColumn Header="Exact reigns" Binding="{Binding RequiredReigns, UpdateSourceTrigger=LostFocus}"
+                                  Width="105"/>
+              <DataGridCheckBoxColumn Header="Fill gaps" Binding="{Binding FillGaps}"
+                                      Width="95"/>
+             </DataGrid.Columns>
+            </DataGrid>
+            <WrapPanel Margin="0,9,0,7">
+             <StackPanel Margin="0,0,12,5">
+              <TextBlock Text="First year" Foreground="#ADC9E8" FontSize="11"/>
+              <TextBox x:Name="AdvancedStartYear" Style="{StaticResource FormTextBox}"
+                       Text="1980" Width="84"/>
+             </StackPanel>
+             <StackPanel Margin="0,0,12,5">
+              <TextBlock Text="Last year" Foreground="#ADC9E8" FontSize="11"/>
+              <TextBox x:Name="AdvancedEndYear" Style="{StaticResource FormTextBox}"
+                       Text="2020" Width="84"/>
+             </StackPanel>
+             <StackPanel Margin="0,0,12,5">
+              <TextBlock Text="Total reigns" Foreground="#ADC9E8" FontSize="11"/>
+              <TextBox x:Name="AdvancedTotalReigns" Style="{StaticResource FormTextBox}"
+                       Text="42" Width="84"/>
+             </StackPanel>
+             <CheckBox x:Name="AdvancedFillRemaining" IsChecked="True"
+                       Content="Fill remaining slots with eligible background holders"
+                       Foreground="#D7E8FA" VerticalAlignment="Center"
+                       Margin="5,10,12,5"/>
+            </WrapPanel>
+            <WrapPanel Margin="0,0,0,7">
+             <Button Content="Generate Constrained Preview"
+                     Style="{StaticResource BlueButton}" Padding="13,9"
+                     Click="AdvancedGenerate_Click" Margin="0,0,8,6"/>
+             <Button x:Name="AdvancedApplyButton" Content="Replace Existing Reigns"
+                     IsEnabled="False" Style="{StaticResource ActionButton}"
+                     Click="AdvancedApply_Click" Margin="0,0,8,6"/>
+             <Button x:Name="AdvancedExportButton" Content="Export Draft CSV"
+                     IsEnabled="False" Style="{StaticResource ActionButton}"
+                     Click="AdvancedExport_Click" Margin="0,0,8,6"/>
+             <Button Content="Clear Participants" Style="{StaticResource ActionButton}"
+                     Click="AdvancedClear_Click" Margin="0,0,8,6"/>
+            </WrapPanel>
+            <TextBlock x:Name="AdvancedGenerationStatus"
+                       Text="Select a championship. A preview does not alter the MDB."
+                       Foreground="#E7C38D" TextWrapping="Wrap" FontSize="12"
+                       Margin="0,0,0,4"/>
+           </StackPanel>
+           <DataGrid x:Name="AdvancedPreviewGrid" AutoGenerateColumns="True"
+                     AutoGeneratingColumn="TitleLineageGrid_AutoGeneratingColumn"
+                     IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
+                     Background="#102238" Foreground="#EDF6FF"
+                     RowBackground="#142B45" AlternatingRowBackground="#193550"
+                     BorderBrush="#426080" BorderThickness="1"
+                     HeadersVisibility="Column" ColumnHeaderHeight="34"
+                     RowHeight="29" MinColumnWidth="110"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <DataGrid.ColumnHeaderStyle>
+             <Style TargetType="DataGridColumnHeader">
+              <Setter Property="Background" Value="#234263"/>
+              <Setter Property="Foreground" Value="White"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Padding" Value="9,7"/>
              </Style>
             </DataGrid.ColumnHeaderStyle>
            </DataGrid>

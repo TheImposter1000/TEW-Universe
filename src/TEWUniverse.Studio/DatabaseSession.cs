@@ -321,9 +321,16 @@ internal sealed class DatabaseSession : IDisposable
             || !string.Equals(existing.OrderField, "BeltOrder", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The expected TEW IX lineage schema was not found.");
 
+        // Recognize known legacy field names, never arbitrary user SQL identifiers.
+        string ResolveName(string a, string b) =>
+            existing.Rows.Columns.Contains(a) ? a :
+            existing.Rows.Columns.Contains(b) ? b :
+            throw new InvalidOperationException("Missing title-history field " + a + " / " + b);
+        string holderName1 = ResolveName("Holder_Name1", "HolderName1");
+        string holderName2 = ResolveName("Holder_Name2", "HolderName2");
+        string holderName3 = ResolveName("Holder_Name3", "HolderName3");
         string[] required = { "UID", "BeltUID", "BeltOrder", "Holder1", "Holder2",
-            "Holder3", "Holder_Name1", "Holder_Name2", "Holder_Name3",
-            "BeltCaptured", "BeltLost", "Defences" };
+            "Holder3", "BeltCaptured", "BeltLost", "Defences" };
         if (required.Any(name => !existing.Rows.Columns.Contains(name)))
             throw new InvalidOperationException("Some required title-lineage columns are missing.");
 
@@ -345,22 +352,35 @@ internal sealed class DatabaseSession : IDisposable
                 "This title has three-person reigns; automatic generation currently supports singles or tag teams.");
 
         var workers = ListWorkers().ToDictionary(w => w.Id);
+        // Historical names without a database worker are linked as -1.
+        // Real worker IDs may legitimately have an alternative ring name.
         foreach (var reign in proposed)
         {
-            if (!workers.TryGetValue(reign.Holder1, out var first)
-                || !string.Equals(first.Name, reign.HolderName1, StringComparison.Ordinal)
-                || (reign.Holder2 > 0 &&
-                    (!workers.TryGetValue(reign.Holder2, out var second)
-                    || !string.Equals(second.Name, reign.HolderName2, StringComparison.Ordinal)))
-                || (reign.Holder2 <= 0 && !string.IsNullOrEmpty(reign.HolderName2)))
-                throw new InvalidOperationException("Every generated holder must match an existing worker ID and name.");
-            if (reign.Captured > reign.Lost || reign.Captured.Year < 1800
-                || reign.Lost.Year > 2100 || reign.Defences < 0)
-                throw new InvalidOperationException("A generated reign has invalid dates or defences.");
-            if (reign.HolderName1.Length > 30 || reign.HolderName2.Length > 30)
+            if ((reign.Holder1 != -1 &&
+                    (reign.Holder1 <= 0 || !workers.ContainsKey(reign.Holder1))) ||
+                (reign.Holder2 > 0 && !workers.ContainsKey(reign.Holder2)) ||
+                reign.Holder2 < -1)
                 throw new InvalidOperationException(
-                    "One of the worker names exceeds the title-history name field limit.");
+                    "A holder must have an existing worker UID or -1 for name-only history.");
+            if (string.IsNullOrWhiteSpace(reign.HolderName1) ||
+                (reign.Holder2 > 0 && string.IsNullOrWhiteSpace(reign.HolderName2)) ||
+                (reign.Holder2 <= 0 && !string.IsNullOrWhiteSpace(reign.HolderName2)))
+                throw new InvalidOperationException(
+                    "Each historical holder needs a display name.");
+            if (reign.Captured > reign.Lost || reign.Captured.Year < 1800 ||
+                reign.Lost.Year > 2100 || reign.Defences < 0)
+                throw new InvalidOperationException("A generated reign has invalid dates or defences.");
+            if (reign.HolderName1.Length > 30 || reign.HolderName2.Length > 30 ||
+                reign.HolderName1.Any(char.IsControl) || reign.HolderName2.Any(char.IsControl))
+                throw new InvalidOperationException(
+                    "Historical champion names must be at most 30 characters.");
         }
+        if (rows.Any(r => r["Holder2"] != DBNull.Value &&
+                Convert.ToInt32(r["Holder2"], CultureInfo.InvariantCulture) > 0)
+            && proposed.Any(r => r.Holder2 <= 0))
+            throw new InvalidOperationException(
+                "A singles-only proposal cannot replace a championship's existing tag-team reigns.");
+
         for (int i = 0; i < proposed.Count; i++)
         {
             if (proposed[i].Order != i + 1)
@@ -384,7 +404,7 @@ internal sealed class DatabaseSession : IDisposable
                 using var cmd = new OleDbCommand(
                     "UPDATE [tblBeltPreHistory] SET " +
                     "[Holder1]=?, [Holder2]=?, [Holder3]=?, " +
-                    "[Holder_Name1]=?, [Holder_Name2]=?, [Holder_Name3]=?, " +
+                    $"[{holderName1}]=?, [{holderName2}]=?, [{holderName3}]=?, " +
                     "[BeltCaptured]=?, [BeltLost]=?, [Defences]=? " +
                     "WHERE [UID]=? AND [BeltUID]=? AND [BeltOrder]=?",
                     _connection, transaction);

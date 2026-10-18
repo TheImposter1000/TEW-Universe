@@ -12,6 +12,16 @@ using TEWUniverse.Studio;
 
 namespace TEWUniverse.Desktop;
 
+internal sealed class LineageParticipant
+{
+    public string DisplayName { get; set; } = "";
+    public int WorkerId { get; set; } = -1;
+    public string FirstYear { get; set; } = "1980";
+    public string LastYear { get; set; } = "2020";
+    public string RequiredReigns { get; set; } = "0";
+    public bool FillGaps { get; set; }
+}
+
 public partial class MainWindow : Window
 {
     private AppSettings _settings = AppSettings.Load();
@@ -34,6 +44,11 @@ public partial class MainWindow : Window
     private List<GeneratedTitleReign> _generatedTitleReigns = new();
     private int? _draftTitleId;
     private int _existingLineageSlots;
+    private readonly ObservableCollection<LineageParticipant> _advancedParticipants = new();
+    private List<GeneratedTitleReign> _advancedDraft = new();
+    private int? _advancedDraftTitleId;
+    private int? _advancedConfiguredTitleId;
+    private int _advancedExistingSlots;
     private DateTime? _lastSaved;
     private string _sortMode = "Name A to Z";
     private WorkerPortraitConverter Portraits => (WorkerPortraitConverter)FindResource("WorkerPictureConverter");
@@ -55,6 +70,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         RefreshPortraits();
+        AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
         {
             RestoreProject();
@@ -720,6 +736,8 @@ public partial class MainWindow : Window
             _sessionPassword = password;
             _settings = copy;
             _allWorkers = list;
+            AdvancedWorkerPicker.ItemsSource = _allWorkers;
+            ResetAdvancedTitle();
             _worker = null;
             WorkerPortraitEllipse.Fill = Brushes.Transparent;
             WorkerPortraitPlaceholder.Visibility = Visibility.Visible;
@@ -831,6 +849,7 @@ public partial class MainWindow : Window
         // Confirmation to discard changes means reload the selected worker from disk
         // when we eventually return, rather than preserving stale unsaved form text.
         _activeModule = section;
+        ResetAdvancedTitle();
         bool workers = section == "Workers";
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
@@ -953,6 +972,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("The selected record is missing from the working database.");
 
             _selectedExisting = selected;
+            ResetAdvancedTitle();
             ClearGeneratedLineage();
             TitleLineageGrid.ItemsSource = null;
             TitleLineageSummary.Text = "Open Title Lineage to load pre-game reigns.";
@@ -1215,15 +1235,335 @@ public partial class MainWindow : Window
     private void ShowSavedLineage_Click(object sender, RoutedEventArgs e)
         => LoadTitleLineage();
 
+    private void AdvancedLineageTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeModule != "Titles") return;
+        TitleLineagePanel.Visibility = Visibility.Collapsed;
+        ExistingDetailsPanel.Visibility = Visibility.Collapsed;
+        AdvancedLineagePanel.Visibility = Visibility.Visible;
+        TitleInfoTab.Style = (Style)FindResource("ActionButton");
+        TitleLineageTab.Style = (Style)FindResource("ActionButton");
+        AdvancedLineageTab.Style = (Style)FindResource("BlueButton");
+        ConfigureAdvancedTitle();
+    }
+
+    private void ResetAdvancedDraft()
+    {
+        _advancedDraft.Clear();
+        _advancedDraftTitleId = null;
+        _advancedExistingSlots = 0;
+        if (AdvancedApplyButton != null) AdvancedApplyButton.IsEnabled = false;
+        if (AdvancedExportButton != null) AdvancedExportButton.IsEnabled = false;
+        if (AdvancedPreviewGrid != null) AdvancedPreviewGrid.ItemsSource = null;
+    }
+
+    private void ResetAdvancedTitle()
+    {
+        ResetAdvancedDraft();
+        _advancedConfiguredTitleId = null;
+        _advancedParticipants.Clear();
+        if (AdvancedGenerationStatus != null)
+            AdvancedGenerationStatus.Text = "Select a championship to plan its historical reigns.";
+    }
+
+    private void ConfigureAdvancedTitle()
+    {
+        if (_session == null || _selectedExisting == null || _activeModule != "Titles")
+        {
+            AdvancedGenerationStatus.Text = "Open a championship to plan its reigns.";
+            return;
+        }
+        if (_advancedConfiguredTitleId == _selectedExisting.Id) return;
+        ResetAdvancedTitle();
+        _advancedConfiguredTitleId = _selectedExisting.Id;
+        var history = _session.ReadTitleLineage(_selectedExisting.Id);
+        if (history.LinkField == null)
+        {
+            AdvancedGenerationStatus.Text = history.Message;
+            return;
+        }
+        AdvancedTotalReigns.Text = history.Rows.Rows.Count.ToString(CultureInfo.InvariantCulture);
+        var dates = history.Rows.Rows.Cast<DataRow>()
+            .SelectMany(row => new[] { "BeltCaptured", "BeltLost" }
+                .Where(history.Rows.Columns.Contains)
+                .Select(col => row[col]))
+            .OfType<DateTime>()
+            .Where(date => date.Year is >= 1800 and <= 2100)
+            .Select(date => date.Year).ToList();
+        if (dates.Count != 0)
+        {
+            AdvancedStartYear.Text = dates.Min().ToString(CultureInfo.InvariantCulture);
+            AdvancedEndYear.Text = dates.Max().ToString(CultureInfo.InvariantCulture);
+        }
+        AdvancedGenerationStatus.Text =
+            $"{history.Rows.Rows.Count:N0} existing history slot(s) for {_selectedExisting.Name}. " +
+            "Add participants with required reign counts. 'Fill gaps' allows background holders " +
+            "to cover years not reserved for your named stars.";
+    }
+
+    private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedExisting == null || _activeModule != "Titles") return;
+        if (AdvancedWorkerPicker.SelectedItem is not WorkerItem worker)
+        {
+            MessageBox.Show(this, "Select an existing worker from the dropdown.");
+            return;
+        }
+        var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
+            ? worker.Name : AdvancedWorkerAlias.Text.Trim();
+        _advancedParticipants.Add(new LineageParticipant {
+            DisplayName = alias, WorkerId = worker.Id,
+            FirstYear = AdvancedStartYear.Text, LastYear = AdvancedEndYear.Text,
+            RequiredReigns = "1", FillGaps = false
+        });
+        ResetAdvancedDraft();
+        AdvancedWorkerAlias.Clear();
+    }
+
+    private void AdvancedAddHistorical_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedExisting == null || _activeModule != "Titles") return;
+        var name = AdvancedHistoricalName.Text.Trim();
+        if (name.Length == 0)
+        {
+            MessageBox.Show(this, "Enter the historical champion's name.");
+            return;
+        }
+        _advancedParticipants.Add(new LineageParticipant {
+            DisplayName = name, WorkerId = -1,
+            FirstYear = AdvancedStartYear.Text, LastYear = AdvancedEndYear.Text,
+            RequiredReigns = "0", FillGaps = true
+        });
+        AdvancedHistoricalName.Clear();
+        ResetAdvancedDraft();
+    }
+
+    private void AdvancedLoadRecorded_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _selectedExisting == null || _activeModule != "Titles") return;
+        try
+        {
+            ConfigureAdvancedTitle();
+            var history = _session.ReadTitleLineage(_selectedExisting.Id);
+            if (history.LinkField == null)
+                throw new InvalidOperationException(history.Message);
+            var names = history.Rows.Columns.Contains("Holder_Name1") ? "Holder_Name1" :
+                history.Rows.Columns.Contains("HolderName1") ? "HolderName1" :
+                throw new InvalidOperationException("No historical champion name column was found.");
+            int added = 0;
+            foreach (DataRow row in history.Rows.Rows)
+            {
+                var name = DatabaseSession.Display(row[names]).Trim();
+                if (name.Length == 0) continue;
+                int id = history.Rows.Columns.Contains("Holder1")
+                    && row["Holder1"] != DBNull.Value
+                    ? Convert.ToInt32(row["Holder1"], CultureInfo.InvariantCulture) : -1;
+                if (id <= 0 || !_allWorkers.Any(w => w.Id == id)) id = -1;
+                var existing = _advancedParticipants.FirstOrDefault(p =>
+                    p.WorkerId == id &&
+                    p.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase));
+                int startYear = row["BeltCaptured"] is DateTime start && start.Year is >= 1800 and <= 2100
+                    ? start.Year : int.Parse(AdvancedStartYear.Text, CultureInfo.InvariantCulture);
+                int endYear = row["BeltLost"] is DateTime lost && lost.Year is >= 1800 and <= 2100
+                    ? lost.Year : int.Parse(AdvancedEndYear.Text, CultureInfo.InvariantCulture);
+                if (existing != null)
+                {
+                    if (int.TryParse(existing.FirstYear, out int oldStart))
+                        existing.FirstYear = Math.Min(oldStart, startYear).ToString(CultureInfo.InvariantCulture);
+                    if (int.TryParse(existing.LastYear, out int oldEnd))
+                        existing.LastYear = Math.Max(oldEnd, endYear).ToString(CultureInfo.InvariantCulture);
+                    continue;
+                }
+                _advancedParticipants.Add(new LineageParticipant {
+                    DisplayName = name, WorkerId = id,
+                    FirstYear = Math.Min(startYear, endYear).ToString(CultureInfo.InvariantCulture),
+                    LastYear = Math.Max(startYear, endYear).ToString(CultureInfo.InvariantCulture),
+                    RequiredReigns = "0", FillGaps = true
+                });
+                added++;
+            }
+            AdvancedCandidatesGrid.Items.Refresh();
+            ResetAdvancedDraft();
+            AdvancedGenerationStatus.Text =
+                $"Imported {added} unique historical holder(s) from this championship. " +
+                "They are initially optional gap fillers. Adjust their eligible years " +
+                "and exact reign quotas before generating.";
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void AdvancedCandidatesGrid_PreviewKeyDown(object sender,
+        System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Delete ||
+            AdvancedCandidatesGrid.SelectedItem is not LineageParticipant selected ||
+            AdvancedCandidatesGrid.CurrentCell.IsValid == false) return;
+        // Only remove a selected row if no text editor has keyboard focus.
+        if (System.Windows.Input.Keyboard.FocusedElement is TextBox) return;
+        _advancedParticipants.Remove(selected);
+        ResetAdvancedDraft();
+        e.Handled = true;
+    }
+
+    private void AdvancedCandidatesGrid_CellEditEnding(object sender,
+        DataGridCellEditEndingEventArgs e)
+    {
+        ResetAdvancedDraft();
+    }
+
+    private void AdvancedClear_Click(object sender, RoutedEventArgs e)
+    {
+        _advancedParticipants.Clear();
+        ResetAdvancedDraft();
+        AdvancedGenerationStatus.Text = "Participant list cleared; the database was not changed.";
+    }
+
+    private void AdvancedGenerate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _selectedExisting == null || _activeModule != "Titles") return;
+        try
+        {
+            AdvancedCandidatesGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            AdvancedCandidatesGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            if (!int.TryParse(AdvancedStartYear.Text, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int firstYear)
+                || !int.TryParse(AdvancedEndYear.Text, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int lastYear)
+                || !int.TryParse(AdvancedTotalReigns.Text, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int slots))
+                throw new InvalidOperationException("Enter valid numeric years and a total reign count.");
+
+            var input = new List<ConstrainedLineagePlanner.Candidate>();
+            foreach (var p in _advancedParticipants)
+            {
+                if (!int.TryParse(p.FirstYear, NumberStyles.Integer, CultureInfo.InvariantCulture, out int from)
+                    || !int.TryParse(p.LastYear, NumberStyles.Integer, CultureInfo.InvariantCulture, out int to)
+                    || !int.TryParse(p.RequiredReigns, NumberStyles.Integer, CultureInfo.InvariantCulture, out int exact))
+                    throw new InvalidOperationException(
+                        $"Invalid year or required reign count for '{p.DisplayName}'.");
+                if (p.WorkerId > 0 && !_allWorkers.Any(w => w.Id == p.WorkerId))
+                    throw new InvalidOperationException(
+                        $"Worker UID {p.WorkerId} no longer exists. Refresh the database.");
+                input.Add(new ConstrainedLineagePlanner.Candidate(
+                    p.DisplayName.Trim(), p.WorkerId, from, to, exact, p.FillGaps));
+            }
+            var proposal = ConstrainedLineagePlanner.Generate(
+                input, firstYear, lastYear, slots,
+                AdvancedFillRemaining.IsChecked == true);
+            var history = _session.ReadTitleLineage(_selectedExisting.Id);
+            ResetAdvancedDraft();
+            _advancedDraft = proposal;
+            _advancedDraftTitleId = _selectedExisting.Id;
+            _advancedExistingSlots = history.Rows.Rows.Count;
+            var preview = new DataTable("Advanced Lineage Preview");
+            preview.Columns.Add("Reign", typeof(int));
+            preview.Columns.Add("Champion", typeof(string));
+            preview.Columns.Add("Worker UID", typeof(int));
+            preview.Columns.Add("Captured", typeof(DateTime));
+            preview.Columns.Add("Lost", typeof(DateTime));
+            preview.Columns.Add("Defences", typeof(short));
+            foreach (var p in proposal)
+                preview.Rows.Add(p.Order, p.HolderName1, p.Holder1,
+                    p.Captured, p.Lost, p.Defences);
+            AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
+
+            bool hasTeamReigns = history.Rows.Columns.Contains("Holder2") &&
+                history.Rows.Rows.Cast<DataRow>().Any(r =>
+                    r["Holder2"] != DBNull.Value &&
+                    Convert.ToInt32(r["Holder2"], CultureInfo.InvariantCulture) > 0);
+            bool writeable = history.LinkField?.Equals("BeltUID", StringComparison.OrdinalIgnoreCase) == true
+                && history.OrderField?.Equals("BeltOrder", StringComparison.OrdinalIgnoreCase) == true
+                && _advancedExistingSlots == slots && !hasTeamReigns;
+            AdvancedApplyButton.IsEnabled = writeable;
+            AdvancedExportButton.IsEnabled = true;
+            var required = input.Sum(c => c.RequiredReigns);
+            AdvancedGenerationStatus.Text = writeable
+                ? $"PREVIEW · {slots} reign(s), {required} constrained and {slots - required} background. " +
+                  "You can replace this title's existing history after making a backup."
+                : $"PREVIEW ONLY · {slots} planned reigns, {_advancedExistingSlots} existing history rows. " +
+                  (hasTeamReigns ? "This title includes team reigns; singles generation cannot replace it. " : "") +
+                  "Save to MDB requires an exact number of existing single-champion rows. " +
+                  "Export is always available; no new history records will be inserted.";
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void AdvancedApply_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _selectedExisting == null ||
+            _advancedDraftTitleId != _selectedExisting.Id ||
+            _advancedDraft.Count == 0 || !AdvancedApplyButton.IsEnabled) return;
+        if (HasEdits())
+        {
+            MessageBox.Show(this, "Save or discard unsaved title details before replacing history.");
+            return;
+        }
+        var result = MessageBox.Show(this,
+            $"Replace ALL {_advancedDraft.Count} existing history records for " +
+            $"{_selectedExisting.Name} (belt UID {_selectedExisting.Id})? \n\n" +
+            "This overwrites former holders, dates, and defence counts in your active MDB. " +
+            "It preserves history row UIDs and other championships. \n\n" +
+            "CREATE A BACKUP FIRST. This action cannot be undone without one.",
+            "Apply Constrained Championship Lineage",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes) return;
+        try
+        {
+            var changed = _session.ReplaceExistingTitleLineage(
+                _selectedExisting.Id, _advancedDraft);
+            _lastSaved = DateTime.Now;
+            ResetAdvancedDraft();
+            AdvancedGenerationStatus.Text =
+                $"Updated {changed} pre-existing historical reigns. Verify the title in TEW IX.";
+            RefreshDirty();
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void AdvancedExport_Click(object sender, RoutedEventArgs e)
+    {
+        if (_advancedDraft.Count == 0 || _selectedExisting == null ||
+            _advancedDraftTitleId != _selectedExisting.Id) return;
+        var dialog = new SaveFileDialog {
+            Title = "Export advanced lineage draft (not a TEW IX import file)",
+            Filter = "CSV documents (*.csv)|*.csv",
+            AddExtension = true,
+            FileName = $"title-{_selectedExisting.Id}-constrained-lineage.csv"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            static string Csv(object? value)
+            {
+                string text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+                return "\"" + text.Replace("\"", "\"\"") + "\"";
+            }
+            var lines = new List<string> {
+                "BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,BeltCaptured,BeltLost,Defences"
+            };
+            lines.AddRange(_advancedDraft.Select(r => string.Join(",",
+                Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
+                Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
+                Csv(r.Captured.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Csv(r.Lost.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                Csv(r.Defences))));
+            File.WriteAllLines(dialog.FileName, lines, System.Text.Encoding.UTF8);
+            SetStatus("Exported constrained lineage as CSV (not verified as a TEW import file).");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
     private void TitleInfoTab_Click(object sender, RoutedEventArgs e) => ShowTitleDetails();
 
     private void TitleLineageTab_Click(object sender, RoutedEventArgs e)
     {
         if (_activeModule != "Titles") return;
         TitleLineagePanel.Visibility = Visibility.Visible;
+        AdvancedLineagePanel.Visibility = Visibility.Collapsed;
         ExistingDetailsPanel.Visibility = Visibility.Collapsed;
         TitleInfoTab.Style = (Style)FindResource("ActionButton");
         TitleLineageTab.Style = (Style)FindResource("BlueButton");
+        AdvancedLineageTab.Style = (Style)FindResource("ActionButton");
         LoadTitleLineage();
     }
 
@@ -1231,9 +1571,11 @@ public partial class MainWindow : Window
     {
         if (TitleLineagePanel == null || ExistingDetailsPanel == null) return;
         TitleLineagePanel.Visibility = Visibility.Collapsed;
+        AdvancedLineagePanel.Visibility = Visibility.Collapsed;
         ExistingDetailsPanel.Visibility = Visibility.Visible;
         TitleInfoTab.Style = (Style)FindResource("BlueButton");
         TitleLineageTab.Style = (Style)FindResource("ActionButton");
+        AdvancedLineageTab.Style = (Style)FindResource("ActionButton");
     }
 
     private void LoadTitleLineage()
