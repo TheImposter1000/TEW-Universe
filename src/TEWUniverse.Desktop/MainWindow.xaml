@@ -540,115 +540,128 @@
          <Border x:Name="AdvancedLineagePanel" Grid.Row="1" Visibility="Collapsed"
                  Style="{StaticResource CardBorder}" Padding="16">
           <DockPanel>
-           <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+           <ScrollViewer DockPanel.Dock="Top" MaxHeight="437"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled">
+           <StackPanel Margin="0,0,8,10">
             <TextBlock Text="Build a Championship History" FontSize="20" FontWeight="Bold"/>
-            <TextBlock Text="Pin the years your created stars WON the title (e.g. 2016, 2017, 2019). Build the surrounding history using tblGenerateWorker NPC names without adding worker records."
+            <TextBlock Text="Your superstars have fixed title-winning years. NPCs fill the remaining historical years automatically; they are not added to tblWorker."
                        Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
-                       Margin="0,5,0,10"/>
-            <WrapPanel Margin="0,0,0,8">
-             <ComboBox x:Name="AdvancedWorkerPicker" Width="240"
-                       Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                       ToolTip="Select an existing worker by name and UID"/>
-             <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
-                      Width="160" Margin="0,0,8,6"
-                      ToolTip="Optional historical ring name for the selected worker"/>
-             <Button Content="Add MDB Worker" Style="{StaticResource ActionButton}"
-                     Click="AdvancedAddWorker_Click" Padding="10,6" Margin="0,0,12,6"/>
-             <TextBox x:Name="AdvancedHistoricalName" Style="{StaticResource FormTextBox}"
-                      Width="180" Margin="0,0,8,6"
-                      ToolTip="Champion name with no worker record"/>
-             <Button Content="Add Name-only Holder" Style="{StaticResource ActionButton}"
-                     Click="AdvancedAddHistorical_Click" Padding="10,6" Margin="0,0,8,6"/>
-             <Button Content="Load Recorded Holders" Style="{StaticResource ActionButton}"
-                     Click="AdvancedLoadRecorded_Click" Padding="10,6" Margin="0,0,8,6"/>
-            </WrapPanel>
-            <TextBlock Text="Specify fixed championship-winning years, first/last eligible year, and a historical ring name. NPCs from tblGenerateWorker are name-only champions with UID -1."
-                       Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
-                       Margin="0,0,0,6"/>
-            <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
-                      Height="174" ItemsSource="{Binding}"
-                      IsReadOnly="False" CanUserAddRows="False"
-                      CanUserDeleteRows="True" CanUserResizeColumns="True"
-                      BorderBrush="#426080" BorderThickness="1"
-                      Background="#12263D" Foreground="#EDF6FF"
-                      RowBackground="#142B45" AlternatingRowBackground="#1D3852"
-                      ColumnHeaderHeight="28" RowHeight="28"
-                      PreviewKeyDown="AdvancedCandidatesGrid_PreviewKeyDown"
-                      CellEditEnding="AdvancedCandidatesGrid_CellEditEnding">
-             <DataGrid.ColumnHeaderStyle>
-              <Style TargetType="DataGridColumnHeader">
-               <Setter Property="Background" Value="#234263"/>
-               <Setter Property="Foreground" Value="White"/>
-               <Setter Property="Padding" Value="8,5"/>
-               <Setter Property="FontWeight" Value="SemiBold"/>
-              </Style>
-             </DataGrid.ColumnHeaderStyle>
-             <DataGrid.Columns>
-              <DataGridTextColumn Header="History name / alias" Binding="{Binding DisplayName, UpdateSourceTrigger=LostFocus}"
-                                  Width="2*"/>
-              <DataGridTextColumn Header="Worker UID" Binding="{Binding WorkerId}"
-                                  Width="90" IsReadOnly="True"/>
-              <DataGridTextColumn Header="From year" Binding="{Binding FirstYear, UpdateSourceTrigger=LostFocus}"
-                                  Width="100"/>
-              <DataGridTextColumn Header="To year" Binding="{Binding LastYear, UpdateSourceTrigger=LostFocus}"
-                                  Width="100"/>
-              <DataGridTextColumn Header="Exact reigns" Binding="{Binding RequiredReigns, UpdateSourceTrigger=LostFocus}"
-                                  Width="95"/>
-              <DataGridTextColumn Header="Fixed win years" Binding="{Binding WinYears, UpdateSourceTrigger=LostFocus}"
-                                  Width="158"/>
-              <DataGridCheckBoxColumn Header="Fill gaps" Binding="{Binding FillGaps}"
-                                      Width="95"/>
-             </DataGrid.Columns>
-            </DataGrid>
-            <WrapPanel Margin="0,9,0,7">
-             <StackPanel Margin="0,0,12,5">
-              <TextBlock Text="First year" Foreground="#ADC9E8" FontSize="11"/>
-              <TextBox x:Name="AdvancedStartYear" Style="{StaticResource FormTextBox}"
-                       Text="1980" Width="84"/>
+                       Margin="0,5,0,12"/>
+
+            <!-- Explicit human/linked-worker section. No NPCs are shown here. -->
+            <Border CornerRadius="8" Background="#193653"
+                    BorderBrush="#3D6388" BorderThickness="1"
+                    Padding="12" Margin="0,0,0,10">
+             <StackPanel>
+              <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
+                         Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
+              <TextBlock Text="Select the wrestlers whose real achievements you want to preserve. Specify how many times they won, and the winning years."
+                         Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
+                         Margin="0,4,0,10"/>
+              <WrapPanel Margin="0,0,0,9">
+               <ComboBox x:Name="AdvancedWorkerPicker" Width="260"
+                         Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
+                         ToolTip="Existing worker by name and UID"/>
+               <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
+                        Width="175" Margin="0,0,8,6"
+                        ToolTip="Optional historical ring name, e.g. Dragonheart"/>
+               <Button Content="Add Superstar" Style="{StaticResource ActionButton}"
+                       Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"/>
+              </WrapPanel>
+              <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
+                        Height="128" IsReadOnly="False" CanUserAddRows="False"
+                        CanUserDeleteRows="False" CanUserResizeColumns="True"
+                        BorderBrush="#426080" BorderThickness="1"
+                        Background="#12263D" Foreground="#EDF6FF"
+                        RowBackground="#142B45" AlternatingRowBackground="#1D3852"
+                        ColumnHeaderHeight="29" RowHeight="29"
+                        PreviewKeyDown="AdvancedCandidatesGrid_PreviewKeyDown"
+                        CellEditEnding="AdvancedCandidatesGrid_CellEditEnding">
+               <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                 <Setter Property="Background" Value="#234263"/>
+                 <Setter Property="Foreground" Value="White"/>
+                 <Setter Property="Padding" Value="8,5"/>
+                 <Setter Property="FontWeight" Value="SemiBold"/>
+                </Style>
+               </DataGrid.ColumnHeaderStyle>
+               <DataGrid.Columns>
+                <DataGridTextColumn Header="Superstar / ring name"
+                      Binding="{Binding DisplayName, UpdateSourceTrigger=LostFocus}"
+                      Width="2*"/>
+                <DataGridTextColumn Header="Worker ID" Binding="{Binding WorkerId}"
+                      Width="94" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Active from" Binding="{Binding FirstYear, UpdateSourceTrigger=LostFocus}"
+                      Width="96"/>
+                <DataGridTextColumn Header="Active until" Binding="{Binding LastYear, UpdateSourceTrigger=LostFocus}"
+                      Width="96"/>
+                <DataGridTextColumn Header="Reigns" Binding="{Binding RequiredReigns, UpdateSourceTrigger=LostFocus}"
+                      Width="72"/>
+                <DataGridTextColumn Header="Years won (e.g. 2016, 2017, 2019)"
+                      Binding="{Binding WinYears, UpdateSourceTrigger=LostFocus}"
+                      Width="2*"/>
+               </DataGrid.Columns>
+              </DataGrid>
+              <TextBlock Text="Enter one year for each reign. For a single-year wrestler, the win year is filled automatically when added. Select a row and press Delete to remove it."
+                         FontSize="11" Foreground="#ADC9E8" TextWrapping="Wrap"
+                         Margin="0,7,0,0"/>
              </StackPanel>
-             <StackPanel Margin="0,0,12,5">
-              <TextBlock Text="Last year" Foreground="#ADC9E8" FontSize="11"/>
-              <TextBox x:Name="AdvancedEndYear" Style="{StaticResource FormTextBox}"
-                       Text="2020" Width="84"/>
+            </Border>
+
+            <!-- NPCs are generated invisibly from tblGenerateWorker. Only
+                 their historical period and optional codes are user inputs. -->
+            <Border CornerRadius="8" Background="#172E45"
+                    BorderBrush="#3D6388" BorderThickness="1"
+                    Padding="12" Margin="0,0,0,10">
+             <StackPanel>
+              <TextBlock Text="NPC HISTORY  ·  GENERATED NAMES"
+                         Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
+              <TextBlock Text="Set the history's first and last year. The app chooses NPC champions from tblGenerateWorker for every year without a fixed superstar victory. No NPC reign counts to enter."
+                         Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
+                         Margin="0,4,0,10"/>
+              <WrapPanel>
+               <StackPanel Margin="0,0,12,6">
+                <TextBlock Text="From year" Foreground="#ADC9E8" FontSize="11"/>
+                <TextBox x:Name="AdvancedStartYear" Style="{StaticResource FormTextBox}"
+                         Text="1994" Width="92" TextChanged="AdvancedInputChanged" ToolTip="The championship's first historical year"/>
+               </StackPanel>
+               <StackPanel Margin="0,0,12,6">
+                <TextBlock Text="Through year" Foreground="#ADC9E8" FontSize="11"/>
+                <TextBox x:Name="AdvancedEndYear" Style="{StaticResource FormTextBox}"
+                         Text="2021" Width="92" TextChanged="AdvancedInputChanged" ToolTip="The championship's final historical year"/>
+               </StackPanel>
+               <StackPanel Margin="0,0,12,6">
+                <TextBlock Text="Gender code (optional)" Foreground="#ADC9E8" FontSize="11"/>
+                <TextBox x:Name="AdvancedNpcGender" Style="{StaticResource FormTextBox}"
+                         Width="110" TextChanged="AdvancedInputChanged" ToolTip="Blank includes every gender from tblGenerateWorker"/>
+               </StackPanel>
+               <StackPanel Margin="0,0,12,6">
+                <TextBlock Text="Race code (optional)" Foreground="#ADC9E8" FontSize="11"/>
+                <TextBox x:Name="AdvancedNpcRace" Style="{StaticResource FormTextBox}"
+                         Width="110" TextChanged="AdvancedInputChanged" ToolTip="Blank includes every race from tblGenerateWorker"/>
+               </StackPanel>
+              </WrapPanel>
              </StackPanel>
-             <StackPanel Margin="0,0,12,5">
-              <TextBlock Text="Total reigns" Foreground="#ADC9E8" FontSize="11"/>
-              <TextBox x:Name="AdvancedTotalReigns" Style="{StaticResource FormTextBox}"
-                       Text="42" Width="84"/>
-             </StackPanel>
-             <StackPanel Margin="0,0,12,5">
-              <TextBlock Text="NPC gender code" Foreground="#ADC9E8" FontSize="11"/>
-              <TextBox x:Name="AdvancedNpcGender" Style="{StaticResource FormTextBox}"
-                       Width="100" ToolTip="Optional exact tblGenerateWorker gender code; blank uses all"/>
-             </StackPanel>
-             <StackPanel Margin="0,0,12,5">
-              <TextBlock Text="NPC race code" Foreground="#ADC9E8" FontSize="11"/>
-              <TextBox x:Name="AdvancedNpcRace" Style="{StaticResource FormTextBox}"
-                       Width="100" ToolTip="Optional exact tblGenerateWorker race code; blank uses all"/>
-             </StackPanel>
-             <CheckBox x:Name="AdvancedFillRemaining" IsChecked="True"
-                       Content="Fill surrounding history with NPCs from tblGenerateWorker"
-                       Foreground="#D7E8FA" VerticalAlignment="Center"
-                       Margin="5,10,12,5"/>
-            </WrapPanel>
-            <WrapPanel Margin="0,0,0,7">
-             <Button Content="Generate Constrained Preview"
-                     Style="{StaticResource BlueButton}" Padding="13,9"
-                     Click="AdvancedGenerate_Click" Margin="0,0,8,6"/>
+            </Border>
+            <WrapPanel Margin="0,0,0,6">
+             <Button Content="Generate Full History" Style="{StaticResource BlueButton}"
+                     Click="AdvancedGenerate_Click" Padding="13,9" Margin="0,0,8,6"/>
              <Button x:Name="AdvancedApplyButton" Content="Rebuild Selected Title History"
                      IsEnabled="False" Style="{StaticResource ActionButton}"
                      Click="AdvancedApply_Click" Margin="0,0,8,6"/>
              <Button x:Name="AdvancedExportButton" Content="Export Draft CSV"
                      IsEnabled="False" Style="{StaticResource ActionButton}"
                      Click="AdvancedExport_Click" Margin="0,0,8,6"/>
-             <Button Content="Clear Participants" Style="{StaticResource ActionButton}"
+             <Button Content="Clear Superstars" Style="{StaticResource ActionButton}"
                      Click="AdvancedClear_Click" Margin="0,0,8,6"/>
             </WrapPanel>
             <TextBlock x:Name="AdvancedGenerationStatus"
-                       Text="Fixed winning years are preserved. NPC names come from tblGenerateWorker. Rebuild requires Create Backup first."
+                       Text="Set the NPC years and add your superstar(s). Nothing is written until you confirm a rebuild after making a backup."
                        Foreground="#E7C38D" TextWrapping="Wrap" FontSize="12"
-                       Margin="0,0,0,4"/>
+                       Margin="0,0,0,5"/>
            </StackPanel>
+          </ScrollViewer>
            <DataGrid x:Name="AdvancedPreviewGrid" AutoGenerateColumns="True"
                      AutoGeneratingColumn="TitleLineageGrid_AutoGeneratingColumn"
                      IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"

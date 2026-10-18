@@ -1279,7 +1279,7 @@ public partial class MainWindow : Window
     {
         if (_session == null || _selectedExisting == null || _activeModule != "Titles")
         {
-            AdvancedGenerationStatus.Text = "Open a championship to plan its reigns.";
+            AdvancedGenerationStatus.Text = "Open a championship to plan its history.";
             return;
         }
         if (_advancedConfiguredTitleId == _selectedExisting.Id) return;
@@ -1291,23 +1291,23 @@ public partial class MainWindow : Window
             AdvancedGenerationStatus.Text = history.Message;
             return;
         }
-        AdvancedTotalReigns.Text = history.Rows.Rows.Count.ToString(CultureInfo.InvariantCulture);
+        // If prior history exists, suggest its chronological span. Otherwise
+        // leave the NPC year fields editable, ready for a new history.
         var dates = history.Rows.Rows.Cast<DataRow>()
             .SelectMany(row => new[] { "BeltCaptured", "BeltLost" }
-                .Where(history.Rows.Columns.Contains)
-                .Select(col => row[col]))
+                .Where(history.Rows.Columns.Contains).Select(c => row[c]))
             .OfType<DateTime>()
             .Where(date => date.Year is >= 1800 and <= 2100)
             .Select(date => date.Year).ToList();
-        if (dates.Count != 0)
+        if (dates.Count > 0)
         {
             AdvancedStartYear.Text = dates.Min().ToString(CultureInfo.InvariantCulture);
             AdvancedEndYear.Text = dates.Max().ToString(CultureInfo.InvariantCulture);
         }
         AdvancedGenerationStatus.Text =
-            $"{history.Rows.Rows.Count:N0} existing history slot(s) for {_selectedExisting.Name}. " +
-            "Add participants with required reign counts. 'Fill gaps' allows background holders " +
-            "to cover years not reserved for your named stars.";
+            $"{history.Rows.Rows.Count:N0} existing history entry/entries. " +
+            "Set the NPC history years below, add the linked superstars above, " +
+            "and enter one fixed winning year for each real superstar reign.";
     }
 
     private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e)
@@ -1315,91 +1315,38 @@ public partial class MainWindow : Window
         if (_selectedExisting == null || _activeModule != "Titles") return;
         if (AdvancedWorkerPicker.SelectedItem is not WorkerItem worker)
         {
-            MessageBox.Show(this, "Select an existing worker from the dropdown.");
+            MessageBox.Show(this, "Select an existing worker from the list first.");
             return;
         }
         var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
             ? worker.Name : AdvancedWorkerAlias.Text.Trim();
+        if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
+            x.DisplayName.Equals(alias, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show(this,
+                "This superstar is already in the list. Edit their reigns and years in the table.");
+            return;
+        }
+        // A one-year eligibility window already specifies the winning year;
+        // longer windows require the user's explicitly entered winning years.
+        string winning = AdvancedStartYear.Text.Trim() == AdvancedEndYear.Text.Trim()
+            ? AdvancedStartYear.Text.Trim() : "";
         _advancedParticipants.Add(new LineageParticipant {
             DisplayName = alias, WorkerId = worker.Id,
-            FirstYear = AdvancedStartYear.Text, LastYear = AdvancedEndYear.Text,
-            RequiredReigns = "0", WinYears = "", FillGaps = false
+            FirstYear = AdvancedStartYear.Text.Trim(), LastYear = AdvancedEndYear.Text.Trim(),
+            RequiredReigns = "1", WinYears = winning, FillGaps = false
         });
         ResetAdvancedDraft();
         AdvancedWorkerAlias.Clear();
+        AdvancedCandidatesGrid.Items.Refresh();
+        AdvancedGenerationStatus.Text = winning.Length > 0
+            ? $"Added {alias} with a fixed win in {winning}. Generate when ready."
+            : $"Added {alias}. Enter the years they won in the Superstars table.";
     }
 
-    private void AdvancedAddHistorical_Click(object sender, RoutedEventArgs e)
-    {
-        if (_selectedExisting == null || _activeModule != "Titles") return;
-        var name = AdvancedHistoricalName.Text.Trim();
-        if (name.Length == 0)
-        {
-            MessageBox.Show(this, "Enter the historical champion's name.");
-            return;
-        }
-        _advancedParticipants.Add(new LineageParticipant {
-            DisplayName = name, WorkerId = -1,
-            FirstYear = AdvancedStartYear.Text, LastYear = AdvancedEndYear.Text,
-            RequiredReigns = "0", WinYears = "", FillGaps = true
-        });
-        AdvancedHistoricalName.Clear();
-        ResetAdvancedDraft();
-    }
-
-    private void AdvancedLoadRecorded_Click(object sender, RoutedEventArgs e)
-    {
-        if (_session == null || _selectedExisting == null || _activeModule != "Titles") return;
-        try
-        {
-            ConfigureAdvancedTitle();
-            var history = _session.ReadTitleLineage(_selectedExisting.Id);
-            if (history.LinkField == null)
-                throw new InvalidOperationException(history.Message);
-            var names = history.Rows.Columns.Contains("Holder_Name1") ? "Holder_Name1" :
-                history.Rows.Columns.Contains("HolderName1") ? "HolderName1" :
-                throw new InvalidOperationException("No historical champion name column was found.");
-            int added = 0;
-            foreach (DataRow row in history.Rows.Rows)
-            {
-                var name = DatabaseSession.Display(row[names]).Trim();
-                if (name.Length == 0) continue;
-                int id = history.Rows.Columns.Contains("Holder1")
-                    && row["Holder1"] != DBNull.Value
-                    ? Convert.ToInt32(row["Holder1"], CultureInfo.InvariantCulture) : -1;
-                if (id <= 0 || !_allWorkers.Any(w => w.Id == id)) id = -1;
-                var existing = _advancedParticipants.FirstOrDefault(p =>
-                    p.WorkerId == id &&
-                    p.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase));
-                int startYear = row["BeltCaptured"] is DateTime start && start.Year is >= 1800 and <= 2100
-                    ? start.Year : int.Parse(AdvancedStartYear.Text, CultureInfo.InvariantCulture);
-                int endYear = row["BeltLost"] is DateTime lost && lost.Year is >= 1800 and <= 2100
-                    ? lost.Year : int.Parse(AdvancedEndYear.Text, CultureInfo.InvariantCulture);
-                if (existing != null)
-                {
-                    if (int.TryParse(existing.FirstYear, out int oldStart))
-                        existing.FirstYear = Math.Min(oldStart, startYear).ToString(CultureInfo.InvariantCulture);
-                    if (int.TryParse(existing.LastYear, out int oldEnd))
-                        existing.LastYear = Math.Max(oldEnd, endYear).ToString(CultureInfo.InvariantCulture);
-                    continue;
-                }
-                _advancedParticipants.Add(new LineageParticipant {
-                    DisplayName = name, WorkerId = id,
-                    FirstYear = Math.Min(startYear, endYear).ToString(CultureInfo.InvariantCulture),
-                    LastYear = Math.Max(startYear, endYear).ToString(CultureInfo.InvariantCulture),
-                    RequiredReigns = "0", WinYears = "", FillGaps = true
-                });
-                added++;
-            }
-            AdvancedCandidatesGrid.Items.Refresh();
-            ResetAdvancedDraft();
-            AdvancedGenerationStatus.Text =
-                $"Imported {added} unique historical holder(s) from this championship. " +
-                "They are initially optional gap fillers. Adjust their eligible years " +
-                "and exact reign quotas before generating.";
-        }
-        catch (Exception ex) { Error(ex); }
-    }
+    // NPCs are not manually added to the superstar table. Their historical
+    // names are read from tblGenerateWorker during generation, so no extra
+    // tblWorker records and no NPC reign-count input are needed.
 
     private void AdvancedCandidatesGrid_PreviewKeyDown(object sender,
         System.Windows.Input.KeyEventArgs e)
@@ -1424,7 +1371,13 @@ public partial class MainWindow : Window
     {
         _advancedParticipants.Clear();
         ResetAdvancedDraft();
-        AdvancedGenerationStatus.Text = "Participant list cleared; the database was not changed.";
+        AdvancedGenerationStatus.Text = "Superstar list cleared. NPC history settings are unchanged.";
+    }
+
+    private void AdvancedInputChanged(object sender, TextChangedEventArgs e)
+    {
+        // WPF can raise TextChanged during InitializeComponent.
+        if (AdvancedApplyButton != null) ResetAdvancedDraft();
     }
 
     private void AdvancedGenerate_Click(object sender, RoutedEventArgs e)
@@ -1438,119 +1391,113 @@ public partial class MainWindow : Window
                     CultureInfo.InvariantCulture, out int firstYear)
                 || !int.TryParse(AdvancedEndYear.Text, NumberStyles.Integer,
                     CultureInfo.InvariantCulture, out int lastYear)
-                || !int.TryParse(AdvancedTotalReigns.Text, NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out int slots))
-                throw new InvalidOperationException("Enter valid numeric years and a total reign count.");
+                || firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
+                throw new InvalidOperationException(
+                    "NPC History needs a valid first and last year (1800–2100).");
 
-            var input = new List<ConstrainedLineagePlanner.Candidate>();
             var anchored = new List<AnchoredHistoryPlanner.Anchor>();
             foreach (var participant in _advancedParticipants)
             {
+                if (participant.WorkerId <= 0 || !_allWorkers.Any(w => w.Id == participant.WorkerId))
+                    throw new InvalidOperationException(
+                        $"Superstar '{participant.DisplayName}' must link to an existing worker. " +
+                        "NPCs are generated separately from tblGenerateWorker.");
                 if (!int.TryParse(participant.FirstYear, NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out int from)
                     || !int.TryParse(participant.LastYear, NumberStyles.Integer,
-                        CultureInfo.InvariantCulture, out int to)
-                    || !int.TryParse(participant.RequiredReigns, NumberStyles.Integer,
-                        CultureInfo.InvariantCulture, out int exact))
+                        CultureInfo.InvariantCulture, out int to) ||
+                    from > to || from < 1800 || to > 2100)
                     throw new InvalidOperationException(
-                        $"Invalid company years or reign count for '{participant.DisplayName}'.");
-                if (participant.WorkerId > 0 &&
-                    !_allWorkers.Any(w => w.Id == participant.WorkerId))
+                        $"Enter valid active years for '{participant.DisplayName}'.");
+                if (!int.TryParse(participant.RequiredReigns, NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int reigns) ||
+                    reigns is < 1 or > 500)
                     throw new InvalidOperationException(
-                        $"Worker UID {participant.WorkerId} no longer exists; refresh the database.");
-                input.Add(new ConstrainedLineagePlanner.Candidate(
-                    participant.DisplayName.Trim(), participant.WorkerId,
-                    from, to, exact, participant.FillGaps));
+                        $"Enter at least one reign for '{participant.DisplayName}'.");
 
                 var rawYears = participant.WinYears.Trim();
-                if (rawYears.Length == 0) continue;
-                if (participant.WorkerId <= 0)
-                    throw new InvalidOperationException(
-                        $"Fixed championship wins require a real worker UID. " +
-                        $"'{participant.DisplayName}' is name-only.");
-                var years = rawYears.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' },
+                if (string.IsNullOrWhiteSpace(rawYears) && from == to && reigns == 1)
+                {
+                    rawYears = from.ToString(CultureInfo.InvariantCulture);
+                    participant.WinYears = rawYears;
+                }
+                var tokens = rawYears.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' },
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                foreach (var token in years)
+                if (tokens.Length != reigns)
+                    throw new InvalidOperationException(
+                        $"{participant.DisplayName} has {reigns} specified reign(s) but " +
+                        $"{tokens.Length} winning year(s). Enter one year for each reign.");
+                var uniqueYears = new HashSet<int>();
+                foreach (var token in tokens)
                 {
                     if (!int.TryParse(token, NumberStyles.Integer,
-                        CultureInfo.InvariantCulture, out int year))
+                            CultureInfo.InvariantCulture, out int winningYear)
+                        || !uniqueYears.Add(winningYear))
                         throw new InvalidOperationException(
-                            $"'{token}' is not a valid winning year for {participant.DisplayName}.");
+                            $"'{token}' is not a unique valid winning year for {participant.DisplayName}.");
+                    if (winningYear < from || winningYear > to ||
+                        winningYear < firstYear || winningYear > lastYear)
+                        throw new InvalidOperationException(
+                            $"{participant.DisplayName}'s win in {winningYear} is outside " +
+                            "their active years or the NPC History time range.");
                     anchored.Add(new AnchoredHistoryPlanner.Anchor(
-                        participant.DisplayName.Trim(), participant.WorkerId, year, from, to));
+                        participant.DisplayName.Trim(), participant.WorkerId,
+                        winningYear, from, to));
                 }
             }
+            // Every year without a pinned superstar receives an NPC winner.
+            // The NPC source table is read-only: no generated workers are inserted.
+            var seeds = _session.ReadGeneratedWorkerNames(
+                AdvancedNpcGender.Text, AdvancedNpcRace.Text);
+            var proposal = AnchoredHistoryPlanner.GenerateFromYears(
+                anchored, seeds, firstYear, lastYear);
 
-            bool isRebuild = anchored.Count > 0;
-            List<GeneratedTitleReign> proposal;
-            int npcNamesUsed = 0;
-            if (isRebuild)
-            {
-                if (AdvancedFillRemaining.IsChecked != true)
-                    throw new InvalidOperationException(
-                        "Enable Fill surrounding history with NPCs to create opponents " +
-                        "between the pinned title wins.");
-                // These NPC names, races and genders come from tblGenerateWorker.
-                // No generated name ever becomes a tblWorker row.
-                var seeds = _session.ReadGeneratedWorkerNames(
-                    AdvancedNpcGender.Text, AdvancedNpcRace.Text);
-                npcNamesUsed = seeds.Count;
-                proposal = AnchoredHistoryPlanner.Generate(
-                    anchored, seeds, firstYear, lastYear, slots);
-            }
-            else
-            {
-                proposal = ConstrainedLineagePlanner.Generate(input,
-                    firstYear, lastYear, slots,
-                    AdvancedFillRemaining.IsChecked == true);
-            }
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             ResetAdvancedDraft();
             _advancedDraft = proposal;
-            _advancedFullRebuild = isRebuild;
+            _advancedFullRebuild = true;
             _advancedDraftTitleId = _selectedExisting.Id;
             _advancedExistingSlots = history.Rows.Rows.Count;
-            var preview = new DataTable("Advanced Lineage Preview");
-            preview.Columns.Add("Reign", typeof(int));
+
+            var preview = new DataTable("Generated Championship History");
+            preview.Columns.Add("Year", typeof(int));
             preview.Columns.Add("Champion", typeof(string));
             preview.Columns.Add("Worker UID", typeof(int));
-            preview.Columns.Add("Defeated (implied)", typeof(string));
-            preview.Columns.Add("Lost to (implied)", typeof(string));
+            preview.Columns.Add("Previous winner", typeof(string));
+            preview.Columns.Add("Next winner", typeof(string));
             preview.Columns.Add("Captured", typeof(DateTime));
             preview.Columns.Add("Lost", typeof(DateTime));
             preview.Columns.Add("Defences", typeof(short));
             for (int i = 0; i < proposal.Count; i++)
             {
                 var reign = proposal[i];
-                // These transitions are implied by the ordered lineage, not
-                // separate recorded match-result data in the MDB.
-                var defeated = i == 0 ? "Inaugural / unknown" : proposal[i - 1].HolderName1;
-                var lostTo = i + 1 == proposal.Count ? "End of timeline" : proposal[i + 1].HolderName1;
-                preview.Rows.Add(reign.Order, reign.HolderName1, reign.Holder1,
-                    defeated, lostTo, reign.Captured, reign.Lost, reign.Defences);
+                preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                    i > 0 ? proposal[i - 1].HolderName1 : "Inaugural",
+                    i + 1 < proposal.Count ? proposal[i + 1].HolderName1 : "End of history",
+                    reign.Captured, reign.Lost, reign.Defences);
             }
             AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
+            AdvancedCandidatesGrid.Items.Refresh();
 
             bool hasTeamReigns = history.Rows.Columns.Contains("Holder2") &&
                 history.Rows.Rows.Cast<DataRow>().Any(r =>
                     r["Holder2"] != DBNull.Value &&
                     Convert.ToInt32(r["Holder2"], CultureInfo.InvariantCulture) > 0);
-            bool writeable = history.LinkField?.Equals("BeltUID", StringComparison.OrdinalIgnoreCase) == true
-                && history.OrderField?.Equals("BeltOrder", StringComparison.OrdinalIgnoreCase) == true
-                && !hasTeamReigns && (isRebuild || _advancedExistingSlots == slots);
-            AdvancedApplyButton.IsEnabled = writeable;
+            bool canApply = history.LinkField?.Equals("BeltUID",
+                    StringComparison.OrdinalIgnoreCase) == true &&
+                history.OrderField?.Equals("BeltOrder",
+                    StringComparison.OrdinalIgnoreCase) == true && !hasTeamReigns;
+            AdvancedApplyButton.IsEnabled = canApply;
             AdvancedExportButton.IsEnabled = true;
-            var required = input.Sum(c => c.RequiredReigns);
-            AdvancedGenerationStatus.Text = isRebuild
-                ? $"FULL LINEAGE PREVIEW · {slots} reign(s), {anchored.Count} pinned wins, " +
-                  $"{npcNamesUsed:N0} eligible tblGenerateWorker names. " +
-                  (writeable
-                      ? $"Rebuilding will replace {_advancedExistingSlots} old reigns with {slots} new reign records. Create Backup first."
-                      : "This title has unsupported team history or missing schema fields; direct rebuild is disabled.")
-                : writeable
-                    ? $"PREVIEW · {slots} reign(s). You can replace existing records after making a backup."
-                    : $"PREVIEW ONLY · {slots} planned reigns, {_advancedExistingSlots} existing history rows. " +
-                      "The legacy generator must match the existing row count.";
+            int generated = proposal.Count(r => r.Holder1 == -1);
+            AdvancedGenerationStatus.Text =
+                $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
+                $"{generated} NPC winner(s) across {firstYear}–{lastYear}. " +
+                $"{_advancedExistingSlots} existing title-history row(s). " +
+                (canApply
+                    ? "Create Backup before rebuilding the selected championship's records."
+                    : "Direct rebuilding is unavailable for this title's current schema or team history.");
+            SetStatus($"Prepared {_advancedDraft.Count:N0} championship history entries.");
         }
         catch (Exception ex) { Error(ex); }
     }

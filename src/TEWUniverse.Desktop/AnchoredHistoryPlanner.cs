@@ -27,9 +27,7 @@ internal static class AnchoredHistoryPlanner
             throw new InvalidOperationException(
                 "Choose an NPC history range between 1800 and 2100 with start year before end year.");
 
-        if (fixedWins.Count == 0)
-            throw new InvalidOperationException(
-                "Add at least one superstar with a title-winning year.");
+        // An NPC-only history is also valid when no linked superstar has a pinned victory.
         if (npcNames.Count == 0)
             throw new InvalidOperationException(
                 "tblGenerateWorker did not provide any usable NPC names with these filters.");

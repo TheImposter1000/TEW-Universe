@@ -28,6 +28,17 @@ Each row in the candidate list has a history name, an optional linked worker UID
 
 As with the original generator, the apply action updates the selected belt's existing `tblBeltPreHistory` rows **only when the draft reign count exactly matches existing slots**. History UIDs, BeltUID and BeltOrder remain unchanged; no new records are inserted or borrowed. Real worker UIDs are verified against `tblWorker`, while name-only champions intentionally use the TEW convention `-1` and a populated holder-name field. An existing worker can use a historical alias in that field. The current constrained generator handles singles; it does not overwrite existing tag-team reigns. The button requires a confirmation and the user should create a separate backup first. In-game compatibility of generated dates and history requires testing against a sacrificial scenario before production use.
 
+### Superstar and NPC history sections
+
+The Advanced Generator interface is deliberately separated into two areas:
+
+- **Superstars (top):** Linked `tblWorker` entries. Add a worker by name or UID, optionally specify a historical alias, then enter the worker's eligible years, exact reign count, and one calendar year for every title-winning reign. Reign counts and fixed winning years are enforced for linked superstars. A single-year eligible window starts with one win prefilled.
+- **NPC History (bottom):** Only the historical first and last year, plus optional exact race/gender codes. All usable names come from `tblGenerateWorker`; there is no manual NPC roster or NPC reign-count field. The generator fills each otherwise-unassigned calendar year using a recurring set of generated historical names. Those NPCs remain `Holder1=-1` in `tblBeltPreHistory` and never appear in `tblWorker`. Generating an entirely name-only history is permitted.
+
+Unlike the previous advanced editor, the total history-row count is derived from the chosen years and pinned human wins; users do not need to count NPC reigns. For example, 1994–2020 with one real championship-winning entry in 2020 produces 27 historical entries, 26 from the NPC name pool. Where multiple real wins are pinned in the same year, each remains a separate recorded entry. Generated dates use calendar-year boundaries as defaults; this does not assert the actual date of tournament matches or that a previous winner literally lost a match. The preview labels previous and next **winners** rather than claiming match results.
+
+Rebuilding remains destructive **for the selected championship's existing prehistory only**, is guarded by a manually created backup and an explicit confirmation, and needs TEW IX compatibility testing on a disposable MDB. These changes do not affect the separate original generic generator in the Title Lineage tab.
+
 ### Pinned winning years, generated NPCs, and creating new title history
 
 The **Advanced Generator** provides a `Fixed win years` cell for linked workers. Comma-separated years (for example `2016, 2017, 2019`) are non-negotiable anchor events. The generator plans title changes before, between, and after those specific victories. It uses `tblGenerateWorker` for an NPC naming pool (with optional exact race and gender code filters), not `tblWorker`; NPCs exist **only in title history**, as `Holder1=-1` with the display name. A linked worker such as Kaito Moriyama #4975 can use the historical ring name Dragonheart.
