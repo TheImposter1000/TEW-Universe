@@ -8,14 +8,28 @@ using TEWUniverse.Studio;
 namespace TEWUniverse.Desktop;
 
 /// <summary>
-/// Uses TEW IX tblWorker.Picture (filename), not the worker's ID/name.
-/// Only reads images beneath the selected folder; never writes to the game.
+/// Resolves a portrait by the worker's display name first, prioritizing PNG.
+/// Only if there is no usable name-based picture does it fall back to tblWorker.Picture.
+/// Source files are always read-only, and missing pictures use the silhouette.
 /// </summary>
 public sealed class WorkerPortraitConverter : IValueConverter
 {
     private string _folder = "";
     private readonly Dictionary<string, ImageBrush?> _cache = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxCachedPortraits = 250;
+
+    private static readonly string[] Extensions = {
+        ".png", ".webp", ".jpg", ".jpeg", ".gif", ".bmp"
+    };
+
+    private static readonly Brush PlaceholderBackground = CreatePlaceholderBackground();
+
+    private static Brush CreatePlaceholderBackground()
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(45, 81, 122));
+        brush.Freeze();
+        return brush;
+    }
 
     public void SetFolder(string? folder)
     {
@@ -24,80 +38,105 @@ public sealed class WorkerPortraitConverter : IValueConverter
     }
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is WorkerItem worker
-            ? ((Brush?)LoadBrush(worker.PictureName, 110)) ?? Brushes.Transparent
-            : Brushes.Transparent;
+    {
+        var photo = value is WorkerItem worker
+            ? LoadBrush(worker.Name, worker.PictureName, 110)
+            : null;
+
+        return parameter as string switch
+        {
+            "PlaceholderVisibility" => photo == null ? Visibility.Visible : Visibility.Collapsed,
+            "PlaceholderBackground" => photo == null ? PlaceholderBackground : Brushes.Transparent,
+            _ => (Brush?)photo ?? Brushes.Transparent
+        };
+    }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => Binding.DoNothing;
 
-    public ImageBrush? LoadBrush(string? storedPictureName, int decodeWidth)
+    public ImageBrush? LoadBrush(string? workerName, string? databasePicture, int decodeWidth)
     {
-        var file = ResolveFile(storedPictureName);
-        if (file == null) return null;
-        var key = file + "|" + decodeWidth.ToString(CultureInfo.InvariantCulture);
-        if (_cache.TryGetValue(key, out var cached)) return cached;
+        if (_folder.Length == 0 || !Directory.Exists(_folder)) return null;
 
-        ImageBrush? brush = null;
-        try
+        foreach (var file in CandidateFiles(workerName, databasePicture))
         {
-            // CacheOption.OnLoad releases the file lock immediately. Downsample
-            // list thumbnails so a large TEW image pack remains responsive.
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.DecodePixelWidth = decodeWidth;
-            bitmap.UriSource = new Uri(file, UriKind.Absolute);
-            bitmap.EndInit();
-            bitmap.Freeze();
-            brush = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill };
-            brush.Freeze();
+            var key = file + "|" + decodeWidth.ToString(CultureInfo.InvariantCulture);
+            if (_cache.TryGetValue(key, out var cached))
+            {
+                if (cached != null) return cached;
+                continue;
+            }
+
+            ImageBrush? brush = null;
+            try
+            {
+                // Decode thumbnails at their display size rather than retaining full
+                // 1254px source images in the worker list. OnLoad also releases locks.
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.DecodePixelWidth = decodeWidth;
+                image.UriSource = new Uri(file, UriKind.Absolute);
+                image.EndInit();
+                image.Freeze();
+                brush = new ImageBrush(image) { Stretch = Stretch.UniformToFill };
+                brush.Freeze();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                or NotSupportedException or ArgumentException or System.Runtime.InteropServices.COMException
+                or InvalidOperationException)
+            {
+                // WPF cannot decode every WebP codec. Try the next candidate rather
+                // than showing an empty portrait if a supported JPEG/GIF also exists.
+            }
+
+            if (_cache.Count >= MaxCachedPortraits) _cache.Clear();
+            _cache[key] = brush;
+            if (brush != null) return brush;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-            or NotSupportedException or ArgumentException or System.Runtime.InteropServices.COMException)
-        {
-            // Damaged and unsupported image files retain the silhouette.
-        }
-        // Keep memory bounded when scrolling thousands of workers.
-        if (_cache.Count >= MaxCachedPortraits) _cache.Clear();
-        _cache[key] = brush;
-        return brush;
+        return null;
     }
 
-    private string? ResolveFile(string? storedPictureName)
+    private IEnumerable<string> CandidateFiles(string? workerName, string? databasePicture)
     {
-        if (_folder.Length == 0 || !Directory.Exists(_folder) ||
-            string.IsNullOrWhiteSpace(storedPictureName)) return null;
+        var stems = new List<string>();
 
-        var name = storedPictureName.Trim().Trim('"');
-        if (name is "" or "." or ".." || name.Equals("None", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("None.jpg", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("No Picture", StringComparison.OrdinalIgnoreCase)
-            || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
-            || name.Contains('/') || name.Contains('\\'))
-            return null;
-
-        // The user may choose the People folder itself or its parent picture-pack folder.
-        var folders = new[] { _folder, Path.Combine(_folder, "People") };
-        var extensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif" };
-        bool hasExtension = Path.HasExtension(name);
-        foreach (var folder in folders)
+        void AddStem(string? source, bool stripExtension)
         {
-            if (!Directory.Exists(folder)) continue;
-            if (hasExtension)
+            if (string.IsNullOrWhiteSpace(source)) return;
+            var stem = source.Trim().Trim('"');
+            if (stripExtension) stem = Path.GetFileNameWithoutExtension(stem);
+            if (stem.Equals("None", StringComparison.OrdinalIgnoreCase)
+                || stem.Equals("No Picture", StringComparison.OrdinalIgnoreCase)) return;
+
+            // Worker names can contain quotation marks that Windows forbids in
+            // filenames; removing invalid characters allows e.g. "Mad" Mongo Flash.
+            // All candidates remain single filenames, never directory traversal.
+            var safe = new string(stem.Where(c =>
+                c != '/' && c != '\\' && !Path.GetInvalidFileNameChars().Contains(c))
+                .ToArray()).Trim().TrimEnd('.', ' ');
+            if (safe.Length == 0 || safe is "." or "..") return;
+            if (!stems.Contains(safe, StringComparer.OrdinalIgnoreCase))
+                stems.Add(safe);
+        }
+
+        // Name-based artwork ALWAYS takes precedence, regardless of MDB extension.
+        AddStem(workerName, stripExtension: false);
+        // The database's Picture value is a compatibility fallback, not a requirement.
+        AddStem(databasePicture, stripExtension: true);
+
+        var locations = new[] { _folder, Path.Combine(_folder, "People") };
+        foreach (var stem in stems)
+        {
+            foreach (var extension in Extensions)
             {
-                var exact = Path.Combine(folder, name);
-                if (File.Exists(exact)) return exact;
-            }
-            else
-            {
-                foreach (var extension in extensions)
+                foreach (var location in locations)
                 {
-                    var candidate = Path.Combine(folder, name + extension);
-                    if (File.Exists(candidate)) return candidate;
+                    if (!Directory.Exists(location)) continue;
+                    var candidate = Path.Combine(location, stem + extension);
+                    if (File.Exists(candidate)) yield return candidate;
                 }
             }
         }
-        return null;
     }
 }

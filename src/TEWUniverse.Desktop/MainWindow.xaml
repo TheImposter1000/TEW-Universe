@@ -191,9 +191,11 @@
              <ColumnDefinition Width="43"/><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/>
             </Grid.ColumnDefinitions>
             <Grid Width="36" Height="36" VerticalAlignment="Center">
-             <Border CornerRadius="18" Background="#2D517A">
+             <Border CornerRadius="18"
+               Background="{Binding Converter={StaticResource WorkerPictureConverter}, ConverterParameter=PlaceholderBackground}">
               <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="19"
-               Foreground="#B5D5F5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+               Foreground="#B5D5F5" HorizontalAlignment="Center" VerticalAlignment="Center"
+               Visibility="{Binding Converter={StaticResource WorkerPictureConverter}, ConverterParameter=PlaceholderVisibility}"/>
              </Border>
              <Ellipse Fill="{Binding Converter={StaticResource WorkerPictureConverter}}"
                       Width="36" Height="36"/>
@@ -235,13 +237,13 @@
            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
           <Grid Width="79" Height="79" VerticalAlignment="Center">
-           <Border CornerRadius="40" Background="#2E4C70"
+           <Border x:Name="WorkerPortraitPlaceholder" CornerRadius="40" Background="#2E4C70"
             BorderBrush="#91AECC" BorderThickness="1">
             <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="46"
              Foreground="#BFD7F3" HorizontalAlignment="Center" VerticalAlignment="Center"/>
            </Border>
            <Ellipse x:Name="WorkerPortraitEllipse" Width="79" Height="79" Fill="Transparent"
-                    ToolTip="Worker portrait from TEW IX Picture field"/>
+                    ToolTip="Portrait matched by worker name"/>
           </Grid>
           <StackPanel Grid.Column="1" VerticalAlignment="Center">
            <StackPanel Orientation="Horizontal">

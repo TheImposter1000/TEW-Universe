@@ -6,7 +6,7 @@ Independent Windows desktop editor for **existing** Total Extreme Wrestling IX s
 
 The published Windows app now uses **WPF and .NET 8**. Its source is in `src/TEWUniverse.Desktop`, sharing the existing Access data layer and settings from `src/TEWUniverse.Studio`.
 
-The worker portrait feature reads each worker's `tblWorker.Picture` filename from the MDB and displays it from a configurable local People picture folder. Missing portraits use the silhouette placeholder; image files are never written into the MDB.
+The worker portrait feature looks for a **worker-name PNG first**, then WebP/JPEG/GIF/BMP files in that order, in the configured local pictures folder or its `People` subfolder. If no usable worker-name image exists, it falls back to the stem of the worker's `tblWorker.Picture` filename, with PNG still preferred. Missing images show the silhouette; loaded images hide the silhouette and its background, preserving PNG transparency. Portrait loading never edits the MDB or image files. WebP requires a compatible Windows image codec.
 
 The redesigned Workers screen includes a sidebar, searchable worker list, real MDB fields, biography editor and status bar. Other module navigation links are placeholders, not working editors yet.
 

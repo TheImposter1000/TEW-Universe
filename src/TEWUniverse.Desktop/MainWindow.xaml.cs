@@ -100,11 +100,17 @@ public partial class MainWindow : Window
     private void UpdateWorkerPortrait()
     {
         if (WorkerPortraitEllipse == null) return;
+        var workerName = ValueFor("Name") ?? _worker?.Name;
         var picture = ValueFor("Picture") ?? _worker?.PictureName;
-        WorkerPortraitEllipse.Fill = ((Brush?)Portraits.LoadBrush(picture, 260)) ?? Brushes.Transparent;
-        WorkerPortraitEllipse.ToolTip = string.IsNullOrWhiteSpace(picture)
-            ? "No picture is assigned in the MDB"
-            : picture;
+        var portrait = Portraits.LoadBrush(workerName, picture, 260);
+        WorkerPortraitEllipse.Fill = ((Brush?)portrait) ?? Brushes.Transparent;
+        // If a PNG has transparency, the old silhouette/background must NOT
+        // remain visible through it. Only restore the placeholder if no file loads.
+        WorkerPortraitPlaceholder.Visibility = portrait == null
+            ? Visibility.Visible : Visibility.Collapsed;
+        WorkerPortraitEllipse.ToolTip = portrait == null
+            ? "No matching worker-name or MDB picture was found in the chosen folder"
+            : "Portrait matched by worker name, with MDB filename as fallback";
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => FilterWorkers();
@@ -413,7 +419,10 @@ public partial class MainWindow : Window
                 RefreshDirty();
                 if (item.Table == "tblWorker" &&
                     item.Column.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                {
                     WorkerNameText.Text = string.IsNullOrWhiteSpace(text.Text) ? "(unnamed)" : text.Text;
+                    UpdateWorkerPortrait();
+                }
                 if (item.Table == "tblWorker" &&
                     (item.Column == "Nationality" || item.Column == "Based_In" || item.Column == "Style"))
                     BuildWorkerFacts();
@@ -710,6 +719,7 @@ public partial class MainWindow : Window
             _allWorkers = list;
             _worker = null;
             WorkerPortraitEllipse.Fill = Brushes.Transparent;
+            WorkerPortraitPlaceholder.Visibility = Visibility.Visible;
             _fields.Clear();
             _originalBio = "";
             _bioExists = false;
