@@ -2,12 +2,13 @@ using System.Text.Json;
 
 namespace TEWUniverse.Studio;
 
-/// <summary>Only file locations are persisted. Never store database credentials.</summary>
+/// <summary>Paths and the opt-in preference only. The password is saved separately with Windows DPAPI.</summary>
 internal sealed class AppSettings
 {
     public string DefaultDatabasePath { get; set; } = "";
     public string CurrentCopyPath { get; set; } = "";
     public string BackupFolderPath { get; set; } = "";
+    public bool RememberDatabasePassword { get; set; } = false;
 
     public static string SettingsFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -33,7 +34,8 @@ internal sealed class AppSettings
     {
         DefaultDatabasePath = DefaultDatabasePath,
         CurrentCopyPath = CurrentCopyPath,
-        BackupFolderPath = BackupFolderPath
+        BackupFolderPath = BackupFolderPath,
+        RememberDatabasePassword = RememberDatabasePassword
     };
 
     public static bool SamePath(string? a, string? b) =>

@@ -14,6 +14,7 @@ internal sealed class MainForm : Form
     private readonly Color _muted = Color.FromArgb(174, 187, 204);
     private AppSettings _settings = AppSettings.Load();
     private DatabaseSession? _session;
+    private string? _sessionPassword;
     private WorkerItem? _currentWorker;
     private List<WorkerItem> _workers = new();
     private List<WorkerItem> _visible = new();
@@ -58,6 +59,9 @@ internal sealed class MainForm : Form
         var folder = MakeButton("Projects folder", 147);
         folder.Click += (_, _) => OpenProjectsFolder();
         bar.Controls.Add(folder);
+        var saveCopy = MakeButton("Save copy as...", 140);
+        saveCopy.Click += (_, _) => SaveWorkingCopyAs();
+        bar.Controls.Add(saveCopy);
         var settingsButton = MakeButton("Settings", 110);
         settingsButton.Click += (_, _) => OpenSettings();
         bar.Controls.Add(settingsButton);
@@ -222,38 +226,49 @@ internal sealed class MainForm : Form
     private void ImportDatabase()
     {
         if (!MayReplaceProject()) return;
-        using var dlg = new OpenFileDialog {
-            Title = "Select an original TEW IX scenario MDB",
-            Filter = "Access database (*.mdb)|*.mdb"
+        using var open = new OpenFileDialog {
+            Title = "Select original TEW IX scenario (will not be modified)",
+            Filter = "Microsoft Access database (*.mdb)|*.mdb"
         };
         if (File.Exists(_settings.DefaultDatabasePath))
         {
-            dlg.FileName = _settings.DefaultDatabasePath;
-            dlg.InitialDirectory = Path.GetDirectoryName(_settings.DefaultDatabasePath);
+            open.FileName = _settings.DefaultDatabasePath;
+            open.InitialDirectory = Path.GetDirectoryName(_settings.DefaultDatabasePath);
         }
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (open.ShowDialog(this) != DialogResult.OK) return;
 
-        string? destination = _settings.CurrentCopyPath;
-        if (!string.IsNullOrWhiteSpace(destination) && File.Exists(destination))
+        // Always ask where the new copy should live. Never silently replace an existing MDB.
+        Directory.CreateDirectory(DatabaseSession.ProjectRoot);
+        var suggested = !string.IsNullOrWhiteSpace(_settings.CurrentCopyPath)
+            ? _settings.CurrentCopyPath : Path.Combine(DatabaseSession.ProjectRoot, "TEW9-working.mdb");
+        using var save = new SaveFileDialog {
+            Title = "Save NEW working database copy to your chosen location",
+            Filter = "Microsoft Access database (*.mdb)|*.mdb",
+            AddExtension = true, DefaultExt = "mdb", OverwritePrompt = false,
+            InitialDirectory = Directory.Exists(Path.GetDirectoryName(suggested))
+                ? Path.GetDirectoryName(suggested) : DatabaseSession.ProjectRoot,
+            FileName = File.Exists(suggested)
+                ? "TEW9-working-copy.mdb" : Path.GetFileName(suggested)
+        };
+        if (save.ShowDialog(this) != DialogResult.OK) return;
+        if (AppSettings.SamePath(open.FileName, save.FileName) || File.Exists(save.FileName))
         {
-            if (MessageBox.Show(this,
-                "The saved Current Copy already exists and will not be overwritten. " +
-                "Create a new working copy in the Studio Projects folder and set it as current?",
-                "Protect existing working copy", MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question) != DialogResult.Yes) return;
-            destination = null;
+            MessageBox.Show(this, "Choose a NEW working-copy filename. Existing databases are never overwritten.",
+                "Destination not available", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
         }
+
         var password = AskPassword(this);
         if (password == null) return;
         try
         {
-            var opened = DatabaseSession.ImportSource(dlg.FileName, password, destination);
-            // Save a default source location only after a successful import.
-            _settings.DefaultDatabasePath = Path.GetFullPath(dlg.FileName);
-            ReplaceSession(opened);
+            var opened = DatabaseSession.ImportSource(open.FileName, password, save.FileName);
+            _settings.DefaultDatabasePath = Path.GetFullPath(open.FileName);
+            ReplaceSession(opened, password);
             MessageBox.Show(this,
-                "A separate persistent working copy has been created. Its path was saved in Settings.\n" +
-                "Your original TEW IX file remains untouched.", "Working copy ready");
+                "Working copy created here:\n" + save.FileName +
+                "\n\nThe original database was not changed. The current-copy location is now remembered.",
+                "Import complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex) { ShowError(ex); }
     }
@@ -263,7 +278,7 @@ internal sealed class MainForm : Form
         if (!MayReplaceProject()) return;
         Directory.CreateDirectory(DatabaseSession.ProjectRoot);
         using var dlg = new OpenFileDialog {
-            Title = "Open an editable working COPY (not the original game database)",
+            Title = "Open an editable working COPY (never the original game database)",
             Filter = "Access database (*.mdb)|*.mdb",
             InitialDirectory = File.Exists(_settings.CurrentCopyPath)
                 ? Path.GetDirectoryName(_settings.CurrentCopyPath)
@@ -272,18 +287,77 @@ internal sealed class MainForm : Form
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         if (AppSettings.SamePath(dlg.FileName, _settings.DefaultDatabasePath))
         {
-            MessageBox.Show(this, "The Default Database is protected. Import it first.", "Original protected");
+            MessageBox.Show(this, "The original Default Database is protected. Import a copy first.",
+                "Original protected");
             return;
         }
         if (MessageBox.Show(this,
-            "Confirm that the selected file is a COPY. TEW Universe Studio will write changes to this file. " +
-            "Never select an original game scenario here.",
-            "Confirm working copy", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-            return;
-        var password = AskPassword(this);
-        if (password == null) return;
-        try { ReplaceSession(DatabaseSession.OpenWorkingCopy(dlg.FileName, password, _settings.DefaultDatabasePath)); }
+            "Confirm this is a working COPY and not your original game scenario.",
+            "Confirm editable database", MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        try
+        {
+            var opened = OpenWithCredentials(password =>
+                DatabaseSession.OpenWorkingCopy(dlg.FileName, password, _settings.DefaultDatabasePath));
+            if (opened != null) ReplaceSession(opened.Value.Session, opened.Value.Password);
+        }
         catch (Exception ex) { ShowError(ex); }
+    }
+
+    private void SaveWorkingCopyAs()
+    {
+        if (_session == null || _sessionPassword == null)
+        {
+            MessageBox.Show(this, "Open a working database before choosing Save copy as.",
+                "No database open");
+            return;
+        }
+        if (GetEdits().Count > 0)
+        {
+            MessageBox.Show(this, "Save or discard your unsaved worker changes first.",
+                "Unsaved worker changes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        using var dlg = new SaveFileDialog {
+            Title = "Save working database as a NEW copy",
+            Filter = "Microsoft Access database (*.mdb)|*.mdb",
+            AddExtension = true, DefaultExt = "mdb", OverwritePrompt = false,
+            InitialDirectory = Path.GetDirectoryName(_session.PathOnDisk),
+            FileName = Path.GetFileNameWithoutExtension(_session.PathOnDisk) + "-copy.mdb"
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            _session.CopyTo(dlg.FileName, _settings.DefaultDatabasePath);
+            var password = _sessionPassword;
+            var opened = DatabaseSession.OpenWorkingCopy(
+                dlg.FileName, password, _settings.DefaultDatabasePath);
+            ReplaceSession(opened, password);
+            MessageBox.Show(this, "New working copy saved and selected:\n" + dlg.FileName +
+                "\n\nYour previous working database remains unchanged.",
+                "Save copy as complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    // A remembered credential is tried only for existing working copies.
+    // If unavailable or invalid, the normal password prompt is used.
+    private (DatabaseSession Session, string Password)? OpenWithCredentials(
+        Func<string, DatabaseSession> factory)
+    {
+        var remembered = _settings.RememberDatabasePassword ? CredentialStore.TryRead() : null;
+        if (!string.IsNullOrEmpty(remembered))
+        {
+            try { return (factory(remembered), remembered); }
+            catch
+            {
+                SetStatus("Stored password could not open this database. Please enter the password again.");
+            }
+        }
+        var entered = AskPassword(this);
+        if (entered == null) return null;
+        return (factory(entered), entered);
     }
 
     private void OpenSettings()
@@ -299,10 +373,24 @@ internal sealed class MainForm : Form
             // Persist choices independently of the installed program and its updates.
             candidate.Save();
             _settings = candidate;
+            if (!candidate.RememberDatabasePassword)
+                CredentialStore.Delete();
+            else if (!string.IsNullOrEmpty(_sessionPassword))
+            {
+                // Enabling "Remember" while editing an open database takes effect immediately.
+                try { CredentialStore.Save(_sessionPassword); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Settings saved, but Windows could not store the password: " +
+                        ex.Message, "Password not remembered",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
             if (copyChanged)
             {
                 _session?.Dispose();
                 _session = null;
+                _sessionPassword = null;
                 _currentWorker = null;
                 _workers.Clear();
                 _search.Clear();
@@ -320,41 +408,66 @@ internal sealed class MainForm : Form
         var path = _settings.CurrentCopyPath;
         if (string.IsNullOrWhiteSpace(path))
         {
-            SetStatus("No current copy configured. Import a database or choose one in Settings.");
+            SetStatus("Choose where to import a working copy. File locations are remembered in Settings.");
             return;
         }
         if (!File.Exists(path))
         {
-            SetStatus("Saved Current Copy path was not found. Check Settings, or import the original database.");
+            SetStatus("The saved Current Copy does not exist yet. Import a database or choose another copy.");
             return;
         }
-        var password = AskPassword(this);
-        if (password == null)
+        try
         {
-            SetStatus("Current Copy location remembered. Open the working project when you're ready.");
-            return;
+            var opened = OpenWithCredentials(password =>
+                DatabaseSession.OpenWorkingCopy(path, password, _settings.DefaultDatabasePath));
+            if (opened == null)
+            {
+                SetStatus("Current Copy location is remembered. Open the project when ready.");
+                return;
+            }
+            ReplaceSession(opened.Value.Session, opened.Value.Password);
         }
-        try { ReplaceSession(DatabaseSession.OpenWorkingCopy(path, password, _settings.DefaultDatabasePath)); }
         catch (Exception ex) { ShowError(ex); }
     }
 
-    private void ReplaceSession(DatabaseSession opened)
+    private void ReplaceSession(DatabaseSession opened, string password)
     {
         try
         {
             var workers = opened.ListWorkers();
-            _session?.Dispose();
+            var updatedSettings = _settings.Copy();
+            updatedSettings.CurrentCopyPath = opened.PathOnDisk;
+            updatedSettings.Save();
+
+            var previous = _session;
             _session = opened;
-            _settings.CurrentCopyPath = opened.PathOnDisk;
-            _settings.Save();
+            _sessionPassword = password;
+            _settings = updatedSettings;
+            previous?.Dispose();
             _workers = workers;
             _currentWorker = null;
             _search.Text = "";
             FilterWorkers();
             ClearEditor();
-            SetStatus($"Connected using {opened.Provider}. {workers.Count} worker records found. Editing: {opened.PathOnDisk}");
+            SetStatus($"Connected using {opened.Provider}. {workers.Count} workers. Editing: {opened.PathOnDisk}");
+
+            if (_settings.RememberDatabasePassword)
+            {
+                try { CredentialStore.Save(password); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Database loaded, but the password could not be saved: " +
+                        ex.Message, "Credential storage unavailable",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
         }
-        catch { opened.Dispose(); throw; }
+        catch
+        {
+            // Do not retain a partially opened or untracked database session.
+            if (!ReferenceEquals(_session, opened)) opened.Dispose();
+            throw;
+        }
     }
 
     private void OpenProjectsFolder()

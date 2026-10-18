@@ -158,6 +158,23 @@ internal sealed class DatabaseSession : IDisposable
         return new RecordSection(table, key, result);
     }
 
+    // Save As uses a fresh filename, never overwrites either an existing copy or the original.
+    public void CopyTo(string destinationFile, string? originalFile)
+    {
+        var destination = Path.GetFullPath(destinationFile.Trim());
+        if (!destination.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Working copies must be .mdb files.");
+        if (AppSettings.SamePath(destination, PathOnDisk) ||
+            AppSettings.SamePath(destination, originalFile))
+            throw new InvalidOperationException("Choose a new destination, not the current copy or original.");
+        if (File.Exists(destination))
+            throw new InvalidOperationException("That database already exists. No file has been overwritten.");
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        _connection.Dispose();
+        try { File.Copy(PathOnDisk, destination, overwrite: false); }
+        finally { _connection = Connect(); }
+    }
+
     public string Backup(string? customBackupFolder)
     {
         var folder = string.IsNullOrWhiteSpace(customBackupFolder)

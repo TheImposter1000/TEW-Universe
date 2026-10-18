@@ -8,14 +8,15 @@ internal sealed class SettingsForm : Form
     private readonly TextBox _defaultPath = new();
     private readonly TextBox _currentPath = new();
     private readonly TextBox _backupPath = new();
+    private readonly CheckBox _rememberPassword = new();
     public AppSettings? ResultSettings { get; private set; }
 
     public SettingsForm(AppSettings settings)
     {
         Text = "Settings | TEW Universe Studio";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(830, 365);
-        MinimumSize = new Size(700, 365);
+        ClientSize = new Size(830, 447);
+        MinimumSize = new Size(830, 447);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -44,8 +45,21 @@ internal sealed class SettingsForm : Form
             "Location for automatic pre-save backup files. Leave blank to use the copy's Backups folder.",
             () => BrowseFolder());
 
+        _rememberPassword.Text = "Remember database password on this Windows account";
+        _rememberPassword.Checked = settings.RememberDatabasePassword;
+        _rememberPassword.SetBounds(177, 304, 570, 29);
+        _rememberPassword.AutoSize = false;
+        _rememberPassword.ForeColor = Color.White;
+        Controls.Add(_rememberPassword);
+        var passwordNote = new Label {
+            Text = "Optional. Encrypted using Windows DPAPI. Stored only on this PC, never in GitHub or settings.json.",
+            Left = 177, Top = 338, Width = 630, Height = 40,
+            ForeColor = Color.FromArgb(177, 190, 209), Font = new Font("Segoe UI", 8.5f)
+        };
+        Controls.Add(passwordNote);
+
         var save = new Button {
-            Text = "Save Settings", Location = new Point(661, 315), Size = new Size(145, 35),
+            Text = "Save Settings", Location = new Point(661, 394), Size = new Size(145, 35),
             BackColor = Color.FromArgb(60, 205, 171), FlatStyle = FlatStyle.Flat,
             ForeColor = Color.FromArgb(15, 35, 45), Font = new Font("Segoe UI", 9, FontStyle.Bold)
         };
@@ -53,7 +67,7 @@ internal sealed class SettingsForm : Form
         Controls.Add(save);
 
         var cancel = new Button {
-            Text = "Cancel", Location = new Point(552, 315), Size = new Size(101, 35),
+            Text = "Cancel", Location = new Point(552, 394), Size = new Size(101, 35),
             BackColor = Color.FromArgb(43, 59, 77), ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Cancel
         };
@@ -114,7 +128,8 @@ internal sealed class SettingsForm : Form
             var candidate = new AppSettings {
                 DefaultDatabasePath = _defaultPath.Text,
                 CurrentCopyPath = _currentPath.Text,
-                BackupFolderPath = _backupPath.Text
+                BackupFolderPath = _backupPath.Text,
+                RememberDatabasePassword = _rememberPassword.Checked
             };
             candidate.NormalizeAndValidate();
             if (candidate.CurrentCopyPath.Length > 0 && File.Exists(candidate.CurrentCopyPath) &&
