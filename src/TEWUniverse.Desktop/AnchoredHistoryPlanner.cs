@@ -63,6 +63,11 @@ internal static class AnchoredHistoryPlanner
             throw new InvalidOperationException(
                 "Annual Tournament mode permits only one winner in each calendar year.");
 
+        // Championship histories use independent, varied reign durations.
+        // Only annual cups use the fixed one-winner-per-year model below.
+        if (!annualTournament)
+            return GenerateVariedChampionshipReigns(fixedWins, npcNames, firstYear, lastYear);
+
         int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
             .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
         if (total > 500)
@@ -140,6 +145,184 @@ internal static class AnchoredHistoryPlanner
         return reigns;
     }
 
+
+    /// <summary>
+    /// Regular titles are held continuously: an outgoing holder loses the belt
+    /// the day before the next holder wins it. The number of NPC reigns is
+    /// derived from randomly varied reign lengths, not one reign per year.
+    /// Real-worker winning YEARS remain fixed; exact dates are generated.
+    /// Annual cups use the separate, unchanged one-edition-per-year logic.
+    /// </summary>
+    private static List<GeneratedTitleReign> GenerateVariedChampionshipReigns(
+        IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
+        int firstYear, int lastYear)
+    {
+        const int maxReigns = 500;
+        const int minimumTransitionDays = 7;
+        var firstDay = new DateTime(firstYear, 1, 1);
+        var lastDay = new DateTime(lastYear, 12, 31);
+
+        // Spread wins within their fixed year. Never put every title change
+        // on January 1; multiple real winners in one year keep separate dates.
+        var pinned = new List<(DateTime Date, int UID, string Name)>();
+        foreach (var group in fixedWins.GroupBy(w => w.WinYear).OrderBy(g => g.Key))
+        {
+            var items = group.OrderBy(w => w.WorkerId).ToArray();
+            int daysInYear = DateTime.IsLeapYear(group.Key) ? 366 : 365;
+            if (items.Length > daysInYear / minimumTransitionDays)
+                throw new InvalidOperationException(
+                    $"Too many fixed championship wins in {group.Key} to space them safely.");
+            for (int i = 0; i < items.Length; i++)
+            {
+                int baseDay = daysInYear * (i + 1) / (items.Length + 1);
+                int jitterRange = Math.Min(21, daysInYear / (items.Length + 1) / 4);
+                int offset = jitterRange > 0
+                    ? Random.Shared.Next(-jitterRange, jitterRange + 1) : 0;
+                var captured = new DateTime(group.Key, 1, 1).AddDays(baseDay + offset);
+                pinned.Add((captured, items[i].WorkerId, items[i].Name));
+            }
+        }
+        pinned.Sort((a, b) => a.Date.CompareTo(b.Date));
+
+        var cast = npcNames.Select(n => n.Name)
+            .Where(name => !fixedWins.Any(w =>
+                w.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(_ => Random.Shared.Next())
+            .Take(Math.Max(5, (lastYear - firstYear + 1) * 2))
+            .ToArray();
+        if (cast.Length == 0)
+            throw new InvalidOperationException(
+                "No generated NPC names remain after excluding the linked superstar aliases.");
+
+        var events = new List<(DateTime Date, int UID, string Name)>();
+        string PickNpc(string? current, string? upcoming)
+        {
+            var choices = cast.Where(name =>
+                !name.Equals(current, StringComparison.OrdinalIgnoreCase) &&
+                !name.Equals(upcoming, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (choices.Length == 0)
+                choices = cast.Where(name =>
+                    !name.Equals(current, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (choices.Length == 0)
+                throw new InvalidOperationException(
+                    "The NPC name pool is too small to create distinct consecutive champions.");
+            return choices[Random.Shared.Next(choices.Length)];
+        }
+        void AddNpc(DateTime date, string? upcoming = null)
+        {
+            if (events.Count >= maxReigns)
+                throw new InvalidOperationException(
+                    "The requested title-history span exceeds 500 varied reigns. Reduce its years.");
+            events.Add((date, -1,
+                PickNpc(events.Count == 0 ? null : events[^1].Name, upcoming)));
+        }
+
+        if (pinned.Count == 0 || pinned[0].Date > firstDay)
+            AddNpc(firstDay, pinned.Count > 0 ? pinned[0].Name : null);
+
+        // Sample actual reign lengths from different tiers: short transitional
+        // reigns, several-month reigns, and occasional one-to-two-year reigns.
+        static int NextReignDays()
+        {
+            double roll = Random.Shared.NextDouble();
+            return roll switch
+            {
+                < 0.10 => Random.Shared.Next(14, 43),   // 2–6 weeks
+                < 0.33 => Random.Shared.Next(43, 106),  // 1–3 months
+                < 0.69 => Random.Shared.Next(106, 251), // 3–8 months
+                < 0.92 => Random.Shared.Next(251, 451), // 8–15 months
+                _ => Random.Shared.Next(451, 771)      // occasional 15–25 months
+            };
+        }
+
+        // Insert generated transitions before each fixed real-worker win.
+        // If the same worker wins again, a different champion MUST hold the
+        // title between those wins (otherwise it is not a second reign).
+        foreach (var next in pinned)
+        {
+            if (events.Count == 0)
+            {
+                events.Add(next);
+                continue;
+            }
+            var cursor = events[^1];
+            while (true)
+            {
+                int availableDays = (next.Date - cursor.Date).Days;
+                if (availableDays < minimumTransitionDays)
+                    throw new InvalidOperationException(
+                        "Two pinned wins are too close together to be separate title reigns.");
+                int length = NextReignDays();
+                if (length + minimumTransitionDays > availableDays) break;
+                var nextDate = cursor.Date.AddDays(length);
+                AddNpc(nextDate, next.Name);
+                cursor = events[^1];
+            }
+
+            // Fixed wins by the same worker require at least one intervening NPC.
+            if (cursor.Name.Equals(next.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                int availableDays = (next.Date - cursor.Date).Days;
+                if (availableDays < 2 * minimumTransitionDays)
+                    throw new InvalidOperationException(
+                        $"{next.Name} has repeated winning years too close to fit a different champion between them.");
+                AddNpc(cursor.Date.AddDays(availableDays / 2), next.Name);
+            }
+
+            if (events.Count >= maxReigns)
+                throw new InvalidOperationException(
+                    "The selected history exceeds 500 reigns. Shorten its date range.");
+            events.Add(next);
+        }
+
+        // After the final pinned victory, keep building a plausible history
+        // through the end of the requested championship timeline.
+        if (events.Count == 0)
+            AddNpc(firstDay);
+        var last = events[^1];
+        while (true)
+        {
+            int daysRemaining = (lastDay - last.Date).Days + 1;
+            int length = NextReignDays();
+            if (length + minimumTransitionDays > daysRemaining) break;
+            var date = last.Date.AddDays(length);
+            AddNpc(date);
+            last = events[^1];
+        }
+
+        var results = new List<GeneratedTitleReign>(events.Count);
+        for (int i = 0; i < events.Count; i++)
+        {
+            var curr = events[i];
+            var lost = i + 1 < events.Count
+                ? events[i + 1].Date.AddDays(-1) : lastDay;
+            if (lost < curr.Date)
+                throw new InvalidOperationException("Generated championship reign dates overlap.");
+            int held = (lost - curr.Date).Days + 1;
+            // Defence counts vary independently of lengths. Long reigns are
+            // generally defended more often but not at a fixed 1-per-N-days.
+            short defenses = held switch
+            {
+                < 28 => (short)Random.Shared.Next(0, 2),
+                < 90 => (short)Random.Shared.Next(0, 5),
+                < 240 => (short)Random.Shared.Next(1, 9),
+                < 450 => (short)Random.Shared.Next(3, 16),
+                _ => (short)Random.Shared.Next(7, 25)
+            };
+            results.Add(new GeneratedTitleReign(
+                i + 1, curr.UID, curr.Name, -1, "", curr.Date, lost, defenses));
+        }
+
+        foreach (var win in fixedWins)
+        {
+            if (results.Count(r => r.Holder1 == win.WorkerId &&
+                    r.HolderName1 == win.Name && r.Captured.Year == win.WinYear) != 1)
+                throw new InvalidOperationException(
+                    $"The fixed winning year {win.WinYear} for {win.Name} was not preserved.");
+        }
+        return results;
+    }
 
     internal static List<GeneratedTitleReign> Generate(
         IReadOnlyList<Anchor> fixedWins,
