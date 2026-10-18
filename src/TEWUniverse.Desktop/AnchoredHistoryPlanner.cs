@@ -10,7 +10,7 @@ namespace TEWUniverse.Desktop;
 internal static class AnchoredHistoryPlanner
 {
     internal sealed record Anchor(string Name, int WorkerId, int WinYear,
-        int FirstEligibleYear, int LastEligibleYear);
+        int FirstEligibleYear, int LastEligibleYear, DateTime? NotBefore = null);
     private sealed record Event(DateTime Won, Anchor? FixedWinner);
 
     /// <summary>
@@ -45,7 +45,8 @@ internal static class AnchoredHistoryPlanner
                 win.Name.Length > 30 || win.Name.Any(char.IsControl) ||
                 win.WinYear < firstYear || win.WinYear > lastYear ||
                 win.FirstEligibleYear > win.WinYear || win.LastEligibleYear < win.WinYear ||
-                win.FirstEligibleYear > win.LastEligibleYear)
+                win.FirstEligibleYear > win.LastEligibleYear ||
+                (win.NotBefore.HasValue && win.NotBefore.Value.Year != win.WinYear))
                 throw new InvalidOperationException(
                     $"The pinned win for {win.Name} ({win.WinYear}) is outside its allowed years.");
             if (!reserved.TryGetValue(win.WinYear, out var wins))
@@ -202,27 +203,11 @@ internal static class AnchoredHistoryPlanner
         var firstDay = new DateTime(firstYear, 1, 1);
         var lastDay = new DateTime(lastYear, 12, 31);
 
-        // Spread wins within their fixed year. Never put every title change
-        // on January 1; multiple real winners in one year keep separate dates.
-        var pinned = new List<(DateTime Date, int UID, string Name)>();
-        foreach (var group in fixedWins.GroupBy(w => w.WinYear).OrderBy(g => g.Key))
-        {
-            var items = group.OrderBy(w => w.WorkerId).ToArray();
-            int daysInYear = DateTime.IsLeapYear(group.Key) ? 366 : 365;
-            if (items.Length > daysInYear / minimumTransitionDays)
-                throw new InvalidOperationException(
-                    $"Too many fixed championship wins in {group.Key} to space them safely.");
-            for (int i = 0; i < items.Length; i++)
-            {
-                int baseDay = daysInYear * (i + 1) / (items.Length + 1);
-                int jitterRange = Math.Min(21, daysInYear / (items.Length + 1) / 4);
-                int offset = jitterRange > 0
-                    ? Random.Shared.Next(-jitterRange, jitterRange + 1) : 0;
-                var captured = new DateTime(group.Key, 1, 1).AddDays(baseDay + offset);
-                pinned.Add((captured, items[i].WorkerId, items[i].Name));
-            }
-        }
-        pinned.Sort((a, b) => a.Date.CompareTo(b.Date));
+        // Fixed winning years are preserved, but any relevant prior tournament
+        // victories can move the capture date later inside that same year.
+        var pinned = ChampionshipWinScheduler.Schedule(fixedWins.Select(w =>
+            new ChampionshipWinScheduler.Win(w.WorkerId, w.Name, w.WinYear, w.NotBefore))
+            .ToArray()).Select(w => (w.Date, UID: w.WorkerId, w.Name)).ToList();
 
         var cast = npcNames.Select(n => n.Name)
             .Where(name => !fixedWins.Any(w =>
