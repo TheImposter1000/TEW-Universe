@@ -1,5 +1,15 @@
 # Development and compatibility
 
+## Worker Attributes and Employment History
+
+The Workers workspace now exposes separate **Attributes** and **Employment History** tabs.
+
+The verified `tblAttribute` schema has `UID`, `WorkerUID`, `Attribute`, `Hidden` and `Permanent`. Each worker's records are loaded with a `WHERE WorkerUID=?` parameter, and saved using explicit one-row, worker-constrained `UPDATE` / `DELETE` or a unique newly allocated `UID` for `INSERT`. The database layer checks the source schema at runtime, disallows duplicate attributes on the same worker, validates flag types and text length, and checks the physical MDB for external modifications before starting a transaction. Existing attribute names are offered as suggestions, but Studio does not have a verified full list of TEW IX attribute names or the game's clash/incompatibility matrix. Unknown manually typed names therefore require an explicit user warning; they may fail TEW's Data Check and should not be used on an untested live scenario. TEW IX's `Hidden` and `Permanent` states are kept independent.
+
+The verified historical employment table is **`tblCV`**, not the active worker contract table `tblContract`. The supported columns are `RecordName`, `WorkerUID`, `FedUID`, `Initials`, `CVFromDate`, `CVUntilDate`, `Loan`, `Trade`, `Tour`, and `Developmental`. Reading displays only the selected worker's periods and resolves `FedUID` against the existing company catalog; orphan company IDs remain visibly labeled. Creation and editing require a valid company UID and dates in a supported calendar range, retaining historical initials and the four flags. An `INSERT` allocates a unique internal `RecordName`, and all `UPDATE` / `DELETE` operations are qualified by both `RecordName` and `WorkerUID` to protect other worker records. A duplicate identical worker/company/date-range period is rejected. Unsupported mandatory fields fail closed.
+
+These linked-record editors have their own explicit Add / Save Selected / Remove buttons and destructive confirmations; they are **not** included in the core worker scalar Save Changes action. A manual backup is recommended, not required. These operations still need TEW IX in-game Data Check and UI verification with a disposable working copy of a scenario, particularly for unknown custom attribute names or rare historical employment sentinels.
+
 ## Tag Teams: existing editing and safe team insertion
 
 The new **Tag Teams** navigation entry reuses the current existing-record list and detail editor. `ExistingEditors` targets `tblTeam` and allowlists `Name`, `Worker1`, `Worker2`, `Fed`, `Type`, `Experience`, `Formed`, `Finisher`, `TagFinisherDesc`, and `Active`. References are selectable from existing workers and companies, while numeric team-type codes are intentionally raw until we have confirmed the game's internal mapping. Save Changes calls the normal parameterized transactional update path, validates both worker IDs, company ID, and type code, and preserves UID/Recordname.
