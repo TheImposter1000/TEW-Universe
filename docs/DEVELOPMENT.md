@@ -4,13 +4,17 @@
 
 Install the .NET 8 SDK on Windows 10/11. Run:
 
-    dotnet run --project src/TEWUniverse.Studio/TEWUniverse.Studio.csproj
+    dotnet run --project src/TEWUniverse.Desktop/TEWUniverse.Desktop.csproj
 
 To publish a standalone executable:
 
-    dotnet publish src/TEWUniverse.Studio/TEWUniverse.Studio.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/app
+    dotnet publish src/TEWUniverse.Desktop/TEWUniverse.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/app
 
 Builds on GitHub Actions also publish a separate .NET updater agent and create an Inno Setup per-user installer. A successful build creates a versioned GitHub Release, which the installed editor can check for and install on restart. Do not claim a usable installer until that Windows build succeeds.
+
+## New WPF interface
+
+The Windows release now builds `src/TEWUniverse.Desktop` using WPF. Its MainWindow provides the redesigned sidebar, searchable worker list, profile, skills, popularity, physical and biography panels, plus settings and the existing update workflow. It shares the proven database service and local preferences from `src/TEWUniverse.Studio` through linked C# files; the old WinForms UI is not shipped. Other sidebar sections are labeled unavailable until implemented.
 
 ## Scope of current MVP
 

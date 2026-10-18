@@ -1,0 +1,117 @@
+<Application x:Class="TEWUniverse.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <SolidColorBrush x:Key="WindowBrush" Color="#0B1421"/>
+    <SolidColorBrush x:Key="PanelBrush" Color="#111F30"/>
+    <SolidColorBrush x:Key="RaisedBrush" Color="#17283B"/>
+    <SolidColorBrush x:Key="BorderBrushDark" Color="#30435B"/>
+    <SolidColorBrush x:Key="TextBrushLight" Color="#EDF5FF"/>
+    <SolidColorBrush x:Key="TextBrushMuted" Color="#9CB3D0"/>
+    <SolidColorBrush x:Key="BlueBrush" Color="#1678EF"/>
+    <SolidColorBrush x:Key="GreenBrush" Color="#2CBF96"/>
+    <SolidColorBrush x:Key="PurpleBrush" Color="#7652D1"/>
+    <Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource TextBrushLight}"/>
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+    </Style>
+    <Style TargetType="Button" x:Key="ActionButton">
+      <Setter Property="Foreground" Value="{StaticResource TextBrushLight}"/>
+      <Setter Property="Background" Value="{StaticResource RaisedBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="15,10"/>
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Margin="{TemplateBinding Padding}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="B" Property="BorderBrush" Value="#6A9FD7"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="B" Property="Opacity" Value="0.4"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="Button" x:Key="BlueButton" BasedOn="{StaticResource ActionButton}">
+      <Setter Property="Background" Value="{StaticResource BlueBrush}"/>
+      <Setter Property="BorderBrush" Value="#358EFC"/>
+    </Style>
+    <Style TargetType="Button" x:Key="BackupButton" BasedOn="{StaticResource ActionButton}">
+      <Setter Property="Background" Value="#35275C"/>
+      <Setter Property="BorderBrush" Value="#7153AB"/>
+    </Style>
+    <Style TargetType="Button" x:Key="NavigationButton" BasedOn="{StaticResource ActionButton}">
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="Padding" Value="15,13"/>
+      <Setter Property="Margin" Value="8,4"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style TargetType="Button" x:Key="TabButton" BasedOn="{StaticResource ActionButton}">
+      <Setter Property="MinWidth" Value="112"/>
+      <Setter Property="Margin" Value="0,0,7,0"/>
+      <Setter Property="Padding" Value="18,12"/>
+    </Style>
+    <Style TargetType="TextBox" x:Key="FormTextBox">
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="{StaticResource TextBrushLight}"/>
+      <Setter Property="Background" Value="#101B2B"/>
+      <Setter Property="BorderBrush" Value="#38516C"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="10,7"/>
+      <Setter Property="CaretBrush" Value="White"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style TargetType="TextBox" x:Key="SearchBox" BasedOn="{StaticResource FormTextBox}">
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="Padding" Value="12,10"/>
+    </Style>
+    <Style TargetType="Border" x:Key="CardBorder">
+      <Setter Property="Background" Value="{StaticResource PanelBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushDark}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="9"/>
+    </Style>
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Foreground" Value="{StaticResource TextBrushLight}"/>
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="Margin" Value="3,2"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="L" Background="Transparent" CornerRadius="6"
+                    BorderBrush="Transparent" BorderThickness="1" Padding="{TemplateBinding Padding}">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="L" Property="Background" Value="#0C67D5"/>
+                <Setter TargetName="L" Property="BorderBrush" Value="#3999FF"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="L" Property="BorderBrush" Value="#4A78A4"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Application.Resources>
+</Application>

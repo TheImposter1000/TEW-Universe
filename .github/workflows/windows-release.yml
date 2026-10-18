@@ -39,7 +39,7 @@ jobs:
       - name: Publish desktop editor
         shell: pwsh
         run: |
-          dotnet publish src/TEWUniverse.Studio/TEWUniverse.Studio.csproj -c Release -r win-x64 --self-contained true -p:Version=$env:APP_VERSION -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/app
+          dotnet publish src/TEWUniverse.Desktop/TEWUniverse.Desktop.csproj -c Release -r win-x64 --self-contained true -p:Version=$env:APP_VERSION -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/app
 
       - name: Publish separate update agent
         shell: pwsh
