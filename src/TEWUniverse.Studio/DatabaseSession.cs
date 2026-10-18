@@ -65,59 +65,47 @@ internal sealed class DatabaseSession : IDisposable
     public string ProjectFolder => Path.GetDirectoryName(PathOnDisk)!;
     public string Provider { get; private set; } = "";
 
-    // The session is only constructed for copies in our application-owned working directory.
+    // Session connects directly to the user's selected scenario MDB.
+    // Close TEW IX's editor before saving to prevent concurrent modifications.
+    private readonly record struct FileStamp(long Size, DateTime ModifiedUtc);
+    private FileStamp _openedStamp;
+
+    private static FileStamp GetStamp(string file)
+    {
+        var info = new FileInfo(file);
+        info.Refresh();
+        if (!info.Exists) throw new FileNotFoundException("The active database was removed.", file);
+        return new(info.Length, info.LastWriteTimeUtc);
+    }
+
+    private void EnsureUnchanged()
+    {
+        if (_openedStamp != GetStamp(PathOnDisk))
+            throw new InvalidOperationException(
+                "The active MDB was changed outside TEW Universe Studio. No changes have been written. " +
+                "Close TEW IX's database editor, choose Refresh Database, review the updated records, " +
+                "and then make your changes again.");
+    }
     private DatabaseSession(string path, string password)
     {
         PathOnDisk = path;
         _password = password;
         _connection = Connect();
+        _openedStamp = GetStamp(PathOnDisk);
     }
 
-    public static string ProjectRoot => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TEW Universe Studio", "Projects");
-
-    public static DatabaseSession ImportSource(string sourceFile, string password, string? destinationFile = null)
+    public static DatabaseSession OpenDatabase(string path, string password)
     {
-        if (!File.Exists(sourceFile) || !sourceFile.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Select an existing original .mdb file.");
-
-        string target;
-        if (string.IsNullOrWhiteSpace(destinationFile))
-        {
-            Directory.CreateDirectory(ProjectRoot);
-            var folder = Path.Combine(ProjectRoot,
-                DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture));
-            target = Path.Combine(folder, "TEW9.mdb");
-        }
-        else
-        {
-            target = Path.GetFullPath(destinationFile.Trim());
-            if (!target.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Current Copy must have the .mdb extension.");
-        }
-        if (AppSettings.SamePath(sourceFile, target))
-            throw new InvalidOperationException("The working copy cannot be the original database.");
-        if (File.Exists(target))
-            throw new InvalidOperationException(
-                "The Current Copy destination already exists. Open that working copy instead, " +
-                "or choose a different destination in Settings. Existing databases are never overwritten by Import.");
-
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        File.Copy(sourceFile, target, overwrite: false);
-        // Preserve the imported copy if an Access provider refuses to connect.
-        return new DatabaseSession(target, password);
-    }
-
-    public static DatabaseSession OpenWorkingCopy(string path, string password, string? originalPath = null)
-    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new InvalidOperationException("Choose an existing TEW IX scenario MDB.");
         var full = Path.GetFullPath(path.Trim());
         if (!File.Exists(full) || !full.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("The selected working .mdb file does not exist.");
-        if (AppSettings.SamePath(full, originalPath))
+            throw new InvalidOperationException("Select an existing .mdb scenario database.");
+        if (Path.GetFileName(full).Equals("TEW9Save.mdb", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
-                "This file is configured as the original Default Database. " +
-                "It cannot be opened for editing. Import it to create a separate working copy.");
+                "TEW9Save.mdb is a save-game database. Only scenario MDBs are supported.");
+        if (new FileInfo(full).IsReadOnly)
+            throw new InvalidOperationException("This MDB is marked read-only.");
         return new DatabaseSession(full, password);
     }
 
@@ -381,6 +369,7 @@ internal sealed class DatabaseSession : IDisposable
                 throw new InvalidOperationException("Generated title reign dates cannot overlap.");
         }
 
+        EnsureUnchanged();
         using var transaction = _connection.BeginTransaction();
         try
         {
@@ -422,6 +411,7 @@ internal sealed class DatabaseSession : IDisposable
                 updated++;
             }
             transaction.Commit();
+            _openedStamp = GetStamp(PathOnDisk);
             return updated;
         }
         catch
@@ -457,21 +447,21 @@ internal sealed class DatabaseSession : IDisposable
         return new RecordSection(table, key, result);
     }
 
-    // Save As uses a fresh filename, never overwrites either an existing copy or the original.
-    public void CopyTo(string destinationFile, string? originalFile)
+    // Export Copy As makes a separate file without changing the active database.
+    public void CopyTo(string destinationFile)
     {
         var destination = Path.GetFullPath(destinationFile.Trim());
         if (!destination.EndsWith(".mdb", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Working copies must be .mdb files.");
-        if (AppSettings.SamePath(destination, PathOnDisk) ||
-            AppSettings.SamePath(destination, originalFile))
-            throw new InvalidOperationException("Choose a new destination, not the current copy or original.");
+        if (AppSettings.SamePath(destination, PathOnDisk))
+            throw new InvalidOperationException("The export cannot replace the active database.");
         if (File.Exists(destination))
             throw new InvalidOperationException("That database already exists. No file has been overwritten.");
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        EnsureUnchanged();
         _connection.Dispose();
         try { File.Copy(PathOnDisk, destination, overwrite: false); }
-        finally { _connection = Connect(); }
+        finally { _connection = Connect(); _openedStamp = GetStamp(PathOnDisk); }
     }
 
     public string Backup(string? customBackupFolder)
@@ -480,7 +470,8 @@ internal sealed class DatabaseSession : IDisposable
             ? Path.Combine(ProjectFolder, "Backups")
             : Path.GetFullPath(customBackupFolder.Trim());
 
-        // Validate backup destination before closing the live database connection.
+        // Backups remain a separate user-requested operation.
+        EnsureUnchanged();
         Directory.CreateDirectory(folder);
         var destination = Path.Combine(folder,
             Path.GetFileNameWithoutExtension(PathOnDisk) + "-" +
@@ -488,15 +479,16 @@ internal sealed class DatabaseSession : IDisposable
             "-" + Guid.NewGuid().ToString("N")[..6] + ".mdb");
         _connection.Dispose();
         try { File.Copy(PathOnDisk, destination, overwrite: false); }
-        finally { _connection = Connect(); }
+        finally { _connection = Connect(); _openedStamp = GetStamp(PathOnDisk); }
         return destination;
     }
 
-    // Save directly modifies the already-selected working copy.
+    // Save directly modifies the active database selected explicitly by the user.
     // A backup is created only when the user explicitly chooses Create Backup.
     public int Save(int workerId, IReadOnlyCollection<FieldEdit> edits)
     {
         if (edits.Count == 0) return 0;
+        EnsureUnchanged();
         using var transaction = _connection.BeginTransaction();
         try
         {
@@ -523,6 +515,7 @@ internal sealed class DatabaseSession : IDisposable
                 changed++;
             }
             transaction.Commit();
+            _openedStamp = GetStamp(PathOnDisk);
             return changed;
         }
         catch
