@@ -218,7 +218,7 @@
       <Grid x:Name="WorkerDetailPanel" Grid.Column="2" Margin="4,10,11,10">
         <Grid.RowDefinitions>
           <RowDefinition Height="149"/>
-          <RowDefinition Height="54"/>
+          <RowDefinition Height="96"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -267,12 +267,16 @@
          </Grid>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="5" Margin="0,0,0,9">
+        <UniformGrid Grid.Row="1" Columns="4" Rows="2" Margin="0,0,0,9">
           <Button x:Name="ProfileTab" Style="{StaticResource BlueButton}" Content="▣   Profile" Tag="Profile" Click="Tab_Click" Margin="0,0,5,0"/>
           <Button x:Name="SkillsTab" Style="{StaticResource ActionButton}" Content="▥   Skills" Tag="Skills" Click="Tab_Click" Margin="0,0,5,0"/>
           <Button x:Name="PopularityTab" Style="{StaticResource ActionButton}" Content="★   Popularity" Tag="Popularity" Click="Tab_Click" Margin="0,0,5,0"/>
           <Button x:Name="PhysicalTab" Style="{StaticResource ActionButton}" Content="⚑   Physical" Tag="Physical" Click="Tab_Click" Margin="0,0,5,0"/>
           <Button x:Name="BiographyTab" Style="{StaticResource ActionButton}" Content="▣   Biography" Tag="Biography" Click="Tab_Click"/>
+           <Button x:Name="AttributesTab" Style="{StaticResource ActionButton}"
+                   Content="◆   Attributes" Tag="Attributes" Click="Tab_Click" Margin="0,0,5,0"/>
+           <Button x:Name="EmploymentTab" Style="{StaticResource ActionButton}"
+                   Content="▣   Employment History" Tag="Employment" Click="Tab_Click"/>
         </UniformGrid>
 
         <Grid Grid.Row="2">
@@ -336,6 +340,15 @@
               </ScrollViewer>
             </DockPanel>
           </Border>
+           <Border x:Name="AttributesView" Visibility="Collapsed"
+                   Style="{StaticResource CardBorder}" Padding="14">
+            <Grid x:Name="AttributesHost"/>
+           </Border>
+           <Border x:Name="EmploymentView" Visibility="Collapsed"
+                   Style="{StaticResource CardBorder}" Padding="14">
+            <Grid x:Name="EmploymentHost"/>
+           </Border>
+           
 
           <Border x:Name="BiographyView" Visibility="Collapsed" Style="{StaticResource CardBorder}" Padding="18">
             <DockPanel>
