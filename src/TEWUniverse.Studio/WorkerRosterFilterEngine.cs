@@ -11,7 +11,7 @@ internal sealed record WorkerFilterRecord(
     int Id, string Name, bool? IsActive, DateTime? Birthday,
     string Gender, string Nationality, string Region,
     IReadOnlyCollection<string> Roles, IReadOnlyCollection<int> CompanyUids,
-    bool HasPicture = false);
+    bool HasPicture = false, bool HasCurrentContract = false);
 
 internal sealed record WorkerFilterCriteria(
     string Search = "", bool? Active = null, string? Gender = null,
@@ -51,7 +51,8 @@ internal static class WorkerRosterFilterEngine
         if (criteria.Role is { Length: > 0 } role &&
             !worker.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
             return false;
-        if (criteria.UnemployedOnly && worker.CompanyUids.Count != 0)
+        if (criteria.UnemployedOnly &&
+            (worker.HasCurrentContract || worker.CompanyUids.Count != 0))
             return false;
         if (criteria.CompanyUid is int company &&
             !worker.CompanyUids.Contains(company))
