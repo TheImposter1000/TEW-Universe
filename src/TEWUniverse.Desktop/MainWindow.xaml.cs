@@ -21,6 +21,8 @@ internal sealed class LineageParticipant
     public string RequiredReigns { get; set; } = "0";
     public string WinYears { get; set; } = "";
     public string ReignLengths { get; set; } = "";
+    public string Partner2Uid { get; set; } = "";
+    public string Partner3Uid { get; set; } = "";
     public bool FillGaps { get; set; }
 }
 
@@ -774,6 +776,8 @@ public partial class MainWindow : Window
             _lastManualBackup = null;
             _lastBackupDatabase = null;
             AdvancedWorkerPicker.ItemsSource = _allWorkers;
+            AdvancedPartner2Picker.ItemsSource = _allWorkers;
+            AdvancedPartner3Picker.ItemsSource = _allWorkers;
             ResetAdvancedTitle();
             _worker = null;
             WorkerPortraitEllipse.Fill = Brushes.Transparent;
@@ -1343,6 +1347,9 @@ public partial class MainWindow : Window
         _advancedExistingSlots = 0;
         _advancedFullRebuild = false;
         _advancedDraftIsAnnualTournament = false;
+        _advancedSlotMode = false;
+        _advancedSlotPatches.Clear();
+        _advancedEmploymentWarnings = 0;
         if (AdvancedApplyButton != null) AdvancedApplyButton.IsEnabled = false;
         if (AdvancedExportButton != null) AdvancedExportButton.IsEnabled = false;
         if (AdvancedPreviewGrid != null) AdvancedPreviewGrid.ItemsSource = null;
@@ -1367,9 +1374,15 @@ public partial class MainWindow : Window
         if (_advancedConfiguredTitleId == _selectedExisting.Id) return;
         ResetAdvancedTitle();
         _advancedConfiguredTitleId = _selectedExisting.Id;
-        // A month selected for one title must not silently carry over to another.
+        // Controls for one title must not carry over to another.
         AdvancedStartMonth.SelectedIndex = 0;
+        AdvancedPartner2Picker.SelectedItem = null;
+        AdvancedPartner3Picker.SelectedItem = null;
+        ConfigureEmploymentCompanyPicker();
         var history = _session.ReadTitleLineage(_selectedExisting.Id);
+        // Completed histories default to holder-only substitution, never an
+        // accidental destructive full rebuild.
+        AdvancedGenerationMode.SelectedIndex = history.Rows.Rows.Count > 0 ? 0 : 1;
         if (history.LinkField == null)
         {
             AdvancedGenerationStatus.Text = history.Message;
@@ -1391,7 +1404,10 @@ public partial class MainWindow : Window
         AdvancedGenerationStatus.Text =
             $"{history.Rows.Rows.Count:N0} existing history entry/entries. " +
             "Set the NPC history years below, add the linked superstars above, " +
-            "and enter one fixed winning year for each real superstar reign.";
+            "and optionally enter known winning years or reign lengths. " +
+            (history.Rows.Rows.Count > 0
+                ? "Default mode: preserve this lineage and replace name-only placeholders only."
+                : "No existing history: use Build new full history.");
     }
 
     private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e)
@@ -1404,8 +1420,23 @@ public partial class MainWindow : Window
         }
         var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
             ? worker.Name : AdvancedWorkerAlias.Text.Trim();
+        var format = CurrentTitleFormat();
+        var partner2 = format >= TitleCompetitorFormat.TagTeam
+            ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
+        var partner3 = format == TitleCompetitorFormat.Trios
+            ? AdvancedPartner3Picker.SelectedItem as WorkerItem : null;
+        if (format >= TitleCompetitorFormat.TagTeam && partner2 == null ||
+            format == TitleCompetitorFormat.Trios && partner3 == null ||
+            new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+                .Take((int)format).Distinct().Count() != (int)format)
+        {
+            MessageBox.Show(this,
+                $"Choose {(int)format} different linked workers for this {format} title.");
+            return;
+        }
         if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
-            x.DisplayName.Equals(alias, StringComparison.OrdinalIgnoreCase)))
+            x.Partner2Uid == (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "") &&
+            x.Partner3Uid == (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "")))
         {
             MessageBox.Show(this,
                 "This superstar is already in the list. Edit their reigns and years in the table.");
@@ -1418,10 +1449,17 @@ public partial class MainWindow : Window
         _advancedParticipants.Add(new LineageParticipant {
             DisplayName = alias, WorkerId = worker.Id,
             FirstYear = AdvancedStartYear.Text.Trim(), LastYear = AdvancedEndYear.Text.Trim(),
-            RequiredReigns = "1", WinYears = winning, ReignLengths = "", FillGaps = false
+            RequiredReigns = "1", WinYears = winning, ReignLengths = "",
+            Partner2Uid = format >= TitleCompetitorFormat.TagTeam
+                ? partner2!.Id.ToString(CultureInfo.InvariantCulture) : "",
+            Partner3Uid = format == TitleCompetitorFormat.Trios
+                ? partner3!.Id.ToString(CultureInfo.InvariantCulture) : "",
+            FillGaps = false
         });
         ResetAdvancedDraft();
         AdvancedWorkerAlias.Clear();
+        AdvancedPartner2Picker.SelectedItem = null;
+        AdvancedPartner3Picker.SelectedItem = null;
         AdvancedCandidatesGrid.Items.Refresh();
         AdvancedGenerationStatus.Text = winning.Length > 0
             ? $"Added {alias} with a fixed win in {winning}. Generate when ready."
@@ -1557,6 +1595,23 @@ public partial class MainWindow : Window
                     "NPC History needs a valid first and last year (1800–2100).");
 
             bool annualTournament = IsAnnualTournament();
+            var savedHistory = _session.ReadTitleLineage(_selectedExisting.Id);
+            if (AdvancedGenerationMode.SelectedIndex == 0)
+            {
+                if (savedHistory.Rows.Rows.Count == 0)
+                    throw new InvalidOperationException(
+                        "This title has no recorded lineage to patch. " +
+                        "Choose Build new full history instead.");
+                GenerateSelectivePreview(savedHistory);
+                return;
+            }
+            if (CurrentTitleFormat() != TitleCompetitorFormat.Singles)
+                throw new InvalidOperationException(
+                    "The full-history generator creates singles reigns only. " +
+                    "For Tag Team or Trios titles use the safe mode to link existing " +
+                    "name-only history slots with complete two- or three-worker lineups. " +
+                    "No records were changed.");
+            _titleEmploymentCache.Clear();
             // Each row now describes a COUNT of wins inside its active
             // interval. Years and durations are independently optional by
             // ordinal position. Repeat years (2016, 2016) are legitimate.
@@ -1719,6 +1774,7 @@ public partial class MainWindow : Window
                             (reign.Lost - reign.Captured).Days + 1, request);
                 }
             }
+            ApplyEmploymentPreview(preview, proposal, annualTournament);
             AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
             AdvancedCandidatesGrid.Items.Refresh();
 
@@ -1773,6 +1829,9 @@ public partial class MainWindow : Window
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
                 schedule + chronology + durationStatus +
+                (_advancedEmploymentWarnings > 0
+                    ? $"WARNING: {_advancedEmploymentWarnings} reign(s) lack verified title-company employment coverage. "
+                    : "Employment history checked for linked workers. ") +
                 $"PREVIEW: {anchored.Count} fixed superstar win(s), " +
                 $"{npcSummary} across {firstYear}–{lastYear}. " +
                 npcLimitNote + variety +
@@ -1789,14 +1848,20 @@ public partial class MainWindow : Window
     {
         if (_session == null || _selectedExisting == null ||
             _advancedDraftTitleId != _selectedExisting.Id ||
-            _advancedDraft.Count == 0 || !AdvancedApplyButton.IsEnabled) return;
+            (_advancedSlotMode ? _advancedSlotPatches.Count == 0 : _advancedDraft.Count == 0) ||
+            !AdvancedApplyButton.IsEnabled) return;
 
         if (HasEdits())
         {
             MessageBox.Show(this, "Save or discard the unsaved championship details first.");
             return;
         }
-        string actionText = _advancedFullRebuild
+        string actionText = _advancedSlotMode
+            ? $"LINK {_advancedSlotPatches.Count} NAME-ONLY REIGN(S) in {_selectedExisting.Name}?\n\n" +
+              "Only holder UIDs and display names in the selected placeholder rows will change. " +
+              "ALL pre-existing championship dates, defenses, record identities, " +
+              "real linked holders and other titles remain exactly as recorded."
+            : _advancedFullRebuild
             ? $"REBUILD {_selectedExisting.Name} (belt UID {_selectedExisting.Id})?\n\n" +
               $"Delete its {_advancedExistingSlots} current history row(s) and create " +
               $"{_advancedDraft.Count} new title-history records. " +
@@ -1805,24 +1870,41 @@ public partial class MainWindow : Window
             : $"Replace ALL {_advancedDraft.Count} existing history records " +
               $"for {_selectedExisting.Name} (belt UID {_selectedExisting.Id})?";
         var result = MessageBox.Show(this,
-            actionText + "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
+            actionText +
+            (_advancedEmploymentWarnings > 0
+                ? $"\n\nEMPLOYMENT WARNING: {_advancedEmploymentWarnings} reign(s) in the preview " +
+                  "do not have verified full employment coverage for the selected company. " +
+                  "Review the flagged entries before importing."
+                : "") +
+            "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
             "without a backup. Creating one first is recommended but optional.\n\nContinue?",
-            "Confirm Championship History Rebuild",
+            _advancedSlotMode ? "Confirm Targeted Holder Substitution"
+                : "Confirm Championship History Rebuild",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
         try
         {
-            int changed = _advancedFullRebuild
-                ? _session.RebuildTitleLineage(_selectedExisting.Id, _advancedDraft,
-                    _advancedExistingSlots, _advancedDraftIsAnnualTournament)
-                : _session.ReplaceExistingTitleLineage(_selectedExisting.Id, _advancedDraft);
+            int changed = _advancedSlotMode
+                ? _session.PatchTitleLineageSlots(_selectedExisting.Id,
+                    _advancedSlotPatches.Select(p => new TitleLineageSlotUpdate(
+                        p.Uid, p.Order, p.Captured, p.Lost, p.Defences,
+                        p.Holder1, p.Name1, p.Holder2, p.Name2, p.Holder3, p.Name3))
+                        .ToArray(), _advancedExistingSlots, (int)CurrentTitleFormat())
+                : _advancedFullRebuild
+                    ? _session.RebuildTitleLineage(_selectedExisting.Id, _advancedDraft,
+                        _advancedExistingSlots, _advancedDraftIsAnnualTournament)
+                    : _session.ReplaceExistingTitleLineage(_selectedExisting.Id, _advancedDraft);
             _lastSaved = DateTime.Now;
+            bool selective = _advancedSlotMode;
             bool rebuilt = _advancedFullRebuild;
             ResetAdvancedDraft();
-            AdvancedGenerationStatus.Text = rebuilt
-                ? $"Imported {changed} title-history entries for the selected championship. " +
-                  "Verify title lineage in TEW IX before treating the result as final."
-                : $"Updated {changed} existing historical reign(s). Verify in TEW IX.";
+            AdvancedGenerationStatus.Text = selective
+                ? $"Linked real workers into {changed} existing placeholder reign(s). " +
+                  "Original dates, defenses, and all other champion records were preserved."
+                : rebuilt
+                    ? $"Imported {changed} title-history entries for the selected championship. " +
+                      "Verify title lineage in TEW IX before treating the result as final."
+                    : $"Updated {changed} existing historical reign(s). Verify in TEW IX.";
             RefreshDirty();
             // The import becomes visible immediately in the saved Title Lineage,
             // rather than leaving the user looking at an unsaved preview.
@@ -1835,13 +1917,16 @@ public partial class MainWindow : Window
 
     private void AdvancedExport_Click(object sender, RoutedEventArgs e)
     {
-        if (_advancedDraft.Count == 0 || _selectedExisting == null ||
+        if ((_advancedSlotMode ? _advancedSlotPatches.Count == 0 :
+                _advancedDraft.Count == 0) || _selectedExisting == null ||
             _advancedDraftTitleId != _selectedExisting.Id) return;
         var dialog = new SaveFileDialog {
             Title = "Export advanced lineage draft (not a TEW IX import file)",
             Filter = "CSV documents (*.csv)|*.csv",
             AddExtension = true,
-            FileName = $"title-{_selectedExisting.Id}-constrained-lineage.csv"
+            FileName = _advancedSlotMode
+                ? $"title-{_selectedExisting.Id}-targeted-holder-changes.csv"
+                : $"title-{_selectedExisting.Id}-constrained-lineage.csv"
         };
         if (dialog.ShowDialog(this) != true) return;
         try
@@ -1851,15 +1936,27 @@ public partial class MainWindow : Window
                 string text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
                 return "\"" + text.Replace("\"", "\"\"") + "\"";
             }
-            var lines = new List<string> {
-                "BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,BeltCaptured,BeltLost,Defences"
-            };
-            lines.AddRange(_advancedDraft.Select(r => string.Join(",",
-                Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
-                Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
-                Csv(StudioDateFormat.Format(r.Captured)),
-                Csv(StudioDateFormat.Format(r.Lost)),
-                Csv(r.Defences))));
+            var lines = new List<string>();
+            if (_advancedSlotMode)
+            {
+                lines.Add("UID,BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,Holder3,Holder_Name3,BeltCaptured,BeltLost,Defences");
+                lines.AddRange(_advancedSlotPatches.Select(p => string.Join(",",
+                    Csv(p.Uid), Csv(_selectedExisting.Id), Csv(p.Order),
+                    Csv(p.Holder1), Csv(p.Name1), Csv(p.Holder2), Csv(p.Name2),
+                    Csv(p.Holder3), Csv(p.Name3),
+                    Csv(StudioDateFormat.Format(p.Captured)),
+                    Csv(StudioDateFormat.Format(p.Lost)), Csv(p.Defences))));
+            }
+            else
+            {
+                lines.Add("BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,BeltCaptured,BeltLost,Defences");
+                lines.AddRange(_advancedDraft.Select(r => string.Join(",",
+                    Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
+                    Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
+                    Csv(StudioDateFormat.Format(r.Captured)),
+                    Csv(StudioDateFormat.Format(r.Lost)),
+                    Csv(r.Defences))));
+            }
             File.WriteAllLines(dialog.FileName, lines, System.Text.Encoding.UTF8);
             SetStatus("Exported constrained lineage as CSV (not verified as a TEW import file).");
         }
@@ -1940,6 +2037,16 @@ public partial class MainWindow : Window
         {
             bool annual = IsAnnualTournament();
             TitleKindCombo.SelectedIndex = annual ? 1 : 0;
+            var format = CurrentTitleFormat();
+            TitleCompetitorCombo.SelectedIndex = (int)format - 1;
+            AdvancedPartner2Picker.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3Picker.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner2Column.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3Column.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
             TitleClassificationHelp.Text = annual
                 ? "Annual tournament: one winner per edition, no title-loss date or defences."
                 : "Championship: continuing reigns, title-loss dates and defences.";
@@ -1954,7 +2061,8 @@ public partial class MainWindow : Window
             if (_activeModule == "Titles" && _selectedExisting != null)
                 ExistingRecordSubtitle.Text =
                     $"Record ID {_selectedExisting.Id}  •  tblBelt  •  " +
-                    (annual ? "Annual Tournament (studio label)" : "Championship (studio label)");
+                    (annual ? "Annual Tournament" : "Championship") +
+                    $" / {format} (studio labels)";
         }
         finally { _loadingTitleKind = false; }
     }
@@ -1978,6 +2086,38 @@ public partial class MainWindow : Window
             if (TitleLineagePanel.Visibility == Visibility.Visible)
                 LoadTitleLineage();
             SetStatus("Saved title classification locally (not written into the MDB).");
+        }
+        catch (Exception ex)
+        {
+            UpdateTitleKindUI();
+            Error(ex);
+        }
+    }
+
+    private void TitleCompetitorCombo_SelectionChanged(object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_loadingTitleKind || _session == null || _selectedExisting == null ||
+            _activeModule != "Titles") return;
+        try
+        {
+            string format = TitleCompetitorCombo.SelectedIndex switch
+            {
+                1 => "TagTeam",
+                2 => "Trios",
+                _ => "Singles"
+            };
+            var next = _settings.Copy();
+            next.SetTitleCompetitorFormat(
+                _session.PathOnDisk, _selectedExisting.Id, format);
+            next.Save();
+            _settings = next;
+            ResetAdvancedDraft();
+            ClearGeneratedLineage();
+            UpdateTitleKindUI();
+            if (TitleLineagePanel.Visibility == Visibility.Visible)
+                LoadTitleLineage();
+            SetStatus($"Saved {format} title format locally (not written to the MDB).");
         }
         catch (Exception ex)
         {

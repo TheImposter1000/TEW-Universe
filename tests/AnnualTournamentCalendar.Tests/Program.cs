@@ -546,6 +546,151 @@ foreach (var date in moreDates)
         throw new Exception("MM/DD/YYYY round-trip failed for historical or leap-year dates.");
 Console.WriteLine("Passed MM/DD/YYYY date formatting, round-trip and strict input checks.");
 
+// Completed title histories are not to be deleted just to link a real
+// champion. Carson's FOUR National titles replace only four matching
+// name-only placeholders, leaving every existing linked champion untouched.
+var existingReigns = Enumerable.Range(0, 11).Select(i =>
+    new ExistingTitleSlot(6000 + i, i + 1,
+        new DateTime(2010 + i, 5, 1), new DateTime(2011 + i, 4, 30),
+        (short)(i + 1), -1, $"Historical NPC {i}", -1, "", -1, "")).ToArray();
+existingReigns[5] = existingReigns[5] with {
+    Holder1 = 800, Name1 = "Already linked champion"
+};
+var carson = new TitleSlotRequest("Carson Cade",
+    new[] { 4966 }, new[] { "Carson Cade" }, 2010, 2020, 4, "", "");
+var carsonChanges = ExistingTitleSlotPlanner.Plan(
+    existingReigns, new[] { carson }, TitleCompetitorFormat.Singles);
+if (carsonChanges.Count != 4 ||
+    carsonChanges.Any(p => p.Uid == existingReigns[5].Uid || p.Holder1 != 4966 ||
+        p.Captured != existingReigns.Single(s => s.Uid == p.Uid).Captured ||
+        p.Lost != existingReigns.Single(s => s.Uid == p.Uid).Lost ||
+        p.Defences != existingReigns.Single(s => s.Uid == p.Uid).Defences))
+    throw new Exception("Targeted Carson assignment overwrote a linked reign or changed history dates.");
+
+// If a previous historical author already wrote "Carson Cade" as a
+// name-only champion, link that existing name before replacing strangers.
+var namedCarson = existingReigns.ToArray();
+namedCarson[7] = namedCarson[7] with { Name1 = "Carson Cade" };
+var namedMatch = ExistingTitleSlotPlanner.Plan(namedCarson,
+    new[] { carson with { Reigns = 1 } }, TitleCompetitorFormat.Singles);
+if (namedMatch.Count != 1 || namedMatch[0].Uid != namedCarson[7].Uid)
+    throw new Exception("A pre-existing name-only Carson reign was not prioritized for linking.");
+
+// Existing Carson wins count toward the requested total of four.
+var alreadyHasTwo = existingReigns.ToArray();
+alreadyHasTwo[1] = alreadyHasTwo[1] with { Holder1 = 4966, Name1 = "Carson Cade" };
+alreadyHasTwo[3] = alreadyHasTwo[3] with { Holder1 = 4966, Name1 = "Carson Cade" };
+var remaining = ExistingTitleSlotPlanner.Plan(
+    alreadyHasTwo, new[] { carson }, TitleCompetitorFormat.Singles);
+if (remaining.Count != 2 ||
+    remaining.Any(x => x.Uid is 6001 or 6003 or 6005))
+    throw new Exception("The generator duplicated Carson's already-linked reigns.");
+
+// Known victory year must target an eligible name-only slot in that year,
+// while random years fit anywhere inside the worker's company years.
+var knownYear = ExistingTitleSlotPlanner.Plan(existingReigns,
+    new[] { carson with { YearsWon = "2012" } }, TitleCompetitorFormat.Singles);
+if (knownYear.Count != 4 ||
+    !knownYear.Any(p => p.Captured.Year == 2012))
+    throw new Exception("A fixed known winning year was not honored.");
+
+bool missingYearRejected = false;
+try
+{
+    ExistingTitleSlotPlanner.Plan(existingReigns,
+        new[] { carson with { YearsWon = "2009" } },
+        TitleCompetitorFormat.Singles);
+}
+catch (InvalidOperationException) { missingYearRejected = true; }
+if (!missingYearRejected)
+    throw new Exception("A nonexistent eligible capture year was silently changed.");
+
+// Partial-year rules preserve chronology: when 2016 is the FIRST
+// specified victory, later unpinned reigns cannot be assigned in 2010.
+var laterCarson = ExistingTitleSlotPlanner.Plan(existingReigns,
+    new[] { carson with { YearsWon = "2016" } },
+    TitleCompetitorFormat.Singles);
+if (laterCarson.Count != 4 ||
+    laterCarson.Any(p => p.Captured.Year < 2016))
+    throw new Exception("Unknown later victories were dated before Carson's known 2016 win.");
+
+// Strict duration filtering protects pre-recorded history dates. An exact
+// 719-day requirement cannot be fabricated by rewriting a 365-day NPC slot.
+bool incompatibleLengthRejected = false;
+try
+{
+    ExistingTitleSlotPlanner.Plan(existingReigns,
+        new[] { carson with { ReignLengths = "719d" } },
+        TitleCompetitorFormat.Singles);
+}
+catch (InvalidOperationException) { incompatibleLengthRejected = true; }
+if (!incompatibleLengthRejected)
+    throw new Exception("The existing slot matcher ignored exact days held.");
+
+// Singles, Tag Team and Trios must target the corresponding number of real
+// worker UID fields without silently replacing linked real workers.
+var nameOnlyTeamSlots = existingReigns.Select(x =>
+    x with { Holder1 = -1, Name1 = "Unlinked team" }).ToArray();
+var teamRequest = new TitleSlotRequest("Pair",
+    new[] { 10, 20 }, new[] { "Worker A", "Worker B" }, 2010, 2020,
+    1, "2011", "");
+var teamPlan = ExistingTitleSlotPlanner.Plan(nameOnlyTeamSlots,
+    new[] { teamRequest }, TitleCompetitorFormat.TagTeam);
+if (teamPlan.Count != 1 || teamPlan[0].Holder1 != 10 ||
+    teamPlan[0].Holder2 != 20 || teamPlan[0].Holder3 != -1)
+    throw new Exception("Tag-team history substitution did not write two linked members.");
+
+var trio = new TitleSlotRequest("Trio",
+    new[] { 10, 20, 30 }, new[] { "One", "Two", "Three" },
+    2010, 2020, 1, "2011", "");
+var trioPlan = ExistingTitleSlotPlanner.Plan(nameOnlyTeamSlots,
+    new[] { trio }, TitleCompetitorFormat.Trios);
+if (trioPlan.Count != 1 || trioPlan[0].Holder3 != 30)
+    throw new Exception("Trio history substitution did not write three linked members.");
+
+bool incompatibleExistingFormatRejected = false;
+try
+{
+    ExistingTitleSlotPlanner.Plan(existingReigns,
+        new[] { teamRequest }, TitleCompetitorFormat.TagTeam);
+}
+catch (InvalidOperationException) { incompatibleExistingFormatRejected = true; }
+if (!incompatibleExistingFormatRejected)
+    throw new Exception("A linked singles reign was overwritten during team substitution.");
+
+bool invalidFormatRejected = false;
+try
+{
+    ExistingTitleSlotPlanner.Plan(existingReigns,
+        new[] { teamRequest }, TitleCompetitorFormat.Singles);
+}
+catch (InvalidOperationException) { invalidFormatRejected = true; }
+if (!invalidFormatRejected)
+    throw new Exception("A tag team was permitted to replace singles history.");
+
+// Employment is tested for the entire inclusive reign. Contiguous records
+// can cover a tenure; wrong-company, missing and sentinel CV periods are
+// flagged rather than falsely treated as verified.
+var employment = new[] {
+    new EmploymentWindow(50, new DateTime(2014, 1, 1), new DateTime(2014, 12, 31)),
+    new EmploymentWindow(50, new DateTime(2015, 1, 1), new DateTime(2015, 12, 31))
+};
+if (TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
+        new DateTime(2015, 5, 1), employment) != EmploymentVerification.Covered ||
+    TitleEmploymentValidator.Check(51, new DateTime(2014, 9, 1),
+        new DateTime(2015, 5, 1), employment) != EmploymentVerification.Missing ||
+    TitleEmploymentValidator.Check(null, new DateTime(2014, 9, 1),
+        new DateTime(2015, 5, 1), employment) != EmploymentVerification.CompanyUnknown ||
+    TitleEmploymentValidator.Check(50, new DateTime(2016, 1, 1),
+        new DateTime(2016, 2, 1), new[] {
+            new EmploymentWindow(50, new DateTime(2015, 1, 1), new DateTime(1666, 1, 1))
+        }) != EmploymentVerification.Unverified ||
+    TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
+        new DateTime(1666, 1, 1), employment) != EmploymentVerification.Unverified)
+    throw new Exception("Title employment verification produced an unsafe result.");
+
+Console.WriteLine("Passed title-format, protected-placeholder and employment coverage checks.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);

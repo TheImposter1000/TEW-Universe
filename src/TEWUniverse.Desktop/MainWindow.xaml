@@ -461,12 +461,26 @@
               <TextBlock Text="Organizational label saved in TEW Universe Studio, not in the TEW IX database."
                          Foreground="#ADCCE6" FontSize="12" Margin="0,5,0,7"
                          TextWrapping="Wrap"/>
-              <ComboBox x:Name="TitleKindCombo" Style="{StaticResource DarkComboBox}"
-                        Width="245" HorizontalAlignment="Left"
-                        SelectionChanged="TitleKindCombo_SelectionChanged">
-               <ComboBoxItem Content="Championship" IsSelected="True"/>
-               <ComboBoxItem Content="Annual Tournament / Cup"/>
-              </ComboBox>
+              <WrapPanel Margin="0,2,0,4">
+               <StackPanel Margin="0,0,14,0">
+                <TextBlock Text="Record type" Foreground="#B9D4ED" FontSize="11" Margin="0,0,0,5"/>
+                <ComboBox x:Name="TitleKindCombo" Style="{StaticResource DarkComboBox}"
+                          Width="225" HorizontalAlignment="Left"
+                          SelectionChanged="TitleKindCombo_SelectionChanged">
+                 <ComboBoxItem Content="Championship" IsSelected="True"/>
+                 <ComboBoxItem Content="Annual Tournament / Cup"/>
+                </ComboBox>
+               </StackPanel>
+               <StackPanel>
+                <TextBlock Text="Competitor format" Foreground="#B9D4ED" FontSize="11" Margin="0,0,0,5"/>
+                <ComboBox x:Name="TitleCompetitorCombo" Style="{StaticResource DarkComboBox}"
+                          Width="155" SelectionChanged="TitleCompetitorCombo_SelectionChanged">
+                 <ComboBoxItem Content="Singles" IsSelected="True"/>
+                 <ComboBoxItem Content="Tag Team"/>
+                 <ComboBoxItem Content="Trios"/>
+                </ComboBox>
+               </StackPanel>
+              </WrapPanel>
               <TextBlock x:Name="TitleClassificationHelp"
                          Text="Championship: ongoing reigns and defences."
                          Foreground="#87D9E0" FontSize="12"
@@ -601,9 +615,15 @@
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel Margin="0,0,0,9">
-               <ComboBox x:Name="AdvancedWorkerPicker" Width="260"
+               <ComboBox x:Name="AdvancedWorkerPicker" Width="240"
                          Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                         ToolTip="Existing worker by name and UID"/>
+                         ToolTip="Primary linked wrestler by name and UID"/>
+               <ComboBox x:Name="AdvancedPartner2Picker" Width="220"
+                         Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
+                         Visibility="Collapsed" ToolTip="Second linked wrestler for tag teams and trios"/>
+               <ComboBox x:Name="AdvancedPartner3Picker" Width="220"
+                         Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
+                         Visibility="Collapsed" ToolTip="Third linked wrestler for trios"/>
                <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
                         Width="175" Margin="0,0,8,6"
                         ToolTip="Optional historical ring name, e.g. Dragonheart"/>
@@ -633,6 +653,12 @@
                       Width="2*"/>
                 <DataGridTextColumn Header="Worker ID" Binding="{Binding WorkerId}"
                       Width="94" IsReadOnly="True"/>
+                <DataGridTextColumn x:Name="AdvancedPartner2Column" Header="Partner 2 UID"
+                      Binding="{Binding Partner2Uid, UpdateSourceTrigger=LostFocus}"
+                      Width="112" Visibility="Collapsed"/>
+                <DataGridTextColumn x:Name="AdvancedPartner3Column" Header="Partner 3 UID"
+                      Binding="{Binding Partner3Uid, UpdateSourceTrigger=LostFocus}"
+                      Width="112" Visibility="Collapsed"/>
                 <DataGridTextColumn Header="Active from" Binding="{Binding FirstYear, UpdateSourceTrigger=LostFocus}"
                       Width="96"/>
                 <DataGridTextColumn Header="Active until" Binding="{Binding LastYear, UpdateSourceTrigger=LostFocus}"
@@ -677,6 +703,12 @@
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel>
+               <StackPanel Margin="0,0,12,6">
+                <TextBlock Text="Employment-check company" Foreground="#ADC9E8" FontSize="11"/>
+                <ComboBox x:Name="AdvancedEmploymentCompany" Style="{StaticResource DarkComboBox}"
+                          Width="245" SelectionChanged="AdvancedCalendarChanged"
+                          ToolTip="Select the company used to verify whether champions were employed during their entire reign."/>
+               </StackPanel>
                <StackPanel Margin="0,0,12,6">
                 <TextBlock Text="From year" Foreground="#ADC9E8" FontSize="11"/>
                 <TextBox x:Name="AdvancedStartYear" Style="{StaticResource FormTextBox}"
@@ -755,8 +787,21 @@
               </WrapPanel>
              </StackPanel>
             </Border>
+            <StackPanel Margin="0,0,0,9">
+             <TextBlock Text="Lineage operation" Foreground="#ACC6E6" FontSize="12"
+                        Margin="0,0,0,5"/>
+             <ComboBox x:Name="AdvancedGenerationMode" Width="460"
+                       HorizontalAlignment="Left" Style="{StaticResource DarkComboBox}"
+                       SelectionChanged="AdvancedCalendarChanged">
+              <ComboBoxItem Content="Replace only name-only/unused reigns (preserve dates)" IsSelected="True"/>
+              <ComboBoxItem Content="Build new full history (replaces existing lineage)"/>
+             </ComboBox>
+             <TextBlock Text="The safe replacement mode never overwrites real linked champions. Reigns already linked to the selected wrestler count toward their total."
+                        Foreground="#ADC9E8" FontSize="11" TextWrapping="Wrap"
+                        Margin="0,5,0,0"/>
+            </StackPanel>
             <WrapPanel Margin="0,0,0,6">
-             <Button Content="Generate Full History" Style="{StaticResource BlueButton}"
+             <Button Content="Generate Preview" Style="{StaticResource BlueButton}"
                      Click="AdvancedGenerate_Click" Padding="13,9" Margin="0,0,8,6"/>
              <Button x:Name="AdvancedApplyButton" Content="Import Preview to Title Lineage"
                      IsEnabled="False" Style="{StaticResource ActionButton}"
