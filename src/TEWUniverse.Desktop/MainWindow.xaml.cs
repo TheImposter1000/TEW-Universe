@@ -19,6 +19,7 @@ internal sealed class LineageParticipant
     public string FirstYear { get; set; } = "1980";
     public string LastYear { get; set; } = "2020";
     public string RequiredReigns { get; set; } = "0";
+    public string WinYears { get; set; } = "";
     public bool FillGaps { get; set; }
 }
 
@@ -49,6 +50,9 @@ public partial class MainWindow : Window
     private int? _advancedDraftTitleId;
     private int? _advancedConfiguredTitleId;
     private int _advancedExistingSlots;
+    private bool _advancedFullRebuild;
+    private string? _lastManualBackup;
+    private string? _lastBackupDatabase;
     private DateTime? _lastSaved;
     private string _sortMode = "Name A to Z";
     private WorkerPortraitConverter Portraits => (WorkerPortraitConverter)FindResource("WorkerPictureConverter");
@@ -613,6 +617,8 @@ public partial class MainWindow : Window
                     "Unsaved edits", MessageBoxButton.YesNo, MessageBoxImage.Warning)
                 != MessageBoxResult.Yes) return;
             var copy = _session.Backup(_settings.BackupFolderPath);
+            _lastManualBackup = copy;
+            _lastBackupDatabase = _session.PathOnDisk;
             SetStatus("Backup created: " + copy);
             MessageBox.Show(this, "Backup created:\n" + copy, "Create Backup",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -736,6 +742,8 @@ public partial class MainWindow : Window
             _sessionPassword = password;
             _settings = copy;
             _allWorkers = list;
+            _lastManualBackup = null;
+            _lastBackupDatabase = null;
             AdvancedWorkerPicker.ItemsSource = _allWorkers;
             ResetAdvancedTitle();
             _worker = null;
@@ -1252,6 +1260,7 @@ public partial class MainWindow : Window
         _advancedDraft.Clear();
         _advancedDraftTitleId = null;
         _advancedExistingSlots = 0;
+        _advancedFullRebuild = false;
         if (AdvancedApplyButton != null) AdvancedApplyButton.IsEnabled = false;
         if (AdvancedExportButton != null) AdvancedExportButton.IsEnabled = false;
         if (AdvancedPreviewGrid != null) AdvancedPreviewGrid.ItemsSource = null;
@@ -1314,7 +1323,7 @@ public partial class MainWindow : Window
         _advancedParticipants.Add(new LineageParticipant {
             DisplayName = alias, WorkerId = worker.Id,
             FirstYear = AdvancedStartYear.Text, LastYear = AdvancedEndYear.Text,
-            RequiredReigns = "1", FillGaps = false
+            RequiredReigns = "0", WinYears = "", FillGaps = false
         });
         ResetAdvancedDraft();
         AdvancedWorkerAlias.Clear();
@@ -1332,7 +1341,7 @@ public partial class MainWindow : Window
         _advancedParticipants.Add(new LineageParticipant {
             DisplayName = name, WorkerId = -1,
             FirstYear = AdvancedStartYear.Text, LastYear = AdvancedEndYear.Text,
-            RequiredReigns = "0", FillGaps = true
+            RequiredReigns = "0", WinYears = "", FillGaps = true
         });
         AdvancedHistoricalName.Clear();
         ResetAdvancedDraft();
@@ -1378,7 +1387,7 @@ public partial class MainWindow : Window
                     DisplayName = name, WorkerId = id,
                     FirstYear = Math.Min(startYear, endYear).ToString(CultureInfo.InvariantCulture),
                     LastYear = Math.Max(startYear, endYear).ToString(CultureInfo.InvariantCulture),
-                    RequiredReigns = "0", FillGaps = true
+                    RequiredReigns = "0", WinYears = "", FillGaps = true
                 });
                 added++;
             }
@@ -1434,37 +1443,92 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Enter valid numeric years and a total reign count.");
 
             var input = new List<ConstrainedLineagePlanner.Candidate>();
-            foreach (var p in _advancedParticipants)
+            var anchored = new List<AnchoredHistoryPlanner.Anchor>();
+            foreach (var participant in _advancedParticipants)
             {
-                if (!int.TryParse(p.FirstYear, NumberStyles.Integer, CultureInfo.InvariantCulture, out int from)
-                    || !int.TryParse(p.LastYear, NumberStyles.Integer, CultureInfo.InvariantCulture, out int to)
-                    || !int.TryParse(p.RequiredReigns, NumberStyles.Integer, CultureInfo.InvariantCulture, out int exact))
+                if (!int.TryParse(participant.FirstYear, NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int from)
+                    || !int.TryParse(participant.LastYear, NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int to)
+                    || !int.TryParse(participant.RequiredReigns, NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int exact))
                     throw new InvalidOperationException(
-                        $"Invalid year or required reign count for '{p.DisplayName}'.");
-                if (p.WorkerId > 0 && !_allWorkers.Any(w => w.Id == p.WorkerId))
+                        $"Invalid company years or reign count for '{participant.DisplayName}'.");
+                if (participant.WorkerId > 0 &&
+                    !_allWorkers.Any(w => w.Id == participant.WorkerId))
                     throw new InvalidOperationException(
-                        $"Worker UID {p.WorkerId} no longer exists. Refresh the database.");
+                        $"Worker UID {participant.WorkerId} no longer exists; refresh the database.");
                 input.Add(new ConstrainedLineagePlanner.Candidate(
-                    p.DisplayName.Trim(), p.WorkerId, from, to, exact, p.FillGaps));
+                    participant.DisplayName.Trim(), participant.WorkerId,
+                    from, to, exact, participant.FillGaps));
+
+                var rawYears = participant.WinYears.Trim();
+                if (rawYears.Length == 0) continue;
+                if (participant.WorkerId <= 0)
+                    throw new InvalidOperationException(
+                        $"Fixed championship wins require a real worker UID. " +
+                        $"'{participant.DisplayName}' is name-only.");
+                var years = rawYears.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' },
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var token in years)
+                {
+                    if (!int.TryParse(token, NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int year))
+                        throw new InvalidOperationException(
+                            $"'{token}' is not a valid winning year for {participant.DisplayName}.");
+                    anchored.Add(new AnchoredHistoryPlanner.Anchor(
+                        participant.DisplayName.Trim(), participant.WorkerId, year, from, to));
+                }
             }
-            var proposal = ConstrainedLineagePlanner.Generate(
-                input, firstYear, lastYear, slots,
-                AdvancedFillRemaining.IsChecked == true);
+
+            bool isRebuild = anchored.Count > 0;
+            List<GeneratedTitleReign> proposal;
+            int npcNamesUsed = 0;
+            if (isRebuild)
+            {
+                if (AdvancedFillRemaining.IsChecked != true)
+                    throw new InvalidOperationException(
+                        "Enable Fill surrounding history with NPCs to create opponents " +
+                        "between the pinned title wins.");
+                // These NPC names, races and genders come from tblGenerateWorker.
+                // No generated name ever becomes a tblWorker row.
+                var seeds = _session.ReadGeneratedWorkerNames(
+                    AdvancedNpcGender.Text, AdvancedNpcRace.Text);
+                npcNamesUsed = seeds.Count;
+                proposal = AnchoredHistoryPlanner.Generate(
+                    anchored, seeds, firstYear, lastYear, slots);
+            }
+            else
+            {
+                proposal = ConstrainedLineagePlanner.Generate(input,
+                    firstYear, lastYear, slots,
+                    AdvancedFillRemaining.IsChecked == true);
+            }
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             ResetAdvancedDraft();
             _advancedDraft = proposal;
+            _advancedFullRebuild = isRebuild;
             _advancedDraftTitleId = _selectedExisting.Id;
             _advancedExistingSlots = history.Rows.Rows.Count;
             var preview = new DataTable("Advanced Lineage Preview");
             preview.Columns.Add("Reign", typeof(int));
             preview.Columns.Add("Champion", typeof(string));
             preview.Columns.Add("Worker UID", typeof(int));
+            preview.Columns.Add("Defeated (implied)", typeof(string));
+            preview.Columns.Add("Lost to (implied)", typeof(string));
             preview.Columns.Add("Captured", typeof(DateTime));
             preview.Columns.Add("Lost", typeof(DateTime));
             preview.Columns.Add("Defences", typeof(short));
-            foreach (var p in proposal)
-                preview.Rows.Add(p.Order, p.HolderName1, p.Holder1,
-                    p.Captured, p.Lost, p.Defences);
+            for (int i = 0; i < proposal.Count; i++)
+            {
+                var reign = proposal[i];
+                // These transitions are implied by the ordered lineage, not
+                // separate recorded match-result data in the MDB.
+                var defeated = i == 0 ? "Inaugural / unknown" : proposal[i - 1].HolderName1;
+                var lostTo = i + 1 == proposal.Count ? "End of timeline" : proposal[i + 1].HolderName1;
+                preview.Rows.Add(reign.Order, reign.HolderName1, reign.Holder1,
+                    defeated, lostTo, reign.Captured, reign.Lost, reign.Defences);
+            }
             AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
 
             bool hasTeamReigns = history.Rows.Columns.Contains("Holder2") &&
@@ -1473,17 +1537,20 @@ public partial class MainWindow : Window
                     Convert.ToInt32(r["Holder2"], CultureInfo.InvariantCulture) > 0);
             bool writeable = history.LinkField?.Equals("BeltUID", StringComparison.OrdinalIgnoreCase) == true
                 && history.OrderField?.Equals("BeltOrder", StringComparison.OrdinalIgnoreCase) == true
-                && _advancedExistingSlots == slots && !hasTeamReigns;
+                && !hasTeamReigns && (isRebuild || _advancedExistingSlots == slots);
             AdvancedApplyButton.IsEnabled = writeable;
             AdvancedExportButton.IsEnabled = true;
             var required = input.Sum(c => c.RequiredReigns);
-            AdvancedGenerationStatus.Text = writeable
-                ? $"PREVIEW · {slots} reign(s), {required} constrained and {slots - required} background. " +
-                  "You can replace this title's existing history after making a backup."
-                : $"PREVIEW ONLY · {slots} planned reigns, {_advancedExistingSlots} existing history rows. " +
-                  (hasTeamReigns ? "This title includes team reigns; singles generation cannot replace it. " : "") +
-                  "Save to MDB requires an exact number of existing single-champion rows. " +
-                  "Export is always available; no new history records will be inserted.";
+            AdvancedGenerationStatus.Text = isRebuild
+                ? $"FULL LINEAGE PREVIEW · {slots} reign(s), {anchored.Count} pinned wins, " +
+                  $"{npcNamesUsed:N0} eligible tblGenerateWorker names. " +
+                  (writeable
+                      ? $"Rebuilding will replace {_advancedExistingSlots} old reigns with {slots} new reign records. Create Backup first."
+                      : "This title has unsupported team history or missing schema fields; direct rebuild is disabled.")
+                : writeable
+                    ? $"PREVIEW · {slots} reign(s). You can replace existing records after making a backup."
+                    : $"PREVIEW ONLY · {slots} planned reigns, {_advancedExistingSlots} existing history rows. " +
+                      "The legacy generator must match the existing row count.";
         }
         catch (Exception ex) { Error(ex); }
     }
@@ -1493,28 +1560,52 @@ public partial class MainWindow : Window
         if (_session == null || _selectedExisting == null ||
             _advancedDraftTitleId != _selectedExisting.Id ||
             _advancedDraft.Count == 0 || !AdvancedApplyButton.IsEnabled) return;
+
         if (HasEdits())
         {
-            MessageBox.Show(this, "Save or discard unsaved title details before replacing history.");
+            MessageBox.Show(this, "Save or discard the unsaved championship details first.");
             return;
         }
+        if (_advancedFullRebuild &&
+            (string.IsNullOrWhiteSpace(_lastManualBackup) ||
+             !File.Exists(_lastManualBackup) ||
+             !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk)))
+        {
+            MessageBox.Show(this,
+                "A full lineage rebuild deletes the selected title's existing prehistory " +
+                "and creates newly generated reign records.\n\n" +
+                "Select CREATE BACKUP before applying this draft. " +
+                "This is required, not optional.",
+                "Create a backup first", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        string actionText = _advancedFullRebuild
+            ? $"REBUILD {_selectedExisting.Name} (belt UID {_selectedExisting.Id})?\n\n" +
+              $"Delete its {_advancedExistingSlots} current history row(s) and create " +
+              $"{_advancedDraft.Count} new title-history records. " +
+              "Previously recorded reigns for THIS TITLE will be replaced. " +
+              "Other titles and all worker records remain untouched."
+            : $"Replace ALL {_advancedDraft.Count} existing history records " +
+              $"for {_selectedExisting.Name} (belt UID {_selectedExisting.Id})?";
         var result = MessageBox.Show(this,
-            $"Replace ALL {_advancedDraft.Count} existing history records for " +
-            $"{_selectedExisting.Name} (belt UID {_selectedExisting.Id})? \n\n" +
-            "This overwrites former holders, dates, and defence counts in your active MDB. " +
-            "It preserves history row UIDs and other championships. \n\n" +
-            "CREATE A BACKUP FIRST. This action cannot be undone without one.",
-            "Apply Constrained Championship Lineage",
+            actionText + "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
+            "without your backup.\n\nContinue?",
+            "Confirm Championship History Rebuild",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
         try
         {
-            var changed = _session.ReplaceExistingTitleLineage(
-                _selectedExisting.Id, _advancedDraft);
+            int changed = _advancedFullRebuild
+                ? _session.RebuildTitleLineage(_selectedExisting.Id, _advancedDraft,
+                    _advancedExistingSlots)
+                : _session.ReplaceExistingTitleLineage(_selectedExisting.Id, _advancedDraft);
             _lastSaved = DateTime.Now;
+            bool rebuilt = _advancedFullRebuild;
             ResetAdvancedDraft();
-            AdvancedGenerationStatus.Text =
-                $"Updated {changed} pre-existing historical reigns. Verify the title in TEW IX.";
+            AdvancedGenerationStatus.Text = rebuilt
+                ? $"Created {changed} new prehistory reign(s) for this championship only. " +
+                  "Verify title lineage in TEW IX before treating the result as final."
+                : $"Updated {changed} existing historical reign(s). Verify in TEW IX.";
             RefreshDirty();
         }
         catch (Exception ex) { Error(ex); }

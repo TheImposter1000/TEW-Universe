@@ -9,6 +9,8 @@ internal sealed record WorkerItem(int Id, string Name, bool? IsActive, string? P
     public override string ToString() => $"{Name}  |  ID {Id}";
 }
 
+internal sealed record NpcNameSeed(string Name, string? GenderCode, string? RaceCode);
+
 internal sealed record ExistingRecordItem(int Id, string Name)
 {
     public override string ToString() => $"{Name}  |  ID {Id}";
@@ -169,6 +171,76 @@ internal sealed class DatabaseSession : IDisposable
                     Convert.ToString(reader.GetValue(3), CultureInfo.InvariantCulture)));
         }
         return items;
+    }
+
+    /// <summary>
+    /// Name-only historical NPC source. Read tblGenerateWorker, not tblWorker;
+    /// never create a worker record. The exact schema is checked at runtime.
+    /// </summary>
+    public List<NpcNameSeed> ReadGeneratedWorkerNames(string? genderCode = null, string? raceCode = null)
+    {
+        var schema = new DataTable("GeneratedWorkerSchema");
+        using (var schemaCmd = new OleDbCommand("SELECT TOP 0 * FROM [tblGenerateWorker]", _connection))
+        using (var adapter = new OleDbDataAdapter(schemaCmd))
+            adapter.Fill(schema);
+
+        var columns = schema.Columns.Cast<DataColumn>().Select(c => c.ColumnName).ToArray();
+        string? Pick(params string[] options) => options.Select(x =>
+            columns.FirstOrDefault(c => c.Equals(x, StringComparison.OrdinalIgnoreCase)))
+            .FirstOrDefault(x => x != null);
+
+        string? nameCol = Pick("Name", "WorkerName", "FullName", "Full_Name",
+            "GeneratedName", "Worker_Name", "DisplayName");
+        string? firstCol = Pick("FirstName", "First_Name", "Forename", "First");
+        string? lastCol = Pick("LastName", "Last_Name", "Surname", "Last", "FamilyName");
+        string? genderCol = Pick("Gender", "GenderID", "Gender_ID", "Sex");
+        string? raceCol = Pick("Race", "RaceID", "Race_ID", "Ethnicity", "EthnicityID");
+
+        if (nameCol == null && (firstCol == null || lastCol == null))
+            throw new InvalidOperationException(
+                "tblGenerateWorker was found, but a full name or first/last name pair " +
+                "could not be identified. Columns: " + string.Join(", ", columns));
+        if (!string.IsNullOrWhiteSpace(genderCode) && genderCol == null)
+            throw new InvalidOperationException(
+                "The NPC gender filter was requested but tblGenerateWorker has no recognized gender column. " +
+                "Columns: " + string.Join(", ", columns));
+        if (!string.IsNullOrWhiteSpace(raceCode) && raceCol == null)
+            throw new InvalidOperationException(
+                "The NPC race filter was requested but tblGenerateWorker has no recognized race column. " +
+                "Columns: " + string.Join(", ", columns));
+
+        var source = new DataTable("GeneratedNames");
+        using (var cmd = new OleDbCommand("SELECT * FROM [tblGenerateWorker]", _connection))
+        using (var adapter = new OleDbDataAdapter(cmd))
+            adapter.Fill(source);
+
+        var output = new List<NpcNameSeed>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DataRow row in source.Rows)
+        {
+            string Clean(string? column) => column == null || row[column] is DBNull ? "" :
+                (Convert.ToString(row[column], CultureInfo.InvariantCulture) ?? "").Trim();
+            string name = nameCol == null ? (Clean(firstCol) + " " + Clean(lastCol)).Trim() :
+                Clean(nameCol);
+            if (name.Length is < 2 or > 30 || name.Any(char.IsControl))
+                continue;
+            var gender = Clean(genderCol);
+            var race = Clean(raceCol);
+            if (!string.IsNullOrWhiteSpace(genderCode) &&
+                !gender.Equals(genderCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!string.IsNullOrWhiteSpace(raceCode) &&
+                !race.Equals(raceCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (seen.Add(name))
+                output.Add(new NpcNameSeed(name, gender.Length == 0 ? null : gender,
+                    race.Length == 0 ? null : race));
+        }
+        if (output.Count == 0)
+            throw new InvalidOperationException(
+                "tblGenerateWorker returned no usable NPC names for the selected race/gender codes. " +
+                "Check the codes and available columns: " + string.Join(", ", columns));
+        return output;
     }
 
     public List<ExistingRecordItem> ListExistingRecords(string section)
@@ -437,6 +509,174 @@ internal sealed class DatabaseSession : IDisposable
         catch
         {
             try { transaction.Rollback(); } catch { /* preserve original failure */ }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Full lineage rebuild for the selected title only. Unlike the previous
+    /// existing-slot updater, this creates new tblBeltPreHistory records.
+    /// The caller must require an explicit backup and destructive confirmation.
+    /// Transaction rolls back DELETE and all INSERTs if any insertion fails.
+    /// No changes to tblWorker or tblGenerateWorker are ever made.
+    /// </summary>
+    public int RebuildTitleLineage(int beltId, IReadOnlyList<GeneratedTitleReign> proposed,
+        int expectedExistingRows)
+    {
+        if (beltId <= 0 || proposed.Count is < 1 or > 500)
+            throw new InvalidOperationException("Choose a valid title and 1–500 reigns.");
+        var workers = ListWorkers().Select(x => x.Id).ToHashSet();
+        for (int i = 0; i < proposed.Count; i++)
+        {
+            var reign = proposed[i];
+            if (reign.Order != i + 1 ||
+                (reign.Holder1 != -1 && !workers.Contains(reign.Holder1)) ||
+                reign.Holder2 != -1 || !string.IsNullOrEmpty(reign.HolderName2) ||
+                string.IsNullOrWhiteSpace(reign.HolderName1) ||
+                reign.HolderName1.Length > 30 || reign.HolderName1.Any(char.IsControl) ||
+                reign.Captured.Year is < 1800 or > 2100 ||
+                reign.Lost.Year is < 1800 or > 2100 ||
+                reign.Captured > reign.Lost || reign.Defences < 0)
+                throw new InvalidOperationException(
+                    $"Generated reign #{i + 1} is invalid or contains an unknown linked worker.");
+            if (i > 0 && reign.Captured <= proposed[i-1].Lost)
+                throw new InvalidOperationException(
+                    "Generated capture and loss dates must be chronological and non-overlapping.");
+        }
+
+        var history = ReadTitleLineage(beltId);
+        if (history.LinkField != "BeltUID" || history.OrderField != "BeltOrder")
+            throw new InvalidOperationException(
+                "Cannot rebuild history: BeltUID or BeltOrder schema is unverified.");
+        if (history.Rows.Rows.Count != expectedExistingRows)
+            throw new InvalidOperationException(
+                "The title history changed after the preview was generated. Generate a fresh preview.");
+        var available = history.Rows.Columns.Cast<DataColumn>().Select(c => c.ColumnName).ToArray();
+        string NameCol(string a, string b) =>
+            available.Contains(a, StringComparer.OrdinalIgnoreCase) ? a :
+            available.Contains(b, StringComparer.OrdinalIgnoreCase) ? b :
+            throw new InvalidOperationException("Missing expected title history field: " + a);
+        string n1 = NameCol("Holder_Name1", "HolderName1");
+        string n2 = NameCol("Holder_Name2", "HolderName2");
+        string n3 = NameCol("Holder_Name3", "HolderName3");
+        string[] mandatory = { "UID", "Recordname", "BeltUID", "BeltOrder", "Holder1",
+            "Holder2", "Holder3", "BeltCaptured", "BeltLost", "Defences" };
+        if (mandatory.Any(c => !available.Contains(c, StringComparer.OrdinalIgnoreCase)))
+            throw new InvalidOperationException(
+                "Title history is missing a mandatory field. Detected: " +
+                string.Join(", ", available));
+
+        // DataTable schema supplies actual max lengths and nullability.
+        var schema = new DataTable();
+        using (var schemaCmd = new OleDbCommand(
+            "SELECT TOP 0 * FROM [tblBeltPreHistory]", _connection))
+        using (var adapter = new OleDbDataAdapter(schemaCmd))
+            adapter.FillSchema(schema, SchemaType.Source);
+
+        var insertedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        EnsureUnchanged();
+        using var tx = _connection.BeginTransaction();
+        try
+        {
+            using (var countCmd = new OleDbCommand(
+                "SELECT COUNT(*) FROM [tblBeltPreHistory] WHERE [BeltUID]=?",
+                _connection, tx))
+            {
+                countCmd.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
+                if (Convert.ToInt32(countCmd.ExecuteScalar(), CultureInfo.InvariantCulture) != expectedExistingRows)
+                    throw new InvalidOperationException(
+                        "Title history count changed during generation. No rows were modified.");
+            }
+
+            var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var names = new OleDbCommand(
+                "SELECT [Recordname] FROM [tblBeltPreHistory] WHERE [BeltUID] <> ?",
+                _connection, tx))
+            {
+                names.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
+                using var reader = names.ExecuteReader();
+                while (reader?.Read() == true)
+                    if (!reader.IsDBNull(0))
+                        existingNames.Add(Convert.ToString(reader.GetValue(0),
+                            CultureInfo.InvariantCulture) ?? "");
+            }
+            int maxUid;
+            using (var maxCmd = new OleDbCommand(
+                "SELECT MAX([UID]) FROM [tblBeltPreHistory]", _connection, tx))
+            {
+                var value = maxCmd.ExecuteScalar();
+                maxUid = value is DBNull or null ? 0 :
+                    Convert.ToInt32(value, CultureInfo.InvariantCulture);
+            }
+            bool autonumber = schema.Columns["UID"]?.AutoIncrement == true;
+            var cols = new[] { "Recordname", "BeltUID", "BeltOrder", "Holder1",
+                "Holder2", "Holder3", n1, n2, n3, "BeltCaptured", "BeltLost", "Defences" };
+            var inserted = autonumber ? cols : new[] { "UID" }.Concat(cols).ToArray();
+            var used = inserted.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (DataColumn column in schema.Columns)
+            {
+                if (used.Contains(column.ColumnName) || column.AutoIncrement) continue;
+                if (!column.AllowDBNull && column.DefaultValue is DBNull)
+                    throw new InvalidOperationException(
+                        $"Additional required column {column.ColumnName} has no default. " +
+                        "No records have been changed; inspect the table schema first.");
+            }
+
+            using (var deleteCmd = new OleDbCommand(
+                "DELETE FROM [tblBeltPreHistory] WHERE [BeltUID]=?", _connection, tx))
+            {
+                deleteCmd.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
+                int removed = deleteCmd.ExecuteNonQuery();
+                if (removed != expectedExistingRows)
+                    throw new InvalidOperationException(
+                        "Unexpected number of existing title reigns. Rollback initiated.");
+            }
+
+            // Column names are only validated MDB schema fields or fixed literals.
+            string sql = "INSERT INTO [tblBeltPreHistory] (" +
+                string.Join(", ", inserted.Select(c => "[" + c + "]")) +
+                ") VALUES (" + string.Join(", ", inserted.Select(_ => "?")) + ")";
+            for (int i = 0; i < proposed.Count; i++)
+            {
+                var p = proposed[i];
+                var baseName = $"TUS{beltId:D5}_{i+1:D5}";
+                var recordName = baseName;
+                for (int suffix = 1; existingNames.Contains(recordName) ||
+                    insertedNames.Contains(recordName); suffix++)
+                    recordName = baseName + "_" + suffix.ToString(CultureInfo.InvariantCulture);
+                int limit = schema.Columns["Recordname"]?.MaxLength ?? -1;
+                if (limit > 0 && recordName.Length > limit)
+                    throw new InvalidOperationException("Title history Recordname exceeds the MDB text limit.");
+                insertedNames.Add(recordName);
+
+                using var cmd = new OleDbCommand(sql, _connection, tx);
+                // OLE DB uses positional parameters. Values must match the
+                // exact INSERT column order, even if named placeholders appear.
+                if (!autonumber)
+                    cmd.Parameters.Add("uid", OleDbType.Integer).Value = checked(maxUid + i + 1);
+                cmd.Parameters.Add("record", OleDbType.VarWChar).Value = recordName;
+                cmd.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
+                cmd.Parameters.Add("order", OleDbType.SmallInt).Value = p.Order;
+                cmd.Parameters.Add("h1", OleDbType.Integer).Value = p.Holder1;
+                cmd.Parameters.Add("h2", OleDbType.Integer).Value = -1;
+                cmd.Parameters.Add("h3", OleDbType.Integer).Value = -1;
+                cmd.Parameters.Add("n1", OleDbType.VarWChar).Value = p.HolderName1;
+                cmd.Parameters.Add("n2", OleDbType.VarWChar).Value = "";
+                cmd.Parameters.Add("n3", OleDbType.VarWChar).Value = "";
+                cmd.Parameters.Add("captured", OleDbType.Date).Value = p.Captured;
+                cmd.Parameters.Add("lost", OleDbType.Date).Value = p.Lost;
+                cmd.Parameters.Add("defences", OleDbType.SmallInt).Value = p.Defences;
+                if (cmd.ExecuteNonQuery() != 1)
+                    throw new InvalidOperationException(
+                        "An inserted reign did not write exactly one record. Rollback initiated.");
+            }
+            tx.Commit();
+            _openedStamp = GetStamp(PathOnDisk);
+            return proposed.Count;
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { /* preserve original exception */ }
             throw;
         }
     }

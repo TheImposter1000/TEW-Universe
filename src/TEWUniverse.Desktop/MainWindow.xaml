@@ -542,7 +542,7 @@
           <DockPanel>
            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
             <TextBlock Text="Build a Championship History" FontSize="20" FontWeight="Bold"/>
-            <TextBlock Text="Give champions required reign counts and the years they worked here. Name-only historical champions do not require worker records."
+            <TextBlock Text="Pin the years your created stars WON the title (e.g. 2016, 2017, 2019). Build the surrounding history using tblGenerateWorker NPC names without adding worker records."
                        Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
                        Margin="0,5,0,10"/>
             <WrapPanel Margin="0,0,0,8">
@@ -562,7 +562,7 @@
              <Button Content="Load Recorded Holders" Style="{StaticResource ActionButton}"
                      Click="AdvancedLoadRecorded_Click" Padding="10,6" Margin="0,0,8,6"/>
             </WrapPanel>
-            <TextBlock Text="Edit each person's historical display name, first/last eligible year, and exact required reign count. Check Fill gaps only for background champions who may receive additional reigns."
+            <TextBlock Text="Specify fixed championship-winning years, first/last eligible year, and a historical ring name. NPCs from tblGenerateWorker are name-only champions with UID -1."
                        Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
                        Margin="0,0,0,6"/>
             <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
@@ -593,7 +593,9 @@
               <DataGridTextColumn Header="To year" Binding="{Binding LastYear, UpdateSourceTrigger=LostFocus}"
                                   Width="100"/>
               <DataGridTextColumn Header="Exact reigns" Binding="{Binding RequiredReigns, UpdateSourceTrigger=LostFocus}"
-                                  Width="105"/>
+                                  Width="95"/>
+              <DataGridTextColumn Header="Fixed win years" Binding="{Binding WinYears, UpdateSourceTrigger=LostFocus}"
+                                  Width="158"/>
               <DataGridCheckBoxColumn Header="Fill gaps" Binding="{Binding FillGaps}"
                                       Width="95"/>
              </DataGrid.Columns>
@@ -614,8 +616,18 @@
               <TextBox x:Name="AdvancedTotalReigns" Style="{StaticResource FormTextBox}"
                        Text="42" Width="84"/>
              </StackPanel>
+             <StackPanel Margin="0,0,12,5">
+              <TextBlock Text="NPC gender code" Foreground="#ADC9E8" FontSize="11"/>
+              <TextBox x:Name="AdvancedNpcGender" Style="{StaticResource FormTextBox}"
+                       Width="100" ToolTip="Optional exact tblGenerateWorker gender code; blank uses all"/>
+             </StackPanel>
+             <StackPanel Margin="0,0,12,5">
+              <TextBlock Text="NPC race code" Foreground="#ADC9E8" FontSize="11"/>
+              <TextBox x:Name="AdvancedNpcRace" Style="{StaticResource FormTextBox}"
+                       Width="100" ToolTip="Optional exact tblGenerateWorker race code; blank uses all"/>
+             </StackPanel>
              <CheckBox x:Name="AdvancedFillRemaining" IsChecked="True"
-                       Content="Fill remaining slots with eligible background holders"
+                       Content="Fill surrounding history with NPCs from tblGenerateWorker"
                        Foreground="#D7E8FA" VerticalAlignment="Center"
                        Margin="5,10,12,5"/>
             </WrapPanel>
@@ -623,7 +635,7 @@
              <Button Content="Generate Constrained Preview"
                      Style="{StaticResource BlueButton}" Padding="13,9"
                      Click="AdvancedGenerate_Click" Margin="0,0,8,6"/>
-             <Button x:Name="AdvancedApplyButton" Content="Replace Existing Reigns"
+             <Button x:Name="AdvancedApplyButton" Content="Rebuild Selected Title History"
                      IsEnabled="False" Style="{StaticResource ActionButton}"
                      Click="AdvancedApply_Click" Margin="0,0,8,6"/>
              <Button x:Name="AdvancedExportButton" Content="Export Draft CSV"
@@ -633,7 +645,7 @@
                      Click="AdvancedClear_Click" Margin="0,0,8,6"/>
             </WrapPanel>
             <TextBlock x:Name="AdvancedGenerationStatus"
-                       Text="Select a championship. A preview does not alter the MDB."
+                       Text="Fixed winning years are preserved. NPC names come from tblGenerateWorker. Rebuild requires Create Backup first."
                        Foreground="#E7C38D" TextWrapping="Wrap" FontSize="12"
                        Margin="0,0,0,4"/>
            </StackPanel>
