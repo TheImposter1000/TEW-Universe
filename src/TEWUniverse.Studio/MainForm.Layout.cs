@@ -23,6 +23,11 @@ internal sealed partial class MainForm
     private readonly Label _profileRecord = new();
     private readonly Label _biographyPreview = new();
     private string? _lastBackupFile;
+    private readonly Label _skillSnapshot = new();
+    private readonly Button _allFilterButton = new();
+    private readonly Button _activeFilterButton = new();
+    private readonly Button _inactiveFilterButton = new();
+    private bool? _activeOnlyFilter;
 
     private void BuildShell()
     {
@@ -173,22 +178,13 @@ internal sealed partial class MainForm
             FlowDirection = FlowDirection.LeftToRight,
             BackColor = Color.Transparent, Padding = new Padding(0, 4, 0, 3)
         };
-        var allWorkers = new Button
-        {
-            Text = "All workers", Size = new Size(102, 31),
-            BackColor = _cyan, ForeColor = Color.FromArgb(12, 35, 42),
-            FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold)
-        };
-        allWorkers.FlatAppearance.BorderSize = 0;
-        allWorkers.Click += (_, _) => _search.Clear();
-        var futureFilters = new Label
-        {
-            Text = "Advanced filters: Phase 2", Width = 169, Height = 31,
-            ForeColor = _muted, TextAlign = ContentAlignment.MiddleRight,
-            Font = new Font("Segoe UI", 8)
-        };
-        filterRow.Controls.Add(allWorkers);
-        filterRow.Controls.Add(futureFilters);
+        SetupFilterButton(_allFilterButton, "All", null);
+        SetupFilterButton(_activeFilterButton, "Active", true);
+        SetupFilterButton(_inactiveFilterButton, "Inactive", false);
+        filterRow.Controls.Add(_allFilterButton);
+        filterRow.Controls.Add(_activeFilterButton);
+        filterRow.Controls.Add(_inactiveFilterButton);
+        ApplyFilterStyle();
 
         var heading = new Label
         {
@@ -249,7 +245,21 @@ internal sealed partial class MainForm
         profileColumns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
         profileColumns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
         profileColumns.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var profileData = BuildFieldSection("PROFILE INFORMATION", "tblWorker");
+        var profileData = new Panel
+        {
+            Dock = DockStyle.Fill, BackColor = _surface,
+            Margin = new Padding(3), Padding = new Padding(9)
+        };
+        var profileTitle = new Label
+        {
+            Dock = DockStyle.Top, Height = 44,
+            Text = "PROFILE  |  EXISTING WORKER FIELDS",
+            ForeColor = _cyan,
+            Font = new Font("Segoe UI", 10, FontStyle.Bold),
+            Padding = new Padding(5, 8, 0, 0)
+        };
+        profileData.Controls.Add(BuildProfileForm());
+        profileData.Controls.Add(profileTitle);
         profileColumns.Controls.Add(profileData, 0, 0);
         profileColumns.Controls.Add(BuildProfileAside(), 1, 0);
         profile.Controls.Add(profileColumns);
@@ -466,7 +476,7 @@ internal sealed partial class MainForm
         var summary = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 220,
+            Height = 190,
             BackColor = _surface,
             Padding = new Padding(14)
         };
@@ -517,7 +527,27 @@ internal sealed partial class MainForm
         bio.Controls.Add(bioOpen);
         bio.Controls.Add(bioTitle);
 
+        var stats = new Panel
+        {
+            Dock = DockStyle.Top, Height = 207,
+            BackColor = _surface, Padding = new Padding(14),
+            Margin = new Padding(0, 8, 0, 8)
+        };
+        var statsTitle = new Label
+        {
+            Dock = DockStyle.Top, Height = 33,
+            Text = "SKILLS SNAPSHOT  |  SAVED VALUES",
+            ForeColor = _cyan, Font = new Font("Segoe UI", 9, FontStyle.Bold)
+        };
+        _skillSnapshot.Dock = DockStyle.Fill;
+        _skillSnapshot.Font = new Font("Segoe UI", 9);
+        _skillSnapshot.ForeColor = _light;
+        _skillSnapshot.Text = "Select a worker to inspect recorded skill values.";
+        stats.Controls.Add(_skillSnapshot);
+        stats.Controls.Add(statsTitle);
+
         wrap.Controls.Add(bio);
+        wrap.Controls.Add(stats);
         wrap.Controls.Add(summary);
         return wrap;
     }
@@ -534,6 +564,56 @@ internal sealed partial class MainForm
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
+    private void SetupFilterButton(Button button, string text, bool? state)
+    {
+        button.Text = text;
+        button.Size = new Size(87, 31);
+        button.FlatStyle = FlatStyle.Flat;
+        button.FlatAppearance.BorderColor = _edge;
+        button.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        button.Margin = new Padding(0, 0, 4, 0);
+        button.Click += (_, _) =>
+        {
+            if (!MayReplaceProject()) return;
+            _activeOnlyFilter = state;
+            ApplyFilterStyle();
+            FilterWorkers();
+        };
+    }
+
+    private void ApplyFilterStyle()
+    {
+        foreach (var (button, value) in new[] {
+            (_allFilterButton, (bool?)null),
+            (_activeFilterButton, (bool?)true),
+            (_inactiveFilterButton, (bool?)false)
+        })
+        {
+            bool isSelected = _activeOnlyFilter == value;
+            button.BackColor = isSelected ? _cyan : _fieldBg;
+            button.ForeColor = isSelected ? Color.FromArgb(15, 39, 48) : _light;
+        }
+    }
+
+    private void RefreshSkillSnapshot(RecordSection record)
+    {
+        if (!record.Exists)
+        {
+            _skillSnapshot.Text = "No skill record is linked to this worker.";
+            return;
+        }
+        var fields = record.Data.Columns.Cast<DataColumn>()
+            .Where(c => !c.ColumnName.Equals(record.Key, StringComparison.OrdinalIgnoreCase)
+                && WorkerFieldCatalog.IsNumeric(c.DataType)
+                && record.Data.Rows[0][c] != DBNull.Value)
+            .Take(5)
+            .ToList();
+        _skillSnapshot.Text = fields.Count == 0 ? "No numeric skill fields available." :
+            string.Join("\n", fields.Select(c =>
+                WorkerFieldCatalog.FriendlyName(c.ColumnName, c.DataType) + "   " +
+                DatabaseSession.Display(record.Data.Rows[0][c])));
+    }
+
     private void DrawWorker(object? sender, DrawItemEventArgs e)
     {
         if (e.Index < 0 || e.Index >= _workerList.Items.Count) return;
@@ -544,7 +624,9 @@ internal sealed partial class MainForm
             e.Index % 2 == 0 ? _surface : Color.FromArgb(24, 41, 56)))
             e.Graphics.FillRectangle(brush, e.Bounds);
 
-        using (var avatar = new SolidBrush(selected ? _cyan : Color.FromArgb(119, 158, 180)))
+        using (var avatar = new SolidBrush(selected ? _cyan :
+            worker.IsActive == false ? Color.FromArgb(108, 125, 139) :
+            Color.FromArgb(119, 158, 180)))
             e.Graphics.FillEllipse(avatar, e.Bounds.X + 11, e.Bounds.Y + 15, 16, 16);
 
         var nameRect = new Rectangle(e.Bounds.X + 37, e.Bounds.Y + 3,
@@ -583,6 +665,7 @@ internal sealed partial class MainForm
                     count++;
             }
         }
+        count += PendingProfileEditCount();
         if (_bioExists && _biography.Text != _originalBio) count++;
         return count;
     }
@@ -605,7 +688,8 @@ internal sealed partial class MainForm
             ? "No worker selected.\n\nSearch the library to open an existing record."
             : "WORKER ID   " + _currentWorker.Id +
               "\n\nNAME   " + _currentWorker.Name +
-              "\n\nWORKING DATABASE   " + (loaded ? Path.GetFileName(_session!.PathOnDisk) : "None") +
+              "\n\nACTIVE   " + (_currentWorker.IsActive == null ? "Not set" :
+                  _currentWorker.IsActive == true ? "Yes" : "No") +
               "\n\nEDITING   Existing records only";
     }
 }

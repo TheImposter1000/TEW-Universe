@@ -56,3 +56,12 @@ First, validate existing-worker updates on a sacrificial TEW IX scenario. Then i
 The Windows Forms application now uses the TEW Universe dark navy and cyan workspace layout selected for Phase 1. It has module navigation, a searchable worker browser, top actions, five editor tabs, contextual summary cards, and a project footer. The browser and editor use actual TEW IX worker data, without fabricated profile values or unverified field mappings.
 
 Workers remains the only functional editor module. The Companies, Titles, Events, Stables, Storylines, Databases and Tools navigation items explicitly identify themselves as future modules. The existing database workflows are preserved: import and open copy, direct save (without automatic backups), manual Create Backup, Save copy as, settings, optional encrypted password remembering, and updater. Phase 2 will handle field-friendly controls, TEW-specific value mappings and smarter data presentation. The layout does not import or display invented wrestler images from conceptual mockups.
+
+
+## Phase 2: Existing worker data-entry improvements
+
+The Worker Profile tab now renders the actual MDB columns as clearly labeled form fields using their database types. Boolean columns use three-state checkboxes so a database NULL is not silently converted to False. Existing date columns use date pickers when representable, and unsupported date values remain text fields. Text and numeric fields preserve their real stored values; typed validation runs before Save Changes. Labels and tooltips retain each true TEW IX column name to aid investigation.
+
+The Skills, Popularity and Physical tabs retain their dense editable grids, but names are humanized and the source column is exposed in tooltips. Unverified enumerations such as Gender, Pronouns and Sexuality explicitly say "(code)" and stay numeric until mappings have been tested against the game; no speculative code conversion is performed. The search library now filters by the database's actual Active boolean with All, Active and Inactive filters. The profile side panel shows real worker status and a skills snapshot drawn only from recorded numeric skill fields.
+
+**Do not confuse friendly field names with game-rule validation.** TEW IX internal relationships and numeric enum meanings still need testing, and the application only edits existing worker records. Save Changes writes to Current Copy without automatic backup. Create Backup remains a separate operation.

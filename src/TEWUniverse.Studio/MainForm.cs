@@ -350,15 +350,17 @@ internal sealed partial class MainForm : Form
         try
         {
             var term = _search.Text.Trim();
-            _visible = _workers.Where(w =>
-                w.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                w.Id.ToString(CultureInfo.InvariantCulture).Contains(term, StringComparison.OrdinalIgnoreCase)
-            ).Take(500).ToList();
+            var matched = _workers.Where(w =>
+                (_activeOnlyFilter is null || w.IsActive == _activeOnlyFilter) &&
+                (w.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                w.Id.ToString(CultureInfo.InvariantCulture).Contains(term, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+            _visible = matched.Take(500).ToList();
             _workerList.BeginUpdate();
             _workerList.Items.Clear();
             foreach (var worker in _visible) _workerList.Items.Add(worker);
             _workerList.EndUpdate();
-            _workerCount.Text = $"Showing {_visible.Count} of {_workers.Count} workers (maximum 500 displayed).";
+            _workerCount.Text = $"Showing {_visible.Count} of {matched.Count} matching workers  |  {_workers.Count} total";
         }
         finally { _changingSelection = false; }
     }
@@ -383,6 +385,7 @@ internal sealed partial class MainForm : Form
     private void ClearEditor()
     {
         foreach (var grid in _grids.Values) grid.Rows.Clear();
+        ClearProfileForm();
         _biography.Text = "";
         _originalBio = "";
         _bioExists = false;
@@ -401,6 +404,11 @@ internal sealed partial class MainForm : Form
             foreach (var table in _tables)
             {
                 var record = _session.ReadSection(table, worker.Id);
+                if (table == "tblWorker")
+                {
+                    LoadProfileForm(record);
+                    continue;
+                }
                 var grid = _grids[table];
                 grid.Rows.Clear();
                 if (!record.Exists) continue;
@@ -409,8 +417,22 @@ internal sealed partial class MainForm : Form
                     if (column.ColumnName.Equals(record.Key, StringComparison.OrdinalIgnoreCase) ||
                         !DatabaseSession.IsEditable(column.DataType)) continue;
                     string oldValue = DatabaseSession.Display(record.Data.Rows[0][column]);
-                    var index = grid.Rows.Add(column.ColumnName, oldValue);
-                    grid.Rows[index].Tag = new FieldRef(table, record.Key, column.ColumnName, column.DataType, oldValue);
+                    var index = grid.Rows.Add(
+                        WorkerFieldCatalog.FriendlyName(column.ColumnName, column.DataType),
+                        oldValue);
+                    grid.Rows[index].Tag = new FieldRef(table, record.Key, column.ColumnName,
+                        column.DataType, oldValue);
+                    grid.Rows[index].Cells["Field"].ToolTipText =
+                        WorkerFieldCatalog.FieldDescription(column.ColumnName, column.DataType);
+                    grid.Rows[index].Cells["Value"].ToolTipText =
+                        WorkerFieldCatalog.FieldDescription(column.ColumnName, column.DataType);
+                    if (column.DataType == typeof(bool))
+                    {
+                        var choices = new DataGridViewComboBoxCell();
+                        choices.Items.AddRange("", "True", "False");
+                        choices.Value = oldValue;
+                        grid.Rows[index].Cells["Value"] = choices;
+                    }
                 }
             }
             var bio = _session.ReadSection("tblWorkerBio", worker.Id);
@@ -420,6 +442,7 @@ internal sealed partial class MainForm : Form
             _biography.Enabled = _bioExists;
             RefreshBiographyPreview();
             _currentWorker = worker;
+            RefreshSkillSnapshot(_session.ReadSection("tblWorkerSkill", worker.Id));
             _saveButton.Enabled = true;
             _header.Text = $"{worker.Name}  |  Worker ID {worker.Id}\nEdit values in the tabs, then save to your working copy.";
             SetStatus($"Editing worker {worker.Id}. Original TEW IX scenario is protected.");
@@ -432,6 +455,7 @@ internal sealed partial class MainForm : Form
     {
         var edits = new List<FieldEdit>();
         if (_session == null || _currentWorker == null) return edits;
+        edits.AddRange(GetProfileEdits());
         foreach (var grid in _grids.Values)
         {
             if (grid.IsCurrentCellInEditMode) grid.EndEdit();
@@ -455,6 +479,14 @@ internal sealed partial class MainForm : Form
         {
             var edits = GetEdits();
             if (edits.Count == 0) { SetStatus("Nothing changed. No save required."); return; }
+            foreach (var edit in edits)
+            {
+                if (!WorkerFieldCatalog.Validate(edit.NewText, edit.FieldType, out var reason))
+                {
+                    ShowEditValidation($"{WorkerFieldCatalog.FriendlyName(edit.Field, edit.FieldType)}: {reason}");
+                    return;
+                }
+            }
             if (MessageBox.Show(this,
                 $"Save {edits.Count} changed field(s) for {_currentWorker.Name} directly to the current working database?\n\nNo backup will be created. Use Create Backup separately.",
                 "Save to current copy", MessageBoxButtons.YesNo,
@@ -462,8 +494,19 @@ internal sealed partial class MainForm : Form
             var savedId = _currentWorker.Id;
             var count = _session.Save(savedId, edits);
             _workers = _session.ListWorkers();
+            FilterWorkers();
             var updated = _workers.FirstOrDefault(w => w.Id == savedId);
-            if (updated != null) LoadWorker(updated);
+            if (updated != null)
+            {
+                LoadWorker(updated);
+                var selection = _visible.FindIndex(w => w.Id == savedId);
+                if (selection >= 0)
+                {
+                    _changingSelection = true;
+                    _workerList.SelectedIndex = selection;
+                    _changingSelection = false;
+                }
+            }
             SetStatus($"Saved {count} field(s) to {_session.PathOnDisk}. No backup created.");
             RefreshShellStatus();
             MessageBox.Show(this,

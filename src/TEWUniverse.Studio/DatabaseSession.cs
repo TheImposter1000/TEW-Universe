@@ -4,7 +4,7 @@ using System.Globalization;
 
 namespace TEWUniverse.Studio;
 
-internal sealed record WorkerItem(int Id, string Name)
+internal sealed record WorkerItem(int Id, string Name, bool? IsActive)
 {
     public override string ToString() => $"{Name}  |  ID {Id}";
 }
@@ -123,7 +123,7 @@ internal sealed class DatabaseSession : IDisposable
 
     public List<WorkerItem> ListWorkers()
     {
-        using var cmd = new OleDbCommand("SELECT [UID], [Name] FROM [tblWorker] ORDER BY [Name]", _connection);
+        using var cmd = new OleDbCommand("SELECT [UID], [Name], [Active] FROM [tblWorker] ORDER BY [Name]", _connection);
         using var reader = cmd.ExecuteReader();
         var items = new List<WorkerItem>();
         if (reader == null) return items;
@@ -131,7 +131,10 @@ internal sealed class DatabaseSession : IDisposable
         {
             if (reader.IsDBNull(0)) continue;
             items.Add(new WorkerItem(Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture),
-                reader.IsDBNull(1) ? "(unnamed)" : Convert.ToString(reader.GetValue(1), CultureInfo.InvariantCulture) ?? "(unnamed)"));
+                reader.IsDBNull(1) ? "(unnamed)" :
+                    Convert.ToString(reader.GetValue(1), CultureInfo.InvariantCulture) ?? "(unnamed)",
+                reader.IsDBNull(2) ? null :
+                    Convert.ToBoolean(reader.GetValue(2), CultureInfo.InvariantCulture)));
         }
         return items;
     }
