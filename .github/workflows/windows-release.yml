@@ -1,0 +1,83 @@
+name: Windows Desktop Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "installer/**"
+      - ".github/workflows/windows-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Set version
+        shell: pwsh
+        run: |
+          $version = "0.1.$env:GITHUB_RUN_NUMBER"
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+
+      - name: Publish desktop editor
+        shell: pwsh
+        run: |
+          dotnet publish src/TEWUniverse.Studio/TEWUniverse.Studio.csproj -c Release -r win-x64 --self-contained true -p:Version=$env:APP_VERSION -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/app
+
+      - name: Publish separate update agent
+        shell: pwsh
+        run: |
+          dotnet publish src/TEWUniverse.Updater/TEWUniverse.Updater.csproj -c Release -r win-x64 --self-contained true -p:Version=$env:APP_VERSION -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/updater
+
+      - name: Install Inno Setup if needed
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) { throw "Inno Setup 6 compiler was not found" }
+          & $compiler "installer\TEWUniverse.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Installer packaging failed" }
+
+      - name: Generate checksum
+        shell: pwsh
+        run: |
+          $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
+          $path = Join-Path "publish/installer" $filename
+          if (!(Test-Path $path)) { throw "Installer missing: $path" }
+          $hash = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLowerInvariant()
+          Set-Content -Path "$path.sha256" -Encoding ascii -Value "$hash  $filename"
+
+      - name: Upload installation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tew-universe-windows
+          path: |
+            publish/installer/*.exe
+            publish/installer/*.sha256
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
+          gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes "Experimental Windows editor for TEW IX working-copy databases. Contains no game data or passwords. Unsigned preview installer." --latest
