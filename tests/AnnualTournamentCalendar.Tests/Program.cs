@@ -596,6 +596,15 @@ catch (InvalidOperationException) { missingYearRejected = true; }
 if (!missingYearRejected)
     throw new Exception("A nonexistent eligible capture year was silently changed.");
 
+// Partial-year rules preserve chronology: when 2016 is the FIRST
+// specified victory, later unpinned reigns cannot be assigned in 2010.
+var laterCarson = ExistingTitleSlotPlanner.Plan(existingReigns,
+    new[] { carson with { YearsWon = "2016" } },
+    TitleCompetitorFormat.Singles);
+if (laterCarson.Count != 4 ||
+    laterCarson.Any(p => p.Captured.Year < 2016))
+    throw new Exception("Unknown later victories were dated before Carson's known 2016 win.");
+
 // Strict duration filtering protects pre-recorded history dates. An exact
 // 719-day requirement cannot be fabricated by rewriting a 365-day NPC slot.
 bool incompatibleLengthRejected = false;
