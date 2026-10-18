@@ -280,48 +280,77 @@ public partial class MainWindow : Window
         AddQuickFact("Debut Date", FriendlyDate(ValueFor("DebutDate")));
     }
 
+
     private void AddField(StackPanel destination, FieldDraft item)
     {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 9) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(123) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var name = new TextBlock {
+        var label = new TextBlock {
             Text = FriendlyName(item.Column), Foreground = Muted, FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-            ToolTip = $"{item.Table}.{item.Column}"
+            ToolTip = item.Table + "." + item.Column
         };
-        Grid.SetColumn(name, 0);
-        grid.Children.Add(name);
-        if (item.ValueType == typeof(bool))
+        Grid.SetColumn(label, 0);
+        grid.Children.Add(label);
+        bool gender = item.Table == "tblWorker" &&
+            item.Column.Equals("Gender", StringComparison.OrdinalIgnoreCase) &&
+            item.Value is "1" or "2";
+        if (item.ValueType == typeof(bool) || gender)
         {
-            var box = new ComboBox {
-                ItemsSource = new[] { "True", "False" },
-                SelectedItem = item.Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
-                               item.Value == "1" ? "True" : "False",
-                Height = 32, Background = (Brush)FindResource("RaisedBrush"),
-                Foreground = Brushes.Black, Padding = new Thickness(7, 5, 7, 5),
-                ToolTip = $"TEW field: {item.Column}"
+            var combo = new ComboBox {
+                Style = (Style)FindResource("DarkComboBox"),
+                ItemsSource = gender ? new[] { "Male", "Female" } : new[] { "Yes", "No" },
+                SelectedIndex = gender ? item.Value == "1" ? 0 : 1 :
+                    item.Value.Equals("True", StringComparison.OrdinalIgnoreCase) || item.Value == "1" ? 0 : 1,
+                Height = 35,
+                ToolTip = gender ? "Stored as Gender 1 or 2 in TEW IX" : "Boolean field"
             };
-            box.SelectionChanged += (_, _) =>
-            {
-                item.Value = box.SelectedItem as string ?? "";
-                if (!_loading) RefreshDirty();
+            combo.SelectionChanged += (_, _) => {
+                if (combo.SelectedIndex < 0) return;
+                item.Value = gender ? (combo.SelectedIndex == 0 ? "1" : "2") :
+                    (combo.SelectedIndex == 0 ? "True" : "False");
+                if (!_loading) { RefreshDirty(); BuildWorkerFacts(); }
             };
-            Grid.SetColumn(box, 1);
-            grid.Children.Add(box);
+            Grid.SetColumn(combo, 1);
+            grid.Children.Add(combo);
+        }
+        else if (item.ValueType == typeof(DateTime))
+        {
+            var picker = new DatePicker {
+                SelectedDate = ParseStoredDate(item.Value),
+                Height = 35, FontSize = 12, BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#102238")!),
+                Foreground = Brushes.White,
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#426182")!),
+                ToolTip = "Stored in the Access date field."
+            };
+            picker.SelectedDateChanged += (_, _) => {
+                item.Value = picker.SelectedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+                if (!_loading) { RefreshDirty(); BuildWorkerFacts(); }
+            };
+            Grid.SetColumn(picker, 1);
+            grid.Children.Add(picker);
         }
         else
         {
             var text = new TextBox {
-                Style = (Style)FindResource("FormTextBox"), Text = item.Value,
-                ToolTip = $"{item.Table}.{item.Column} ({item.ValueType.Name})"
+                Style = (Style)FindResource("FormTextBox"),
+                Text = item.Value,
+                ToolTip = item.Table + "." + item.Column +
+                    ((item.Column is "Nationality" or "Based_In" or "Style") ?
+                        " (TEW numerical code; label mapping not yet verified)" : "")
             };
-            text.TextChanged += (_, _) =>
-            {
+            text.TextChanged += (_, _) => {
                 item.Value = text.Text;
-                if (!_loading) RefreshDirty();
-                if (item.Table == "tblWorker" && item.Column.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                if (_loading) return;
+                RefreshDirty();
+                if (item.Table == "tblWorker" &&
+                    item.Column.Equals("Name", StringComparison.OrdinalIgnoreCase))
                     WorkerNameText.Text = string.IsNullOrWhiteSpace(text.Text) ? "(unnamed)" : text.Text;
+                if (item.Table == "tblWorker" &&
+                    (item.Column == "Nationality" || item.Column == "Based_In" || item.Column == "Style"))
+                    BuildWorkerFacts();
             };
             Grid.SetColumn(text, 1);
             grid.Children.Add(text);
