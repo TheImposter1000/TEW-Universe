@@ -82,7 +82,7 @@ internal static class WorkerFieldCatalog
         bool valid =
             type == typeof(string) ||
             (type == typeof(bool) && (bool.TryParse(value, out _) || value is "1" or "0")) ||
-            (type == typeof(DateTime) && DateTime.TryParse(value, culture, DateTimeStyles.None, out _)) ||
+            (type == typeof(DateTime) && StudioDateFormat.TryParse(value, out _)) ||
             (type == typeof(byte) && byte.TryParse(value, NumberStyles.Integer, culture, out _)) ||
             (type == typeof(short) && short.TryParse(value, NumberStyles.Integer, culture, out _)) ||
             (type == typeof(int) && int.TryParse(value, NumberStyles.Integer, culture, out _)) ||
@@ -92,7 +92,7 @@ internal static class WorkerFieldCatalog
             (type == typeof(decimal) && decimal.TryParse(value, NumberStyles.Float, culture, out _));
         if (!valid)
         {
-            reason = type == typeof(DateTime) ? "Enter a valid date, for example 1990-09-23." :
+            reason = type == typeof(DateTime) ? "Enter a valid date in MM/DD/YYYY format, for example 09/23/1990." :
                 type == typeof(bool) ? "Choose True, False, or leave blank." :
                 "Enter a value compatible with the original numeric database column.";
         }
