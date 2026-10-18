@@ -43,6 +43,9 @@ internal static class ExistingEditors
 }
 
 internal sealed record FieldEdit(string Table, string Key, string Field, Type FieldType, string NewText);
+/// <summary>Read-only pre-game reigns linked to the selected existing belt.</summary>
+internal sealed record TitleLineageResult(DataTable Rows, string? LinkField, string? OrderField, string Message);
+
 internal sealed record RecordSection(string Table, string Key, DataTable Data)
 {
     public bool Exists => Data.Rows.Count != 0;
@@ -223,6 +226,89 @@ internal sealed class DatabaseSession : IDisposable
 
         // Reuse the established parameterized transaction without generating records.
         return Save(id, edits);
+    }
+
+    /// <summary>
+    /// TEW IX pre-game title reigns are stored separately from tblBelt.
+    /// The database schema is checked at runtime because field names can vary
+    /// between TEW versions. A missing/ambiguous link is NEVER handled by showing
+    /// unfiltered records, which could attribute the wrong reigns to a title.
+    /// No INSERT/UPDATE/DELETE is available for this table.
+    /// </summary>
+    public TitleLineageResult ReadTitleLineage(int beltId)
+    {
+        if (beltId <= 0)
+            throw new InvalidOperationException("Select an existing championship first.");
+
+        const string table = "tblBeltPreHistory";
+        var result = new DataTable(table);
+        try
+        {
+            using var schemaCmd = new OleDbCommand($"SELECT * FROM [{table}] WHERE 1 = 0", _connection);
+            using var schemaReader = schemaCmd.ExecuteReader(CommandBehavior.SchemaOnly);
+            if (schemaReader == null || schemaReader.FieldCount == 0)
+                return new(result, null, null, "No lineage columns were returned by the MDB.");
+
+            var fields = Enumerable.Range(0, schemaReader.FieldCount)
+                .Select(i => (Name: schemaReader.GetName(i), Type: schemaReader.GetFieldType(i)))
+                .ToArray();
+            // ACE does not reliably allow a second command while its schema
+            // reader is open. Dispose it before querying any title history.
+            schemaReader.Dispose();
+
+            static bool IsInteger(Type type) => type == typeof(byte) || type == typeof(short)
+                || type == typeof(int) || type == typeof(long);
+
+            // Only explicitly identifiable numeric belt references are accepted.
+            // Do not mistake worker refs, company refs, or the prehistory UID for the belt.
+            string[] possibleLinks = {
+                "BeltUID", "Belt_UID", "BeltID", "Belt_ID", "BeltsUID",
+                "BeltsID", "TitleBeltUID", "TitleBeltID", "TitleUID",
+                "Title_UID", "TitleID", "Title_ID", "Belt", "Title"
+            };
+            string? link = possibleLinks.Select(candidate =>
+                fields.FirstOrDefault(f => f.Name.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
+                .Where(f => f.Name != null && IsInteger(f.Type))
+                .Select(f => f.Name).FirstOrDefault();
+
+            if (link == null)
+            {
+                var available = string.Join(", ", fields.Select(f => f.Name));
+                return new(result, null, null,
+                    "Could not safely identify the championship reference in tblBeltPreHistory. " +
+                    "No history is shown to avoid mixing reigns from different titles. " +
+                    "Detected columns: " + available);
+            }
+
+            string[] possibleOrders = {
+                "OrderNumber", "Order_Number", "OrderNo", "OrderNum",
+                "Order", "ReignNumber", "Position", "Sequence"
+            };
+            string? order = possibleOrders.Select(candidate => fields.FirstOrDefault(f =>
+                f.Name.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
+                .Where(f => f.Name != null && IsInteger(f.Type))
+                .Select(f => f.Name).FirstOrDefault();
+
+            // All identifiers below originate from the schema and are checked to
+            // match a fixed allowlist, not interpolated user-supplied text.
+            var orderSql = order == null ? "" : $" ORDER BY [{order}] ASC";
+            using var cmd = new OleDbCommand(
+                $"SELECT * FROM [{table}] WHERE [{link}] = ?{orderSql}", _connection);
+            cmd.Parameters.Add("beltId", OleDbType.Integer).Value = beltId;
+            using var adapter = new OleDbDataAdapter(cmd);
+            adapter.Fill(result);
+            string message = result.Rows.Count == 0
+                ? $"No pre-game title lineage entries are linked to championship ID {beltId}."
+                : $"Showing {result.Rows.Count:N0} recorded reign(s) for championship ID {beltId}.";
+            if (order == null)
+                message += " Order Number was not identified; sequence is unverified.";
+            return new(result, link, order, message);
+        }
+        catch (OleDbException ex)
+        {
+            return new(result, null, null,
+                "Could not read tblBeltPreHistory from this working MDB: " + ex.Message);
+        }
     }
 
     // Table and key are resolved from this hardcoded, small allowlist, never arbitrary UI text.

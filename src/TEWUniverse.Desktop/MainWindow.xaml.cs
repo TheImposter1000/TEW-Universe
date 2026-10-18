@@ -840,6 +840,8 @@ public partial class MainWindow : Window
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+        TitleEditorTabs.Visibility = section == "Titles" ? Visibility.Visible : Visibility.Collapsed;
+        ShowTitleDetails();
 
         var navigation = new[] {
             (Section: "Workers", Button: WorkersNav),
@@ -888,6 +890,8 @@ public partial class MainWindow : Window
         ExistingList.SelectedItem = null;
         _suppressExistingSelection = false;
         ExistingFieldsPanel.Children.Clear();
+        TitleLineageGrid.ItemsSource = null;
+        TitleLineageSummary.Text = "Select a championship to view its lineage.";
         if (_session == null)
         {
             ExistingCount.Text = "Open an editable database to browse records.";
@@ -952,6 +956,8 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("The selected record is missing from the working database.");
 
             _selectedExisting = selected;
+            TitleLineageGrid.ItemsSource = null;
+            TitleLineageSummary.Text = "Open Title Lineage to load pre-game reigns.";
             _existingFields.Clear();
             ExistingFieldsPanel.Children.Clear();
             ExistingRecordTitle.Text = selected.Name;
@@ -979,10 +985,57 @@ public partial class MainWindow : Window
                     Text = "No approved fields are present in this database record.",
                     Foreground = Muted, TextWrapping = TextWrapping.Wrap
                 });
+            if (_activeModule == "Titles" && TitleLineagePanel.Visibility == Visibility.Visible)
+                LoadTitleLineage();
             SetStatus($"Editing existing {_activeModule.ToLowerInvariant()} record {selected.Id}");
             RefreshDirty();
         }
         catch (Exception ex) { Error(ex); }
+    }
+
+    private void TitleInfoTab_Click(object sender, RoutedEventArgs e) => ShowTitleDetails();
+
+    private void TitleLineageTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeModule != "Titles") return;
+        TitleLineagePanel.Visibility = Visibility.Visible;
+        ExistingDetailsPanel.Visibility = Visibility.Collapsed;
+        TitleInfoTab.Style = (Style)FindResource("ActionButton");
+        TitleLineageTab.Style = (Style)FindResource("BlueButton");
+        LoadTitleLineage();
+    }
+
+    private void ShowTitleDetails()
+    {
+        if (TitleLineagePanel == null || ExistingDetailsPanel == null) return;
+        TitleLineagePanel.Visibility = Visibility.Collapsed;
+        ExistingDetailsPanel.Visibility = Visibility.Visible;
+        TitleInfoTab.Style = (Style)FindResource("BlueButton");
+        TitleLineageTab.Style = (Style)FindResource("ActionButton");
+    }
+
+    private void LoadTitleLineage()
+    {
+        if (_activeModule != "Titles" || _session == null || _selectedExisting == null)
+        {
+            TitleLineageGrid.ItemsSource = null;
+            TitleLineageSummary.Text = "Select a championship to view its lineage.";
+            return;
+        }
+        try
+        {
+            var history = _session.ReadTitleLineage(_selectedExisting.Id);
+            TitleLineageGrid.ItemsSource = history.LinkField == null
+                ? null : history.Rows.DefaultView;
+            TitleLineageSummary.Text = history.Message;
+            SetStatus(history.LinkField == null
+                ? "Lineage schema needs review" : $"Read {history.Rows.Rows.Count:N0} title lineage entries.");
+        }
+        catch (Exception ex)
+        {
+            TitleLineageGrid.ItemsSource = null;
+            TitleLineageSummary.Text = "Unable to load title lineage. " + ex.Message;
+        }
     }
 
     private void AddExistingField(FieldDraft field)

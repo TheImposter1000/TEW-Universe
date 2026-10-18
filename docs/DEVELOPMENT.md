@@ -16,6 +16,10 @@ Builds on GitHub Actions also publish a separate .NET updater agent and create a
 
 The Windows release now builds `src/TEWUniverse.Desktop` using WPF. Its MainWindow provides the redesigned sidebar, searchable worker list, profile, skills, popularity, physical and biography panels, plus settings and the existing update workflow. It shares the proven database service and local preferences from `src/TEWUniverse.Studio` through linked C# files; the old WinForms UI is not shipped. Other sidebar sections are labeled unavailable until implemented.
 
+## Title lineage (read-only)
+
+The Titles workspace includes **Championship Details** and **Title Lineage** tabs. Lineage reads `tblBeltPreHistory` directly. The data reader inspects the available columns, identifies an explicit numeric reference to `tblBelt.UID`, then fetches only the selected belt's rows using a parameterized query. Order Number is applied when a recognizable numeric order field is present. The read-only grid exposes the actual MDB columns rather than inventing holder names or dates. If the relation cannot be established, it explains which columns were found and shows no rows; other championships' histories must never leak into the selected one. Existing lineage creation/editing is **not yet available** because table-specific validation is unverified.
+
 ## Existing-record module expansion
 
 The integrated WPF workspace now supports repurposing **existing** company, title, event and stable entries without creating new TEW IX records. Modules use `tblFed`, `tblBelt`, `tblCard`, and `tblStable` respectively, each keyed by existing `UID`. The left browser searches names and IDs, and the right pane edits an allowlist of basic fields. **UID, company links, title holders, stable members, relationship IDs, and other unverified coded fields cannot be changed in these modules.**

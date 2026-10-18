@@ -406,20 +406,61 @@
                      Margin="0,18,0,0"/>
          </StackPanel>
         </Border>
-        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="17">
-         <DockPanel>
-          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-           <TextBlock x:Name="ExistingFieldsTitle" Text="Editable Information"
-                      FontSize="18" FontWeight="Bold"/>
-           <TextBlock Text="Fields with unverified TEW IX enumerations or foreign keys are not offered for editing."
-                      Foreground="{StaticResource TextBrushMuted}" FontSize="12"
-                      TextWrapping="Wrap" Margin="0,6,0,0"/>
-          </StackPanel>
-          <ScrollViewer VerticalScrollBarVisibility="Auto">
-           <StackPanel x:Name="ExistingFieldsPanel" Margin="0,0,12,12"/>
-          </ScrollViewer>
-         </DockPanel>
-        </Border>
+        <Grid Grid.Row="1">
+         <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+         </Grid.RowDefinitions>
+         <StackPanel x:Name="TitleEditorTabs" Grid.Row="0" Orientation="Horizontal"
+                     Visibility="Collapsed" Margin="0,0,0,10">
+          <Button x:Name="TitleInfoTab" Content="Championship Details"
+                  Style="{StaticResource BlueButton}" Click="TitleInfoTab_Click"
+                  Margin="0,0,9,0" Padding="18,11"/>
+          <Button x:Name="TitleLineageTab" Content="Title Lineage"
+                  Style="{StaticResource ActionButton}" Click="TitleLineageTab_Click"
+                  Padding="18,11"/>
+         </StackPanel>
+         <Border x:Name="ExistingDetailsPanel" Grid.Row="1"
+                 Style="{StaticResource CardBorder}" Padding="17">
+          <DockPanel>
+           <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+            <TextBlock x:Name="ExistingFieldsTitle" Text="Editable Information"
+                       FontSize="18" FontWeight="Bold"/>
+            <TextBlock Text="Fields with unverified TEW IX enumerations or foreign keys are not offered for editing."
+                       Foreground="{StaticResource TextBrushMuted}" FontSize="12"
+                       TextWrapping="Wrap" Margin="0,6,0,0"/>
+           </StackPanel>
+           <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="ExistingFieldsPanel" Margin="0,0,12,12"/>
+           </ScrollViewer>
+          </DockPanel>
+         </Border>
+         <Border x:Name="TitleLineagePanel" Grid.Row="1" Visibility="Collapsed"
+                 Style="{StaticResource CardBorder}" Padding="17">
+          <DockPanel>
+           <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+            <TextBlock Text="Championship Lineage" FontSize="20" FontWeight="Bold"/>
+            <TextBlock Text="Previous title holders from tblBeltPreHistory. Read-only until reign editing has been validated."
+                       Foreground="{StaticResource TextBrushMuted}" FontSize="12"
+                       TextWrapping="Wrap" Margin="0,6,0,7"/>
+            <TextBlock x:Name="TitleLineageSummary" Text="Select a championship to view its lineage."
+                       Foreground="#B9D4ED" FontSize="12" TextWrapping="Wrap"/>
+           </StackPanel>
+           <DataGrid x:Name="TitleLineageGrid" AutoGenerateColumns="True"
+                     IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
+                     CanUserReorderColumns="True" CanUserSortColumns="True"
+                     SelectionMode="Single" HeadersVisibility="Column"
+                     Background="#102238" Foreground="#E2EDF8"
+                     BorderBrush="#3B5673" BorderThickness="1"
+                     RowBackground="#142B45" AlternatingRowBackground="#193550"
+                     HorizontalGridLinesBrush="#345372" VerticalGridLinesBrush="#345372"
+                     ColumnHeaderHeight="35" RowHeight="30"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     MinColumnWidth="90"/>
+          </DockPanel>
+         </Border>
+        </Grid>
        </Grid>
       </Grid>
     </Grid>
