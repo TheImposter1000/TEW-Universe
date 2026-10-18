@@ -132,12 +132,21 @@ internal sealed class TagTeamCreateDialog : Window
         VerticalContentAlignment = VerticalAlignment.Center
     };
 
-    private ComboBox Picker(System.Collections.IEnumerable choices) => new() {
-        Style = (Style)FindResource("DarkComboBox"),
-        ItemsSource = choices,
-        IsEditable = true, IsTextSearchEnabled = true,
-        MinHeight = 35, MaxDropDownHeight = 260
-    };
+    private ComboBox Picker(System.Collections.IEnumerable choices)
+    {
+        var combo = new ComboBox {
+            Style = (Style)FindResource("DarkComboBox"),
+            ItemsSource = choices,
+            IsEditable = true, IsTextSearchEnabled = true,
+            MinHeight = 35, MaxDropDownHeight = 260
+        };
+        if (choices is IEnumerable<Choice>)
+        {
+            combo.DisplayMemberPath = nameof(Choice.Label);
+            TextSearch.SetTextPath(combo, nameof(Choice.Label));
+        }
+        return combo;
+    }
 
     private static void AddField(Panel panel, string label, Control input)
     {

@@ -10,6 +10,8 @@ The sidebar now includes **Tag Teams**, integrated into the existing three-colum
 
 This initial module must be tested in TEW IX's Data Check using a backed-up scenario before editing your main scenario. Its form fields and mappings may be adjusted as MDB-specific details are validated.
 
+**Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
+
 ## Desktop application
 
 The published Windows app now uses **WPF and .NET 8**. Its source is in `src/TEWUniverse.Desktop`, sharing the existing Access data layer and settings from `src/TEWUniverse.Studio`.

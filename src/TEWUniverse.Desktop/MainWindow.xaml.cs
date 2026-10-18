@@ -2122,8 +2122,10 @@ public partial class MainWindow : Window
         var combo = new ComboBox {
             Style = (Style)FindResource("DarkComboBox"),
             MinHeight = 35, MaxDropDownHeight = 260,
-            IsEditable = true, IsTextSearchEnabled = true
+            IsEditable = true, IsTextSearchEnabled = true,
+            DisplayMemberPath = nameof(TagTeamChoice.Label)
         };
+        TextSearch.SetTextPath(combo, nameof(TagTeamChoice.Label));
         try
         {
             List<TagTeamChoice> choices = field.Column switch {
