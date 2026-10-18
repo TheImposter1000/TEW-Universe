@@ -1556,13 +1556,16 @@ public partial class MainWindow : Window
                     "NPC History needs a valid first and last year (1800–2100).");
 
             bool annualTournament = IsAnnualTournament();
-            var anchored = new List<AnchoredHistoryPlanner.Anchor>();
+            // Each row now describes a COUNT of wins inside its active
+            // interval. Years and durations are independently optional by
+            // ordinal position. Repeat years (2016, 2016) are legitimate.
+            var requests = new List<SuperstarReignInputPlanner.Request>();
             foreach (var participant in _advancedParticipants)
             {
-                if (participant.WorkerId <= 0 || !_allWorkers.Any(w => w.Id == participant.WorkerId))
+                if (participant.WorkerId <= 0 ||
+                    !_allWorkers.Any(w => w.Id == participant.WorkerId))
                     throw new InvalidOperationException(
-                        $"Superstar '{participant.DisplayName}' must link to an existing worker. " +
-                        "NPCs are generated separately from tblGenerateWorker.");
+                        $"Superstar '{participant.DisplayName}' must link to an existing worker.");
                 if (!int.TryParse(participant.FirstYear, NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out int from)
                     || !int.TryParse(participant.LastYear, NumberStyles.Integer,
@@ -1574,84 +1577,19 @@ public partial class MainWindow : Window
                         CultureInfo.InvariantCulture, out int reigns) ||
                     reigns is < 1 or > 500)
                     throw new InvalidOperationException(
-                        $"Enter at least one reign for '{participant.DisplayName}'.");
-
-                var rawYears = participant.WinYears.Trim();
-                if (string.IsNullOrWhiteSpace(rawYears) && from == to && reigns == 1)
-                {
-                    rawYears = from.ToString(CultureInfo.InvariantCulture);
-                    participant.WinYears = rawYears;
-                }
-                var tokens = rawYears.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' },
-                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (tokens.Length != reigns)
-                    throw new InvalidOperationException(
-                        $"{participant.DisplayName} has {reigns} specified reign(s) but " +
-                        $"{tokens.Length} winning year(s). Enter one year for each reign.");
-
-                // Each optional duration corresponds to the winning year in
-                // the same position. A dash means keep randomized duration.
-                // '719d' counts inclusive days; '2y' ends at the 2nd calendar
-                // anniversary, so leap years are handled by DateTime.AddYears.
-                var rawLengths = participant.ReignLengths.Trim();
-                var lengthTokens = rawLengths.Length == 0
-                    ? Enumerable.Repeat("-", tokens.Length).ToArray()
-                    : rawLengths.Split(new[] { ',', ';' }, StringSplitOptions.TrimEntries);
-                if (lengthTokens.Length != tokens.Length)
-                    throw new InvalidOperationException(
-                        $"{participant.DisplayName} has {tokens.Length} winning year(s) " +
-                        $"but {lengthTokens.Length} duration entry/entries. " +
-                        "Use one duration per win in order (for example -, 719d, 2y).");
-                var uniqueYears = new HashSet<int>();
-                for (int winIndex = 0; winIndex < tokens.Length; winIndex++)
-                {
-                    string token = tokens[winIndex];
-                    string lengthToken = lengthTokens[winIndex].Trim();
-                    int? exactDays = null;
-                    int? exactYears = null;
-                    if (lengthToken.Length > 0 && lengthToken != "-" &&
-                        !lengthToken.Equals("random", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (annualTournament)
-                            throw new InvalidOperationException(
-                                "Annual Tournament / Cup winners have no continuing title reign. " +
-                                $"Remove the exact duration for {participant.DisplayName}.");
-                        var duration = Regex.Match(lengthToken,
-                            @"^(?<number>\d+)\s*(?<unit>d|days?|y|years?)?$",
-                            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-                        if (!duration.Success ||
-                            !int.TryParse(duration.Groups["number"].Value,
-                                NumberStyles.None, CultureInfo.InvariantCulture, out int amount))
-                            throw new InvalidOperationException(
-                                $"Invalid reign length '{lengthToken}' for {participant.DisplayName}. " +
-                                "Use 719d, 2y, or - to leave that reign random.");
-                        string unit = duration.Groups["unit"].Value.ToLowerInvariant();
-                        if (unit.StartsWith("y", StringComparison.Ordinal))
-                            exactYears = amount;
-                        else
-                            exactDays = amount;
-                        if (exactDays.HasValue && exactDays.Value is < 1 or > 36525 ||
-                            exactYears.HasValue && exactYears.Value is < 1 or > 100)
-                            throw new InvalidOperationException(
-                                $"Reign length for {participant.DisplayName} is out of range. " +
-                                "Choose 1–36,525 days or 1–100 calendar years.");
-                    }
-                    if (!int.TryParse(token, NumberStyles.Integer,
-                            CultureInfo.InvariantCulture, out int winningYear)
-                        || !uniqueYears.Add(winningYear))
-                        throw new InvalidOperationException(
-                            $"'{token}' is not a unique valid winning year for {participant.DisplayName}.");
-                    if (winningYear < from || winningYear > to ||
-                        winningYear < firstYear || winningYear > lastYear)
-                        throw new InvalidOperationException(
-                            $"{participant.DisplayName}'s win in {winningYear} is outside " +
-                            "their active years or the NPC History time range.");
-                    anchored.Add(new AnchoredHistoryPlanner.Anchor(
-                        participant.DisplayName.Trim(), participant.WorkerId,
-                        winningYear, from, to, ReignDays: exactDays,
-                        ReignYears: exactYears));
-                }
+                        $"Enter a reign count from 1 to 500 for '{participant.DisplayName}'.");
+                requests.Add(new SuperstarReignInputPlanner.Request(
+                    participant.DisplayName.Trim(), participant.WorkerId, from, to,
+                    reigns, participant.WinYears, participant.ReignLengths));
             }
+            bool hasAutoYears = !annualTournament && requests.Any(r =>
+            {
+                var entries = r.YearsWon.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' },
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                return entries.Length < r.Reigns ||
+                    entries.Any(y => y == "-" ||
+                        y.Equals("auto", StringComparison.OrdinalIgnoreCase));
+            });
             // Every year without a pinned superstar receives an NPC winner.
             // The NPC source table is read-only: no generated workers are inserted.
             var seeds = _session.ReadGeneratedWorkerNames(
@@ -1671,24 +1609,51 @@ public partial class MainWindow : Window
                 eventWeek = AnnualTournamentWeek.SelectedIndex + 1;
                 eventWeekday = (DayOfWeek)AnnualTournamentWeekday.SelectedIndex;
             }
-            var chronologyNotes = new Dictionary<(int WorkerId, int Year), string>();
-            if (!annualTournament && AdvancedRespectTournamentDates.IsChecked == true &&
-                anchored.Count > 0)
-            {
-                var aligned = ApplyTournamentChronology(anchored);
-                anchored = aligned.Wins;
-                chronologyNotes = aligned.Notes;
-            }
-
-            // January preserves previous generator behavior when unspecified.
-            // The month is relevant only to continuing championship histories;
-            // annual cups already use their separate recurring event month.
+            // January is still the default opening MONTH; the planner now
+            // chooses a random inaugural day WITHIN the selected month.
             int startMonth = !annualTournament && AdvancedStartMonth.SelectedIndex > 0
                 ? AdvancedStartMonth.SelectedIndex : 1;
-            var proposal = AnchoredHistoryPlanner.GenerateFromYears(
-                anchored, seeds, firstYear, lastYear,
-                annualTournament, eventMonth, eventWeek, eventWeekday, startMonth);
-
+            var chronologyNotes = new Dictionary<(int WorkerId, int Year), string>();
+            var anchored = new List<AnchoredHistoryPlanner.Anchor>();
+            List<GeneratedTitleReign>? proposal = null;
+            InvalidOperationException? lastScheduleFailure = null;
+            // Years left unspecified can be rerolled to fit protected
+            // durations and other linked winners instead of failing on
+            // one unlucky random assignment.
+            int attempts = hasAutoYears ? 100 : 1;
+            for (int attempt = 0; attempt < attempts; attempt++)
+            {
+                var candidate = SuperstarReignInputPlanner.Expand(
+                    requests, firstYear, lastYear, annualTournament);
+                var candidateNotes = new Dictionary<(int WorkerId, int Year), string>();
+                if (!annualTournament && AdvancedRespectTournamentDates.IsChecked == true &&
+                    candidate.Count > 0)
+                {
+                    var aligned = ApplyTournamentChronology(candidate);
+                    candidate = aligned.Wins;
+                    candidateNotes = aligned.Notes;
+                }
+                try
+                {
+                    var candidateHistory = AnchoredHistoryPlanner.GenerateFromYears(
+                        candidate, seeds, firstYear, lastYear,
+                        annualTournament, eventMonth, eventWeek, eventWeekday, startMonth);
+                    anchored = candidate;
+                    chronologyNotes = candidateNotes;
+                    proposal = candidateHistory;
+                    break;
+                }
+                catch (InvalidOperationException ex) when (attempt + 1 < attempts)
+                {
+                    lastScheduleFailure = ex;
+                }
+            }
+            if (proposal == null)
+                throw new InvalidOperationException(
+                    "Could not place all requested reigns within the superstars' " +
+                    "active-year windows. Repeated winning years ARE allowed, but " +
+                    "the specified reign durations still need a feasible sequence. " +
+                    (lastScheduleFailure == null ? "" : lastScheduleFailure.Message));
             var history = _session.ReadTitleLineage(_selectedExisting.Id);
             ResetAdvancedDraft();
             _advancedDraft = proposal;
@@ -1713,6 +1678,13 @@ public partial class MainWindow : Window
                 if (chronologyNotes.Count > 0)
                     preview.Columns.Add("Tournament chronology", typeof(string));
             }
+            // Preserve the intended per-reign requested duration even when
+            // one superstar wins more than once in the same year.
+            var requestedLengths = anchored
+                .GroupBy(w => (w.WorkerId, w.WinYear))
+                .ToDictionary(g => g.Key,
+                    g => new Queue<AnchoredHistoryPlanner.Anchor>(
+                        g.OrderBy(w => w.SourceOrder)));
             for (int i = 0; i < proposal.Count; i++)
             {
                 var reign = proposal[i];
@@ -1724,12 +1696,16 @@ public partial class MainWindow : Window
                         predecessor, successor, reign.Captured, reign.Lost, reign.Defences);
                 else
                 {
-                    var anchor = anchored.FirstOrDefault(w => w.WorkerId == reign.Holder1 &&
-                        w.WinYear == reign.Captured.Year);
+                    AnchoredHistoryPlanner.Anchor? anchor = null;
+                    if (requestedLengths.TryGetValue((reign.Holder1, reign.Captured.Year),
+                            out var pending) && pending.Count > 0)
+                        anchor = pending.Dequeue();
                     string request = anchor?.ReignDays is int days
-                        ? $"{days} days"
+                        ? $"{days} exact days"
                         : anchor?.ReignYears is int years
-                            ? $"{years} calendar year(s)" : "";
+                            ? $"~{years} year(s)" :
+                          anchor?.ReignMonths is int months
+                            ? $"~{months} month(s)" : "";
                     chronologyNotes.TryGetValue((reign.Holder1, reign.Captured.Year),
                         out var source);
                     if (chronologyNotes.Count > 0)
@@ -1782,11 +1758,12 @@ public partial class MainWindow : Window
                 ? $"Event rule: {((ComboBoxItem)AnnualTournamentWeek.SelectedItem).Content} " +
                   $"{((ComboBoxItem)AnnualTournamentWeekday.SelectedItem).Content} of " +
                   $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(eventMonth)}. "
-                : $"History begins {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(startMonth)} 1, {firstYear}. ";
+                : $"History opens in {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(startMonth)} {firstYear} (randomized day). ";
             int protectedReigns = anchored.Count(w =>
-                w.ReignDays.HasValue || w.ReignYears.HasValue);
+                w.ReignDays.HasValue || w.ReignYears.HasValue ||
+                w.ReignMonths.HasValue);
             string durationStatus = !annualTournament && protectedReigns > 0
-                ? $"{protectedReigns} exact superstar reign length(s) protected. " : "";
+                ? $"{protectedReigns} requested superstar reign length(s) protected. " : "";
             string chronology = chronologyNotes.Count > 0
                 ? $"{chronologyNotes.Count} championship win(s) scheduled after recorded tournament victories. "
                 : !annualTournament && AdvancedRespectTournamentDates.IsChecked == true

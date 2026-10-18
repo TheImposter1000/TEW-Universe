@@ -166,7 +166,8 @@ for (int iteration = 0; iteration < 40; iteration++)
     var pwaHistory = AnchoredHistoryPlanner.GenerateFromYears(
         noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2021,
         startMonth: 6);
-    if (pwaHistory.Count == 0 || pwaHistory[0].Captured != juneOpening ||
+    if (pwaHistory.Count == 0 || pwaHistory[0].Captured.Month != 6 ||
+        pwaHistory[0].Captured.Year != 2002 ||
         pwaHistory.Any(reign => reign.Captured < juneOpening || reign.Lost < juneOpening) ||
         pwaHistory[^1].Lost != new DateTime(2021, 12, 31))
         throw new Exception("A June 2002 championship history started before the company opened.");
@@ -183,7 +184,7 @@ for (int iteration = 0; iteration < 40; iteration++)
     var pwaHistory = AnchoredHistoryPlanner.GenerateFromYears(
         pinnedFoundingYear, npcSeeds, firstYear: 2002, lastYear: 2003,
         startMonth: 6);
-    if (pwaHistory[0].Captured != juneOpening ||
+    if (pwaHistory[0].Captured.Month != 6 ||
         pwaHistory.Any(reign => reign.Captured < juneOpening) ||
         !pwaHistory.Any(reign => reign.Holder1 == 100 &&
             reign.Captured.Year == 2002 &&
@@ -197,8 +198,8 @@ for (int iteration = 0; iteration < 40; iteration++)
 // previous January 1 behavior, including in NPC-only histories.
 var unchangedDefault = AnchoredHistoryPlanner.GenerateFromYears(
     noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2002);
-if (unchangedDefault[0].Captured != new DateTime(2002, 1, 1))
-    throw new Exception("Default championship history no longer begins January 1.");
+if (unchangedDefault[0].Captured.Month != 1 || unchangedDefault[0].Captured.Year != 2002)
+    throw new Exception("Default championship history no longer begins within January.");
 
 // The start-month setting is deliberately separate from annual tournament
 // recurring event dates: a Cup edition still uses its chosen event week/day.
@@ -268,7 +269,9 @@ for (int seed = 0; seed < 100; seed++)
         r.HolderName1 == "Tavitia" && r.Captured.Year == 2016);
     var zara = history.Single(r => r.Holder1 == 4966 &&
         r.HolderName1 == "Zara Ellis" && r.Captured.Year == 2020);
-    if (tavitia.Lost != tavitia.Captured.AddYears(2).AddDays(-1) ||
+    int tavitiaOverrun = (tavitia.Lost.AddDays(1) -
+        tavitia.Captured.AddYears(2)).Days;
+    if (tavitiaOverrun is < 0 or > 90 ||
         zara.Lost != zara.Captured.AddDays(718) ||
         (zara.Lost - zara.Captured).Days + 1 != 719)
         throw new Exception("An exact superstar reign was cut short or counted incorrectly.");
@@ -295,9 +298,10 @@ var leap = ChampionshipWinScheduler.Schedule(new[]
 }, historyStart: new DateTime(2020, 1, 1),
     historyEnd: new DateTime(2023, 12, 31));
 if (leap.Count != 1 ||
-    ChampionshipWinScheduler.RequiredNextCaptureDate(leap[0]) !=
-    leap[0].Date.AddYears(2))
-    throw new Exception("Two calendar years were not scheduled using AddYears.");
+    ChampionshipWinScheduler.RequiredNextCaptureDate(leap[0]) is not DateTime leapEnd ||
+    leapEnd < leap[0].Date.AddYears(2) ||
+    leapEnd > leap[0].Date.AddYears(2).AddDays(90))
+    throw new Exception("Approximate two-calendar-year reign did not honor its date window.");
 
 // Within-year schedule must move the capture EARLIER if the exact reign would
 // otherwise run beyond the last day of the user-defined history.
@@ -376,6 +380,141 @@ if (!annualLengthRejected)
     throw new Exception("Annual Cup accepted a continuing championship reign length.");
 
 Console.WriteLine("Passed 200 randomized exact superstar reigns, continuity and conflict checks.");
+
+// A promotion that began in June can debut its inaugural champion any
+// calendar day in June, rather than always using June 1.
+var openingDays = new HashSet<int>();
+for (int attempt = 0; attempt < 100; attempt++)
+{
+    var history = AnchoredHistoryPlanner.GenerateFromYears(
+        noPinnedWinners, npcSeeds, firstYear: 2002, lastYear: 2003,
+        startMonth: 6);
+    var initial = history[0].Captured;
+    if (initial.Year != 2002 || initial.Month != 6)
+        throw new Exception("The first championship reign escaped its opening month.");
+    openingDays.Add(initial.Day);
+}
+if (openingDays.Count < 8)
+    throw new Exception("Inaugural date appears hardcoded rather than randomized.");
+
+// Fourteen reigns within a shorter active range may legitimately contain
+// repeated winning years, e.g. a hot-potato rivalry in 2016.
+var fourteen = SuperstarReignInputPlanner.Expand(new[]
+{
+    new SuperstarReignInputPlanner.Request("Charlotte Flair", 100, 2013, 2020,
+        14, "2016, 2016", "")
+}, 2013, 2020, random: new Random(42));
+if (fourteen.Count != 14 || fourteen[0].WinYear != 2016 ||
+    fourteen[1].WinYear != 2016 || fourteen.Any(x =>
+        x.WinYear is < 2013 or > 2020) ||
+    fourteen.Zip(fourteen.Skip(1)).Any(p => p.First.WinYear > p.Second.WinYear))
+    throw new Exception("Multiple same-year title wins were rejected or placed outside the active window.");
+
+// The same actual worker can win, lose, and regain a title twice in one
+// calendar year; the history must contain two DISTINCT reigns with an NPC
+// or a different superstar between them.
+for (int attempt = 0; attempt < 80; attempt++)
+{
+    var repeated = AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Charlotte Flair", 100, 2016,
+            2014, 2018, SourceOrder: 0),
+        new AnchoredHistoryPlanner.Anchor("Charlotte Flair", 100, 2016,
+            2014, 2018, SourceOrder: 1)
+    }, npcSeeds, 2014, 2018);
+    var matches = repeated.Select((v, index) => (v, index))
+        .Where(x => x.v.Holder1 == 100 && x.v.Captured.Year == 2016).ToArray();
+    if (matches.Length != 2 || matches[1].index <= matches[0].index + 1)
+        throw new Exception("Same worker's repeated 2016 reigns were merged.");
+}
+
+// Two women exchanging the title repeatedly in the same year should
+// alternate naturally instead of scheduling all one wrestler's wins first.
+for (int i = 0; i < 60; i++)
+{
+    var feud = ChampionshipWinScheduler.Schedule(new[]
+    {
+        new ChampionshipWinScheduler.Win(10, "Charlotte Flair", 2016, SourceOrder: 0),
+        new ChampionshipWinScheduler.Win(10, "Charlotte Flair", 2016, SourceOrder: 1),
+        new ChampionshipWinScheduler.Win(20, "Sasha Banks", 2016, SourceOrder: 2),
+        new ChampionshipWinScheduler.Win(20, "Sasha Banks", 2016, SourceOrder: 3)
+    });
+    if (feud.Count != 4 ||
+        !feud.Select(x => x.WorkerId).SequenceEqual(new[] { 10, 20, 10, 20 }) ||
+        feud.Any(x => x.Date.Year != 2016))
+        throw new Exception("Same-year title-trading feud failed to alternate winners.");
+}
+
+// All durations are OPTIONAL independently. A six-time champion can have
+// one historical 2011 title win lasting ~2y and five freely generated years
+// and lengths. Explicit d values remain exact.
+var partial = SuperstarReignInputPlanner.Expand(new[]
+{
+    new SuperstarReignInputPlanner.Request("Tavitia", 200, 2011, 2020,
+        6, "2011", "2y")
+}, 2005, 2024, random: new Random(21));
+if (partial.Count != 6 || partial[0].WinYear != 2011 ||
+    partial[0].ReignYears != 2 || partial.Any(x =>
+        x.WinYear < 2011 || x.WinYear > 2020) ||
+    partial.Skip(1).Any(x => x.ReignDays.HasValue ||
+        x.ReignYears.HasValue || x.ReignMonths.HasValue))
+    throw new Exception("Partial reign-length or automatic-year mapping failed.");
+
+var positionals = SuperstarReignInputPlanner.Expand(new[]
+{
+    new SuperstarReignInputPlanner.Request("Tavitia", 200, 2008, 2018,
+        6, "-, -, 2011", "-, -, 2y")
+}, 2008, 2018, random: new Random(9));
+if (positionals.Count != 6 || positionals[2].WinYear != 2011 ||
+    positionals[2].ReignYears != 2 ||
+    positionals.Where((x, index) => index != 2).Any(x =>
+        x.ReignDays.HasValue || x.ReignYears.HasValue || x.ReignMonths.HasValue))
+    throw new Exception("Later fixed winning year / reign length changed its position.");
+
+var zaraSpec = SuperstarReignInputPlanner.Expand(new[]
+{
+    new SuperstarReignInputPlanner.Request("Zara Ellis", 501, 2017, 2023,
+        1, "2019", "719d")
+}, 2017, 2023);
+if (zaraSpec.Single().ReignDays != 719)
+    throw new Exception("The exact 719-day requirement was not carried through.");
+
+// A six-month approximate reign preserves at least six calendar months and
+// can extend up to thirty extra days, subject to available scheduling space.
+bool sawMonthOverrun = false;
+for (int i = 0; i < 70; i++)
+{
+    var monthHistory = AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Half Year Champion", 300, 2017,
+            2017, 2019, ReignMonths: 6)
+    }, npcSeeds, 2016, 2019);
+    var champion = monthHistory.Single(x => x.Holder1 == 300);
+    var overrun = (champion.Lost.AddDays(1) -
+        champion.Captured.AddMonths(6)).Days;
+    if (overrun is < 0 or > 30)
+        throw new Exception("Six-month reign exceeded its allowed approximate range.");
+    if (overrun > 0) sawMonthOverrun = true;
+}
+if (!sawMonthOverrun)
+    throw new Exception("Six-month reigns never vary beyond the exact anniversary.");
+
+// Linked superstar annual Cup editions still cannot contain two winners
+// in the same year.
+bool annualRepeatRejected = false;
+try
+{
+    AnchoredHistoryPlanner.GenerateFromYears(new[]
+    {
+        new AnchoredHistoryPlanner.Anchor("Cup Winner", 400, 2016, 2016, 2016),
+        new AnchoredHistoryPlanner.Anchor("Cup Winner", 400, 2016, 2016, 2016)
+    }, npcSeeds, 2016, 2016, true, 8, 4, DayOfWeek.Saturday);
+}
+catch (InvalidOperationException) { annualRepeatRejected = true; }
+if (!annualRepeatRejected)
+    throw new Exception("Annual Cup mode accepted two winners in one edition.");
+
+Console.WriteLine("Passed repeat-year, partial-length, approximate-month and randomized-start checks.");
 
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {

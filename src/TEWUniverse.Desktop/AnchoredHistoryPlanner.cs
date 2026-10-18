@@ -11,7 +11,8 @@ internal static class AnchoredHistoryPlanner
 {
     internal sealed record Anchor(string Name, int WorkerId, int WinYear,
         int FirstEligibleYear, int LastEligibleYear, DateTime? NotBefore = null,
-        int? ReignDays = null, int? ReignYears = null);
+        int? ReignDays = null, int? ReignYears = null,
+        int? ReignMonths = null, int SourceOrder = 0);
     private sealed record ChampionshipEvent(DateTime Date, int UID, string Name,
         DateTime? ForcedEnd = null, bool ForcedNpcBridge = false);
     private sealed record Event(DateTime Won, Anchor? FixedWinner);
@@ -58,9 +59,9 @@ internal static class AnchoredHistoryPlanner
                     $"The pinned win for {win.Name} ({win.WinYear}) is outside its allowed years.");
             if (!reserved.TryGetValue(win.WinYear, out var wins))
                 reserved[win.WinYear] = wins = new List<Anchor>();
-            if (wins.Any(x => x.WorkerId == win.WorkerId))
-                throw new InvalidOperationException(
-                    $"{win.Name} has the year {win.WinYear} entered more than once.");
+            // Ordinary championships can change hands repeatedly within
+            // the same calendar year, including twice to the same wrestler.
+            // Annual Cups still have just one winner per yearly edition.
             wins.Add(win);
         }
 
@@ -68,7 +69,8 @@ internal static class AnchoredHistoryPlanner
             throw new InvalidOperationException(
                 "Annual Tournament mode permits only one winner in each calendar year.");
         if (annualTournament && fixedWins.Any(w =>
-                w.ReignDays.HasValue || w.ReignYears.HasValue))
+                w.ReignDays.HasValue || w.ReignYears.HasValue ||
+                w.ReignMonths.HasValue))
             throw new InvalidOperationException(
                 "Exact reign lengths apply to championships only. Annual Cups record individual victories, not continuing title reigns.");
 
@@ -186,14 +188,19 @@ internal static class AnchoredHistoryPlanner
     {
         const int maxReigns = 500;
         const int minimumTransitionDays = 7;
-        var firstDay = new DateTime(firstYear, startMonth, 1);
+        // A starting MONTH is the allowed opening window, not a command
+        // to create an inaugural champion on the 1st. Pick a new opening
+        // day within that month on each regeneration.
+        var firstDay = new DateTime(firstYear, startMonth,
+            Random.Shared.Next(1, DateTime.DaysInMonth(firstYear, startMonth) + 1));
         var lastDay = new DateTime(lastYear, 12, 31);
 
         // Fixed winning years are preserved, but any relevant prior tournament
         // victories can move the capture date later inside that same year.
         var pinned = ChampionshipWinScheduler.Schedule(fixedWins.Select(w =>
             new ChampionshipWinScheduler.Win(w.WorkerId, w.Name, w.WinYear,
-                w.NotBefore, w.ReignDays, w.ReignYears))
+                w.NotBefore, w.ReignDays, w.ReignYears, w.ReignMonths,
+                w.SourceOrder))
             .ToArray(), firstDay, lastDay).Select(w => new ChampionshipEvent(
                 w.Date, w.WorkerId, w.Name,
                 ChampionshipWinScheduler.RequiredNextCaptureDate(w))).ToList();
@@ -362,12 +369,16 @@ internal static class AnchoredHistoryPlanner
                 i + 1, curr.UID, curr.Name, -1, "", curr.Date, lost, defenses));
         }
 
-        foreach (var win in fixedWins)
+        // Count by (worker, year) instead of demanding a unique year: title
+        // hot-potato feuds can legitimately create multiple wins in 2016.
+        foreach (var group in fixedWins.GroupBy(w => (w.WorkerId, w.WinYear)))
         {
-            if (results.Count(r => r.Holder1 == win.WorkerId &&
-                    r.HolderName1 == win.Name && r.Captured.Year == win.WinYear) != 1)
+            int count = results.Count(r => r.Holder1 == group.Key.WorkerId &&
+                r.Captured.Year == group.Key.WinYear);
+            if (count != group.Count())
                 throw new InvalidOperationException(
-                    $"The fixed winning year {win.WinYear} for {win.Name} was not preserved.");
+                    $"Expected {group.Count()} win(s) for worker {group.Key.WorkerId} " +
+                    $"in {group.Key.WinYear}, but generated {count}.");
         }
         return results;
     }
