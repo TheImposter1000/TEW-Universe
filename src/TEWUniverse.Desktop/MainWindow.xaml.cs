@@ -186,10 +186,98 @@ public partial class MainWindow : Window
         finally { _loading = false; RefreshDirty(); }
     }
 
+
     private static string FriendlyName(string column)
     {
-        var result = Regex.Replace(column, @"(?<=[a-z0-9])(?=[A-Z])", " ");
-        return result.Replace("_", " ");
+        var specialized = column switch {
+            "Shortname" => "Short Name",
+            "Birthday" => "Date of Birth",
+            "Based_In" => "Based In",
+            "DebutDate" => "Debut Date",
+            "DeathDate" => "Date of Death",
+            "CompetesAgainst" => "Competes Against",
+            "WorkerHeight" => "Height",
+            "WorkerWeight" => "Weight",
+            _ => ""
+        };
+        if (specialized.Length > 0) return specialized;
+        return Regex.Replace(column, @"(?<=[a-z0-9])(?=[A-Z])", " ").Replace("_", " ");
+    }
+
+    private string? ValueFor(string field) => _fields.FirstOrDefault(
+        x => x.Table == "tblWorker" && x.Column.Equals(field, StringComparison.OrdinalIgnoreCase))?.Value;
+
+    private static string DisplayGender(string? value) => value switch
+    {
+        "1" => "Male", "2" => "Female",
+        null or "" => "Not recorded", _ => "Gender code " + value
+    };
+
+    // No guessing about TEW IX enum mappings. Their code remains visible to editors.
+    private static string Unmapped(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not recorded" : "Code " + value + " (unmapped)";
+
+    private static DateTime? ParseStoredDate(string? raw)
+        => DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) &&
+            d.Year is >= 1800 and <= 2200 ? d : null;
+
+    private static string FriendlyDate(string? raw) =>
+        ParseStoredDate(raw)?.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) ?? "Not recorded";
+
+    private void AddHeaderFact(string glyph, string value)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0,0,18,6) };
+        row.Children.Add(new TextBlock {
+            Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15,
+            Foreground = Brushes.LightSkyBlue, Margin = new Thickness(0,0,7,0)
+        });
+        row.Children.Add(new TextBlock { Text = value, FontSize = 12, Foreground = Muted });
+        HeaderFactsPanel.Children.Add(row);
+    }
+
+    private void AddQuickFact(string label, string value)
+    {
+        var cell = new StackPanel { Margin = new Thickness(3,0,10,10) };
+        cell.Children.Add(new TextBlock { Text = label, Foreground = Muted, FontSize = 11 });
+        cell.Children.Add(new TextBlock { Text = value, FontSize = 12,
+            FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = value, Margin = new Thickness(0,2,0,0) });
+        QuickFactsPanel.Children.Add(cell);
+    }
+
+    private void BuildWorkerFacts()
+    {
+        if (_worker == null) return;
+        HeaderFactsPanel.Children.Clear();
+        var gender = DisplayGender(ValueFor("Gender"));
+        var dob = ParseStoredDate(ValueFor("Birthday"));
+        AddHeaderFact("\uE77B", gender);
+        if (dob.HasValue)
+        {
+            int years = DateTime.Today.Year - dob.Value.Year;
+            if (dob.Value.Date > DateTime.Today.AddYears(-years)) years--;
+            AddHeaderFact("\uE787", FriendlyDate(ValueFor("Birthday")) + (years >= 0 ? $" ({years} years)" : ""));
+        }
+        if (ValueFor("Nationality") is string n && n.Length > 0)
+            AddHeaderFact("\uE774", "Nationality: " + Unmapped(n));
+        if (ValueFor("Based_In") is string b && b.Length > 0)
+            AddHeaderFact("\uE80F", "Based in: " + Unmapped(b));
+        if (ParseStoredDate(ValueFor("DebutDate")).HasValue)
+            AddHeaderFact("\uE787", "Debut: " + FriendlyDate(ValueFor("DebutDate")));
+
+        QuickFactsPanel.Children.Clear();
+        AddQuickFact("Worker ID", _worker.Id.ToString(CultureInfo.InvariantCulture));
+        AddQuickFact("Gender", gender);
+        AddQuickFact("Date of Birth", FriendlyDate(ValueFor("Birthday")));
+        AddQuickFact("Status", _worker.IsActive switch
+        {
+            true => "Active", false => "Inactive", _ => "Not recorded"
+        });
+        AddQuickFact("Nationality", Unmapped(ValueFor("Nationality")));
+        AddQuickFact("Based In", Unmapped(ValueFor("Based_In")));
+        AddQuickFact("Wrestling Style", Unmapped(ValueFor("Style")));
+        AddQuickFact("Debut Date", FriendlyDate(ValueFor("DebutDate")));
     }
 
     private void AddField(StackPanel destination, FieldDraft item)
