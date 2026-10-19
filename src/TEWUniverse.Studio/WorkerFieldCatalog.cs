@@ -27,10 +27,9 @@ internal static class WorkerFieldCatalog
         ["WorkerUID"] = "Worker ID"
     };
 
-    private static readonly HashSet<string> UnverifiedCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CompetesAgainst", "Outsiderel"
-    };
+    // Currently all specifically identified worker enum fields have been mapped.
+    // Keep this catalog for future fields whose meanings are not yet verified.
+    private static readonly HashSet<string> UnverifiedCodes = new(StringComparer.OrdinalIgnoreCase);
 
     public static bool IsUnknownCode(string name, Type type) =>
         type != typeof(bool) && type != typeof(string) &&
