@@ -889,12 +889,13 @@ for (int i = 0; i < teamTypeLabels.Length; i++)
         TewCodeLabels.Choices("tblTeam", "Type")[i].Code != i + 1)
         throw new Exception($"Tag team code {stored} did not map to {teamTypeLabels[i]}.");
 }
+bool parsedCode = TewCodeLabels.TryGetCode("Code 5", out int genderCode);
 if (TewCodeLabels.Display("tblWorker", "Gender", "Code 5") != "Female" ||
     TewCodeLabels.Display("tblWorker", "Gender", "999") != "Code 999" ||
     TewCodeLabels.Display("tblWorker", "Gender", "") != "Not recorded" ||
     TewCodeLabels.Display("tblTeam", "Gender", "5") != "Code 5" ||
     TewCodeLabels.Display("tblTeam", "Type", "7") != "Code 7" ||
-    !TewCodeLabels.TryGetCode("Code 5", out int genderCode) || genderCode != 5)
+    !parsedCode || genderCode != 5)
     throw new Exception("Verified-code presentation, raw code parsing or unmapped fallbacks failed.");
 Console.WriteLine("Passed all 14 verified gender/team-type label mappings and numeric code fallbacks.");
 
