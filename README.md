@@ -2,6 +2,12 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
+## Verified numeric code labels
+
+TEW Universe Studio displays the **Gender** values in `tblWorker.Gender` using verified labels: 1 Male, 2 Transgender Male, 3 Non-binary AMAB, 4 Other Male, 5 Female, 6 Transgender Female, 7 Non-binary AFAB, 8 Other Female. The **Tag Team Type** field in `tblTeam.Type` uses 1 Permanent Unit, 2 Unit, 3 Individuals, 4 Inactive Permanent Unit, 5 Inactive Unit, 6 Inactive Individuals. These labels are provided by the app's centralized `TewCodeLabels` catalog, not by modifying or adding any data to TEW IX.
+
+Known values appear as readable names in worker profile fields, worker summary facts and roster gender filters, plus existing-tag-team and new-tag-team type selections. Editors still keep and save the corresponding **original numeric code**, and filters still match the original stored values. Any unknown/unmapped code remains visible as `Code N` rather than being guessed, and other unverified TEW IX numeric categories remain unchanged. The label catalog is presentation-only and performs **no MDB migration or write**.
+
 ## Worker roster filters
 
 The **Workers** sidebar has a collapsible **Filters** panel alongside the existing name/UID search and Name A–Z / Z–A / Worker ID sorting. Filters combine with **AND** logic and update the matching count and worker list immediately. The available controls are: **Active / Inactive**, **Gender**, **Age minimum/maximum** (inclusive, calculated from the worker's `tblWorker.Birthday`), **Current Company** (from live `tblContract.WorkerUID → FedUID` links, including No current contract), **Worker Type / Role**, **Nationality**, **Based-in Region**, and **With pictures / No pictures**. **Reset** clears every filter and the name search to restore the full roster.
