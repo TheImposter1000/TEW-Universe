@@ -35,17 +35,349 @@ internal static class TewCodeLabels
         new(6, "Inactive Individuals")
     };
 
+    // The line number (starting at one) is the actual TEW IX numeric code.
+    // Never reorder these labels without reconfirming the corresponding game codes.
+    private static TewCodeChoice[] Ordered(string labels) =>
+        labels.Split('\n', StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries)
+        .Select((label, index) => new TewCodeChoice(index + 1, label))
+        .ToArray();
+
+    private static readonly TewCodeChoice[] Sexualities = Ordered("""
+        Heterosexual
+        Homosexual
+        Bisexual
+        Asexual
+        Pansexual
+        """);
+
+    private static readonly TewCodeChoice[] PronounSets = Ordered("""
+        He-Him
+        She-Her
+        They-Them
+        He-Them
+        She-Them
+        """);
+
+    private static readonly TewCodeChoice[] Races = Ordered("""
+        White
+        Black
+        Asian
+        Hispanic
+        Native American
+        Middle Eastern
+        South Asian
+        Pacific
+        Other
+        """);
+
+    private static readonly TewCodeChoice[] BasedInRegions = Ordered("""
+        USA
+        Canada
+        Mexico
+        British Isles
+        Europe
+        Japan
+        India
+        Oceania
+        Great Lakes
+        Mid Atlantic
+        Mid South
+        Mid West
+        New England
+        North West
+        South East
+        South West
+        Tri State
+        Puerto Rico
+        Hawaii
+        Alberta
+        British Columbia
+        Manitoba
+        Ontario
+        Quebec
+        Saskatchewan
+        The Maritimes
+        Centro
+        Noreste
+        Noroccidente
+        Occidente
+        Sur
+        Sureste
+        Midlands
+        Northern England
+        Southern England
+        Ireland
+        Scotland
+        Wales
+        Central Europe
+        Eastern Europe
+        Eastern Central Europe
+        Iberia
+        Northern Europe
+        Southern Europe
+        Southern Mediterranean
+        Western Europe
+        Chubu
+        Chugoku
+        Hokkaido
+        Kansai
+        Kanto
+        Kyushu
+        Shikoku
+        Tohoku
+        Eastern India
+        Northern India
+        Southern India
+        Western India
+        New South Wales
+        New Zealand
+        Queensland
+        South Australia
+        Tasmania
+        Victoria
+        Western Australia
+        """);
+
+    private static readonly TewCodeChoice[] Nationalities = Ordered("""
+        Afghan
+        Albanian
+        Algerian
+        American
+        American Samoan
+        Andorran
+        Angolan
+        Anguillian
+        Antiguan
+        Argentinian
+        Armenian
+        Aruban
+        Australian
+        Austrian
+        Azerbaijani
+        Bahamian
+        Bahraini
+        Bangladeshi
+        Barbadian
+        Basotho
+        Belarusian
+        Belgian
+        Belizean
+        Beninese
+        Bhutanese
+        Bolivian
+        Bosnian
+        Brazilian
+        Bruneian
+        Bulgarian
+        Burkinabe
+        Burmese
+        Burundian
+        Cambodian
+        Cameroonian
+        Canadian
+        Cape Verdean
+        Caymanian
+        Central African
+        Chadian
+        Chilean
+        Chinese
+        Colombian
+        Congolese
+        Cook Islander
+        Costa Rican
+        Croatian
+        Cuban
+        Cypriot
+        Czech
+        Dagestani
+        Danish
+        Djiboutian
+        Dominican
+        Dutch
+        Ecuadorian
+        Egyptian
+        Emirati
+        English
+        Eritrean
+        Estonian
+        Ethiopian
+        Fijian
+        Filipino
+        Finnish
+        French
+        Gabonese
+        Gambian
+        Georgian
+        German
+        Ghanaian
+        Greek
+        Grenadian
+        Guadeloupean
+        Guamanian
+        Guatemalan
+        Guinean
+        Guyanese
+        Haitian
+        Hawaiian
+        Honduran
+        Hong Konger
+        Hungarian
+        Icelandic
+        Indian
+        Indonesian
+        Iranian
+        Iraqi
+        Irish
+        Israeli
+        Italian
+        Ivorian
+        Jamaican
+        Japanese
+        Jordanian
+        Kazakh
+        Kenyan
+        Kittitian
+        Kosovan
+        Kuwaiti
+        Kyrgyz
+        Laotian
+        Latvian
+        Lebanese
+        Liberian
+        Libyan
+        Liechtensteiner
+        Lithuanian
+        Luxembourger
+        Macedonian
+        Malagasy
+        Malawian
+        Malaysian
+        Maldivian
+        Malinese
+        Maltese
+        Martinican
+        Mauritian
+        Mexican
+        Moldovan
+        Monegasque
+        Mongolian
+        Montenegrin
+        Montserratian
+        Moroccan
+        Motswanan
+        Mozambican
+        Namibian
+        Nepalese
+        Nevisian
+        New Zealander
+        Nicaraguan
+        Nigerian
+        North Korean
+        Northern Irish
+        Norwegian
+        Omani
+        Pakistani
+        Palestinian
+        Panamanian
+        Papua New Guinean
+        Paraguayan
+        Peruvian
+        Polish
+        Portuguese
+        Puerto Rican
+        Qatari
+        Romanian
+        Russian
+        Rwandan
+        Saint Lucian
+        Saint Martiner
+        Salvadoran
+        Sammarinese
+        Samoan
+        Saudi
+        Scottish
+        Senegalese
+        Serbian
+        Sierra Leonean
+        Singaporean
+        Slovakian
+        Slovenian
+        Somali
+        South African
+        South Korean
+        Spanish
+        Sri Lankan
+        Sudanese
+        Surinamese
+        Swazi
+        Swedish
+        Swiss
+        Syrian
+        Taiwanese
+        Tajik
+        Tanzanian
+        Thai
+        Timorese
+        Tobagonian
+        Togolese
+        Tongan
+        Trinidadian
+        Tunisian
+        Turkish
+        Turkmen
+        Tuvaluan
+        Ugandan
+        Ukrainian
+        Uruguayan
+        Uzbek
+        Vanuatuan
+        Venezuelan
+        Vietnamese
+        Vincentian
+        Virgin Islander
+        Welsh
+        Yemeni
+        Zambian
+        Zimbabwean
+        """);
+
+    private static readonly TewCodeChoice[] WrestlingStyles = Ordered("""
+        Regular
+        Entertainer
+        Comedy
+        Powerhouse
+        Impactful
+        Striker
+        Brawler
+        Hardcore
+        Psychopath
+        Luchador
+        High Flyer
+        Technician
+        Technician Flyer
+        Technician Striker
+        Daredevil
+        MMA Crossover
+        """);
+
     public static bool IsMappedField(string table, string column) =>
-        (table.Equals("tblWorker", StringComparison.OrdinalIgnoreCase) &&
-         column.Equals("Gender", StringComparison.OrdinalIgnoreCase)) ||
-        (table.Equals("tblTeam", StringComparison.OrdinalIgnoreCase) &&
-         column.Equals("Type", StringComparison.OrdinalIgnoreCase));
+        Choices(table, column).Count > 0;
 
     public static IReadOnlyList<TewCodeChoice> Choices(string table, string column)
     {
-        if (table.Equals("tblWorker", StringComparison.OrdinalIgnoreCase) &&
-            column.Equals("Gender", StringComparison.OrdinalIgnoreCase))
-            return Genders;
+        if (table.Equals("tblWorker", StringComparison.OrdinalIgnoreCase))
+            return column.ToLowerInvariant() switch
+            {
+                "gender" => Genders,
+                "sexuality" => Sexualities,
+                "pronouns" => PronounSets,
+                "race" => Races,
+                "based_in" => BasedInRegions,
+                "nationality" => Nationalities,
+                "style" => WrestlingStyles,
+                _ => Array.Empty<TewCodeChoice>()
+            };
         if (table.Equals("tblTeam", StringComparison.OrdinalIgnoreCase) &&
             column.Equals("Type", StringComparison.OrdinalIgnoreCase))
             return TagTeamTypes;
