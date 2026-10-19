@@ -865,6 +865,40 @@ if (WorkerRosterFilterEngine.AgeAt(new DateTime(1987, 10, 22), rosterAsOf) != 38
     throw new Exception("Age boundary, unknown birthday, region or ID search filter failed.");
 Console.WriteLine("Passed combined worker roster status, gender, age, company, role, region, nationality and picture filters.");
 
+var genderLabels = new[]
+{
+    "Male", "Transgender Male", "Non-binary AMAB", "Other Male",
+    "Female", "Transgender Female", "Non-binary AFAB", "Other Female"
+};
+var teamTypeLabels = new[]
+{
+    "Permanent Unit", "Unit", "Individuals", "Inactive Permanent Unit",
+    "Inactive Unit", "Inactive Individuals"
+};
+for (int i = 0; i < genderLabels.Length; i++)
+{
+    string stored = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (TewCodeLabels.Display("tblWorker", "Gender", stored) != genderLabels[i] ||
+        TewCodeLabels.Choices("tblWorker", "Gender")[i].Code != i + 1)
+        throw new Exception($"Gender code {stored} did not map to {genderLabels[i]}.");
+}
+for (int i = 0; i < teamTypeLabels.Length; i++)
+{
+    string stored = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (TewCodeLabels.Display("tblTeam", "Type", stored) != teamTypeLabels[i] ||
+        TewCodeLabels.Choices("tblTeam", "Type")[i].Code != i + 1)
+        throw new Exception($"Tag team code {stored} did not map to {teamTypeLabels[i]}.");
+}
+if (TewCodeLabels.Display("tblWorker", "Gender", "Code 5") != "Female" ||
+    TewCodeLabels.Display("tblWorker", "Gender", "999") != "Code 999" ||
+    TewCodeLabels.Display("tblWorker", "Gender", "") != "Not recorded" ||
+    TewCodeLabels.Display("tblTeam", "Gender", "5") != "Code 5" ||
+    TewCodeLabels.Display("tblTeam", "Type", "7") != "Code 7" ||
+    !TewCodeLabels.TryGetCode("Code 5", out int genderCode) || genderCode != 5)
+    throw new Exception("Verified-code presentation, raw code parsing or unmapped fallbacks failed.");
+Console.WriteLine("Passed all 14 verified gender/team-type label mappings and numeric code fallbacks.");
+
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);
