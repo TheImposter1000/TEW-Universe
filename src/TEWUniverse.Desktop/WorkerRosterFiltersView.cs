@@ -32,12 +32,12 @@ public partial class MainWindow
         (combo?.SelectedItem as WorkerFilterChoice)?.Key ?? "";
 
     private static IEnumerable<WorkerFilterChoice> Options(
-        string allLabel, IEnumerable<string> values) =>
+        string allLabel, IEnumerable<string> values, Func<string, string>? display = null) =>
         new[] { Choice("", allLabel) }.Concat(values
             .Where(v => !string.IsNullOrWhiteSpace(v))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase)
-            .Select(v => Choice(v, v)));
+            .OrderBy(v => display?.Invoke(v) ?? v, StringComparer.OrdinalIgnoreCase)
+            .Select(v => Choice(v, display?.Invoke(v) ?? v)));
 
     private static void PopulateFilter(ComboBox combo,
         IEnumerable<WorkerFilterChoice> options, bool enabled = true)
@@ -91,7 +91,8 @@ public partial class MainWindow
             }
             _workerFilterRecords = index.Workers.ToDictionary(r => r.Id);
             PopulateFilter(WorkerGenderFilter,
-                Options("All genders", index.Workers.Select(w => w.Gender)),
+                Options("All genders", index.Workers.Select(w => w.Gender),
+                    code => TewCodeLabels.Display("tblWorker", "Gender", code)),
                 index.HasGender);
             PopulateFilter(WorkerNationalityFilter,
                 Options("All nationalities", index.Workers.Select(w => w.Nationality)),
@@ -126,10 +127,11 @@ public partial class MainWindow
                 _settings.WorkerPicturesFolderPath is null or ""
                     ? "Set your worker pictures folder in Settings to filter portraits." : "",
                 index.Workers.Any(w =>
-                    w.Gender.StartsWith("Code ", StringComparison.Ordinal) ||
+                    (w.Gender.StartsWith("Code ", StringComparison.Ordinal) &&
+                        !TewCodeLabels.TryGetLabel("tblWorker", "Gender", w.Gender, out _)) ||
                     w.Nationality.StartsWith("Code ", StringComparison.Ordinal) ||
                     w.Region.StartsWith("Code ", StringComparison.Ordinal))
-                    ? "Numeric choices show actual MDB codes (unmapped)." : ""
+                    ? "Unmapped numeric choices show actual MDB codes." : ""
             }.Where(x => x.Length > 0));
         }
         catch (Exception ex)
