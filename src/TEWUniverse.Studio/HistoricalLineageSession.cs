@@ -212,7 +212,9 @@ internal sealed partial class DatabaseSession
             // Stage existing orders above the old maximum so a unique index, if
             // present, cannot conflict with the final reordered positions.
             int stageOffset = Math.Max(1000, (orderValues.Length == 0 ? 0 : orderValues.Max()) + 1);
-            if (orderValues.Any(value => value + stageOffset > short.MaxValue))
+            int temporaryInsertOrder = checked(stageOffset +
+                (orderValues.Length == 0 ? 0 : orderValues.Max()) + 1);
+            if (temporaryInsertOrder > short.MaxValue)
                 throw new InvalidOperationException("BeltOrder is too large for safe insertion.");
             for (int i = 0; i < ordered.Count; i++)
             {
@@ -252,7 +254,7 @@ internal sealed partial class DatabaseSession
                 if (!autoUid) insert.Parameters.Add("uid", OleDbType.Integer).Value = uid;
                 insert.Parameters.Add("record", OleDbType.VarWChar).Value = recordName;
                 insert.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
-                insert.Parameters.Add("order", OleDbType.SmallInt).Value = -1;
+                insert.Parameters.Add("order", OleDbType.SmallInt).Value = temporaryInsertOrder;
                 for (int i = 0; i < 3; i++)
                     insert.Parameters.Add("holder" + i, OleDbType.Integer).Value = draft.HolderIds[i];
                 for (int i = 0; i < 3; i++)
