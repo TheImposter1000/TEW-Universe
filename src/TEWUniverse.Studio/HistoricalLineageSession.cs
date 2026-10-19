@@ -39,25 +39,8 @@ internal sealed partial class DatabaseSession
         if (memberCount is < 1 or > 3 ||
             draft.HolderIds.Length != 3 || draft.HolderNames.Length != 3)
             throw new InvalidOperationException("Invalid holder count for this title.");
-        var validWorkers = ListWorkers().Select(w => w.Id).ToHashSet();
-        var selectedWorkers = new HashSet<int>();
-        for (int i = 0; i < 3; i++)
-        {
-            int id = draft.HolderIds[i];
-            string name = draft.HolderNames[i].Trim();
-            if (i >= memberCount)
-            {
-                if (id != -1 || name.Length != 0)
-                    throw new InvalidOperationException("Unused holder positions must remain empty.");
-                continue;
-            }
-            if (name.Length == 0 || name.Length > 30 || name.Any(char.IsControl))
-                throw new InvalidOperationException("Each champion needs a name of at most 30 characters.");
-            if (id != -1 && !validWorkers.Contains(id))
-                throw new InvalidOperationException("Linked champion ID " + id + " does not exist.");
-            if (id > 0 && !selectedWorkers.Add(id))
-                throw new InvalidOperationException("The same linked worker cannot occupy two team positions.");
-        }
+        HistoricalReignRules.ValidateHolders(draft.HolderIds, draft.HolderNames,
+            memberCount, ListWorkers().Select(w => w.Id).ToHashSet());
         if (draft.Captured.Year is < 1800 or > 2100)
             throw new InvalidOperationException("Use a capture year between 1800 and 2100.");
         if (annual)
@@ -154,22 +137,14 @@ internal sealed partial class DatabaseSession
         if (orderValues.Distinct().Count() != ordered.Count ||
             orderValues.Any(n => n < 1 || n > 20000))
             throw new InvalidOperationException("Unsupported existing BeltOrder values.");
-        var captures = ordered.Select(r => r["BeltCaptured"] is DateTime d ? d :
-            throw new InvalidOperationException("Existing title history contains an invalid date."))
-            .ToArray();
-        if (!captures.SequenceEqual(captures.OrderBy(d => d)))
-            throw new InvalidOperationException("Existing title history is not chronological.");
-        if (ordered.Any(r => r["BeltLost"] is not DateTime))
-            throw new InvalidOperationException("Existing title history is missing loss dates.");
-        // Do not silently overwrite historical intervals to force a new reign to fit.
-        if (annual ? captures.Contains(draft.Captured) :
-            ordered.Any(r =>
-                draft.Captured <= (DateTime)r["BeltLost"] &&
-                draft.Lost >= (DateTime)r["BeltCaptured"]))
-            throw new InvalidOperationException(
-                "The proposed reign overlaps an existing one. Correct its dates first.");
-        int insertIndex = Array.FindIndex(captures, date => date > draft.Captured);
-        if (insertIndex < 0) insertIndex = ordered.Count;
+        var spans = ordered.Select(r => (
+            Captured: r["BeltCaptured"] is DateTime start ? start :
+                throw new InvalidOperationException("An existing capture date is invalid."),
+            Lost: r["BeltLost"] is DateTime end ? end :
+                throw new InvalidOperationException("An existing loss date is invalid.")
+        )).ToArray();
+        int insertIndex = HistoricalReignRules.InsertionPosition(
+            spans, draft.Captured, draft.Lost, annual);
 
         var schema = new DataTable("tblBeltPreHistory");
         using (var command = new OleDbCommand(
