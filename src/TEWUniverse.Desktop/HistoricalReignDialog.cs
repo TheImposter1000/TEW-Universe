@@ -53,13 +53,13 @@ internal sealed class HistoricalReignDialog : Window
         DockPanel.SetDock(actions, Dock.Bottom);
         root.Children.Add(actions);
         var cancel = new Button { Content = "Cancel",
-            Style = (Style)FindResource("ActionButton"), Padding = new Thickness(18, 9),
+            Style = (Style)FindResource("ActionButton"), Padding = new Thickness(18, 9, 18, 9),
             Margin = new Thickness(0, 0, 10, 0) };
         cancel.Click += (_, _) => DialogResult = false;
         actions.Children.Add(cancel);
         var save = new Button {
             Content = _edit ? "Apply Holders" : "Insert Reign",
-            Style = (Style)FindResource("BlueButton"), Padding = new Thickness(18, 9)
+            Style = (Style)FindResource("BlueButton"), Padding = new Thickness(18, 9, 18, 9)
         };
         save.Click += Save_Click;
         actions.Children.Add(save);
