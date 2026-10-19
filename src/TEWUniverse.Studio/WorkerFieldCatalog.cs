@@ -29,7 +29,7 @@ internal static class WorkerFieldCatalog
 
     private static readonly HashSet<string> UnverifiedCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Pronouns", "Sexuality", "CompetesAgainst", "Outsiderel"
+        "CompetesAgainst", "Outsiderel"
     };
 
     public static bool IsUnknownCode(string name, Type type) =>
