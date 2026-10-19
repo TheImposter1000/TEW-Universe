@@ -95,10 +95,12 @@ public partial class MainWindow
                     code => TewCodeLabels.Display("tblWorker", "Gender", code)),
                 index.HasGender);
             PopulateFilter(WorkerNationalityFilter,
-                Options("All nationalities", index.Workers.Select(w => w.Nationality)),
+                Options("All nationalities", index.Workers.Select(w => w.Nationality),
+                    code => TewCodeLabels.Display("tblWorker", "Nationality", code)),
                 index.HasNationality);
             PopulateFilter(WorkerRegionFilter,
-                Options("All regions", index.Workers.Select(w => w.Region)),
+                Options("All regions", index.Workers.Select(w => w.Region),
+                    code => TewCodeLabels.Display("tblWorker", "Based_In", code)),
                 index.HasRegion);
             PopulateFilter(WorkerRoleFilter,
                 Options("All worker types", index.Workers.SelectMany(w => w.Roles)),
@@ -129,8 +131,10 @@ public partial class MainWindow
                 index.Workers.Any(w =>
                     (w.Gender.StartsWith("Code ", StringComparison.Ordinal) &&
                         !TewCodeLabels.TryGetLabel("tblWorker", "Gender", w.Gender, out _)) ||
-                    w.Nationality.StartsWith("Code ", StringComparison.Ordinal) ||
-                    w.Region.StartsWith("Code ", StringComparison.Ordinal))
+                    (w.Nationality.StartsWith("Code ", StringComparison.Ordinal) &&
+                        !TewCodeLabels.TryGetLabel("tblWorker", "Nationality", w.Nationality, out _)) ||
+                    (w.Region.StartsWith("Code ", StringComparison.Ordinal) &&
+                        !TewCodeLabels.TryGetLabel("tblWorker", "Based_In", w.Region, out _)))
                     ? "Unmapped numeric choices show actual MDB codes." : ""
             }.Where(x => x.Length > 0));
         }
