@@ -93,12 +93,13 @@ internal sealed class TagTeamCreateDialog : Window
         AddField(content, "Company (or game-wide)", _company);
 
         _type = Picker(typeCodes.Select(code =>
-            new Choice(code, $"Stored team type code {code}")).ToArray());
+            new Choice(code, TewCodeLabels.Display("tblTeam", "Type",
+                code.ToString(CultureInfo.InvariantCulture)))).ToArray());
         _type.IsEditable = false;
         if (typeCodes.Count == 1) _type.SelectedIndex = 0;
         AddField(content, "Team type", _type);
         content.Children.Add(new TextBlock {
-            Text = "Team type code descriptions are not assigned until their numeric TEW IX mappings are verified.",
+            Text = "Team type names are display labels. The original numeric code is used when saving.",
             TextWrapping = TextWrapping.Wrap, Foreground = Brush("#A6BDD9"),
             FontSize = 11, Margin = new Thickness(0, -4, 0, 12)
         });

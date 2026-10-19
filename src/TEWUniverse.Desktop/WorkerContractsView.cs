@@ -40,6 +40,7 @@ public partial class MainWindow
         _contractSave = ExtraButton("Save Selected Contract", true, SaveContract_Click);
         _contractSave.IsEnabled = false;
         _contractDetails.Children.Add(_contractSave);
+        AppendCreateContractButton();
 
         BuildExtraSection(ContractsHost, "Worker Contracts", _contractsGrid,
             _contractDetails, out _contractSummary);
@@ -62,6 +63,7 @@ public partial class MainWindow
             _contractSave = ExtraButton("Save Selected Contract", true, SaveContract_Click);
             _contractSave.IsEnabled = false;
             _contractDetails.Children.Add(_contractSave);
+            AppendCreateContractButton();
             _contractSummary.Text = "Select a worker to view existing contracts.";
         }
         finally { _settingContractForm = false; }
@@ -162,16 +164,72 @@ public partial class MainWindow
             _contractSave.IsEnabled = selected != null &&
                 selected.Fields.Any(f => f.CanEdit);
             _contractDetails.Children.Add(_contractSave);
+            AppendCreateContractButton();
             _contractDetails.Children.Add(new TextBlock {
-                Text = "This tab edits existing tblContract rows only. Creating a new " +
-                    "contract requires a separately verified TEW IX contract schema. " +
-                    "A backup is recommended before making changes.",
+                Text = "New contracts copy the complete terms of an existing contract " +
+                    "from the same company. Review every value before creation; " +
+                    "unverified fields are never invented. A manual backup is required.",
                 Foreground = ExtraColor("#93B4D5"), FontSize = 11,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 10, 0, 10)
             });
         }
         finally { _settingContractForm = false; }
+    }
+
+    private void AppendCreateContractButton()
+    {
+        var button = ExtraButton("Create Contract From Template", true,
+            CreateWorkerContract_Click);
+        button.IsEnabled = _session != null && _worker != null;
+        _contractDetails.Children.Add(button);
+    }
+
+    private void CreateWorkerContract_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _worker == null) return;
+        if (HasEdits() || HasUnappliedContractEdits())
+        {
+            MessageBox.Show(this, "Save or discard unsaved changes before creating a contract.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_lastManualBackup) ||
+            !File.Exists(_lastManualBackup) ||
+            !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk))
+        {
+            MessageBox.Show(this,
+                "Choose CREATE BACKUP before adding a contract. The scenario MDB " +
+                "must be recoverable if TEW IX rejects any copied contract terms.",
+                "Create a backup first", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        try
+        {
+            var dialog = new WorkerContractCreationDialog(_session, _worker,
+                _session.ListExistingRecords("Companies")) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.ChosenTemplate == null) return;
+            var template = dialog.ChosenTemplate;
+            var companyName = _session.ListExistingRecords("Companies")
+                .FirstOrDefault(c => c.Id == template.CompanyId)?.Name ??
+                $"Company #{template.CompanyId}";
+            if (MessageBox.Show(this,
+                $"CREATE NEW CONTRACT for {_worker.Name} with {companyName}?\n\n" +
+                $"Using template: {template.Label}\n" +
+                $"Edited terms: {dialog.Terms.Count}\n\n" +
+                "All other template terms, including any unverified numeric codes, " +
+                "will be copied exactly. The original template contract stays unchanged. " +
+                "This inserts ONE new tblContract row; it does not insert a CV record. " +
+                "Please verify the result using TEW IX Data Check.",
+                "Confirm New Contract", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            int newId = _session.CreateWorkerContract(
+                _worker.Id, template, dialog.Terms);
+            _lastSaved = DateTime.Now;
+            RefreshWorkerContracts(newId);
+            SetStatus($"Created contract UID {newId} for {_worker.Name} with {companyName}.");
+            RefreshDirty();
+        }
+        catch (Exception ex) { Error(ex); }
     }
 
     private Dictionary<string, string> ChangedContractFields()

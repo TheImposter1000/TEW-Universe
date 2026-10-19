@@ -592,6 +592,19 @@
             <TextBlock x:Name="TitleLineageSummary" Text="Select a championship to view its lineage."
                        Foreground="#B9D4ED" FontSize="12" TextWrapping="Wrap"/>
             <WrapPanel Margin="0,10,0,0">
+             <Button Content="Edit Selected Reign's Champions"
+                     Style="{StaticResource BlueButton}"
+                     Click="EditHistoricalReign_Click"
+                     Margin="0,0,9,6" Padding="12,7"/>
+             <Button Content="Insert Historical Reign"
+                     Style="{StaticResource ActionButton}"
+                     Click="InsertHistoricalReign_Click"
+                     Margin="0,0,9,6" Padding="12,7"/>
+            </WrapPanel>
+            <TextBlock Text="Set linked wrestlers or name-only NPCs in singles, tag-team or trios history. No NPC worker is created. Editing champions preserves the reign; insertion adds one new chronological reign after a manual backup."
+                       Foreground="#99B8D6" TextWrapping="Wrap" FontSize="11"
+                       Margin="0,0,0,6"/>
+            <WrapPanel Margin="0,10,0,0">
              <Button Content="Review / Repair This Title's Record Names"
                      Style="{StaticResource ActionButton}" Tag="Selected"
                      Click="ReviewExistingTitleRecordNames_Click"

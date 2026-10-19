@@ -865,6 +865,175 @@ if (WorkerRosterFilterEngine.AgeAt(new DateTime(1987, 10, 22), rosterAsOf) != 38
     throw new Exception("Age boundary, unknown birthday, region or ID search filter failed.");
 Console.WriteLine("Passed combined worker roster status, gender, age, company, role, region, nationality and picture filters.");
 
+var genderLabels = new[]
+{
+    "Male", "Transgender Male", "Non-binary AMAB", "Other Male",
+    "Female", "Transgender Female", "Non-binary AFAB", "Other Female"
+};
+var teamTypeLabels = new[]
+{
+    "Permanent Unit", "Unit", "Individuals", "Inactive Permanent Unit",
+    "Inactive Unit", "Inactive Individuals"
+};
+for (int i = 0; i < genderLabels.Length; i++)
+{
+    string stored = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (TewCodeLabels.Display("tblWorker", "Gender", stored) != genderLabels[i] ||
+        TewCodeLabels.Choices("tblWorker", "Gender")[i].Code != i + 1)
+        throw new Exception($"Gender code {stored} did not map to {genderLabels[i]}.");
+}
+for (int i = 0; i < teamTypeLabels.Length; i++)
+{
+    string stored = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (TewCodeLabels.Display("tblTeam", "Type", stored) != teamTypeLabels[i] ||
+        TewCodeLabels.Choices("tblTeam", "Type")[i].Code != i + 1)
+        throw new Exception($"Tag team code {stored} did not map to {teamTypeLabels[i]}.");
+}
+bool parsedCode = TewCodeLabels.TryGetCode("Code 5", out int genderCode);
+if (TewCodeLabels.Display("tblWorker", "Gender", "Code 5") != "Female" ||
+    TewCodeLabels.Display("tblWorker", "Gender", "999") != "Code 999" ||
+    TewCodeLabels.Display("tblWorker", "Gender", "") != "Not recorded" ||
+    TewCodeLabels.Display("tblTeam", "Gender", "5") != "Code 5" ||
+    TewCodeLabels.Display("tblTeam", "Type", "7") != "Code 7" ||
+    !parsedCode || genderCode != 5)
+    throw new Exception("Verified-code presentation, raw code parsing or unmapped fallbacks failed.");
+Console.WriteLine("Passed all 14 verified gender/team-type label mappings and numeric code fallbacks.");
+
+CheckMappedCategory("tblWorker", "Gender", 8);
+CheckMappedCategory("tblTeam", "Type", 6);
+CheckMappedCategory("tblWorker", "Sexuality", 5);
+CheckMappedCategory("tblWorker", "Pronouns", 5);
+CheckMappedCategory("tblWorker", "Race", 9);
+CheckMappedCategory("tblWorker", "Based_In", 65);
+CheckMappedCategory("tblWorker", "Nationality", 200);
+CheckMappedCategory("tblWorker", "Style", 16);
+CheckMappedCategory("tblWorker", "CompetesAgainst", 5);
+CheckMappedCategory("tblWorker", "Outsiderel", 4);
+
+CheckCode("tblWorker", "Sexuality", 1, "Heterosexual");
+CheckCode("tblWorker", "Sexuality", 5, "Pansexual");
+CheckCode("tblWorker", "Pronouns", 2, "She-Her");
+CheckCode("tblWorker", "Pronouns", 5, "She-Them");
+CheckCode("tblWorker", "Race", 7, "South Asian");
+CheckCode("tblWorker", "Race", 9, "Other");
+CheckCode("tblWorker", "Based_In", 1, "USA");
+CheckCode("tblWorker", "Based_In", 22, "Manitoba");
+CheckCode("tblWorker", "Based_In", 26, "The Maritimes");
+CheckCode("tblWorker", "Based_In", 43, "Northern Europe");
+CheckCode("tblWorker", "Based_In", 47, "Chubu");
+CheckCode("tblWorker", "Based_In", 65, "Western Australia");
+CheckCode("tblWorker", "Nationality", 1, "Afghan");
+CheckCode("tblWorker", "Nationality", 4, "American");
+CheckCode("tblWorker", "Nationality", 36, "Canadian");
+CheckCode("tblWorker", "Nationality", 94, "Japanese");
+CheckCode("tblWorker", "Nationality", 119, "Mexican");
+CheckCode("tblWorker", "Nationality", 146, "Puerto Rican");
+CheckCode("tblWorker", "Nationality", 197, "Welsh");
+CheckCode("tblWorker", "Nationality", 200, "Zimbabwean");
+CheckCode("tblWorker", "Style", 1, "Regular");
+CheckCode("tblWorker", "Style", 13, "Technician Flyer");
+CheckCode("tblWorker", "Style", 16, "MMA Crossover");
+CheckCode("tblWorker", "CompetesAgainst", 1, "Any");
+CheckCode("tblWorker", "CompetesAgainst", 2, "Men's Division Only");
+CheckCode("tblWorker", "CompetesAgainst", 3, "Women's Division Only");
+CheckCode("tblWorker", "CompetesAgainst", 4, "Primarily Men's Division");
+CheckCode("tblWorker", "CompetesAgainst", 5, "Primary Women's Division");
+CheckCode("tblWorker", "Outsiderel", 1, "No");
+CheckCode("tblWorker", "Outsiderel", 2, "Dating");
+CheckCode("tblWorker", "Outsiderel", 3, "Engaged");
+CheckCode("tblWorker", "Outsiderel", 4, "Married");
+if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
+    TewCodeLabels.Choices("tblTeam", "Gender").Count != 0 ||
+    !TewCodeLabels.IsMappedField("tblWorker", "Pronouns") ||
+    !TewCodeLabels.IsMappedField("tblWorker", "Based_In") ||
+    TewCodeLabels.Display("tblWorker", "Nationality", "999") != "Code 999" ||
+    TewCodeLabels.Display("tblWorker", "Pronouns", "0") != "Code 0" ||
+    TewCodeLabels.Display("tblWorker", "CompetesAgainst", "6") != "Code 6" ||
+    TewCodeLabels.Display("tblWorker", "Outsiderel", "0") != "Code 0" ||
+    TewCodeLabels.Display("tblTeam", "Outsiderel", "4") != "Code 4")
+    throw new Exception("Category isolation or fallback for unknown codes failed.");
+Console.WriteLine("Passed all 323 mapped codes across ten categories, boundaries, and fallback checks.");
+
+static void CheckMappedCategory(string table, string column, int expectedCount)
+{
+    var labels = TewCodeLabels.Choices(table, column);
+    if (labels.Count != expectedCount)
+        throw new Exception($"{table}.{column} expected {expectedCount} values, got {labels.Count}.");
+    for (int i = 0; i < labels.Count; i++)
+    {
+        var value = labels[i];
+        string code = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (value.Code != i + 1 || string.IsNullOrWhiteSpace(value.Label) ||
+            TewCodeLabels.Display(table, column, code) != value.Label ||
+            TewCodeLabels.Display(table, column, "Code " + code) != value.Label)
+            throw new Exception($"{table}.{column} failed code round-trip at {code}.");
+    }
+}
+
+static void CheckCode(string table, string column, int code, string expected)
+{
+    string stored = code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (TewCodeLabels.Display(table, column, stored) != expected)
+        throw new Exception($"{table}.{column} code {code}: expected '{expected}'.");
+}
+
+
+
+// The Carson story: a linked wrestler may win a tag title alongside his
+// deceased father, a name-only historical NPC not inserted into tblWorker.
+var knownWorkers = new HashSet<int> { 101, 202 };
+HistoricalReignRules.ValidateHolders(
+    new[] { 101, -1, -1 }, new[] { "Carson", "Carson's Father", "" },
+    2, knownWorkers);
+// A name-only predecessor (e.g. Damien Ward) and real successor (Tavitia)
+// may be represented independently, without inventing real worker identities.
+HistoricalReignRules.ValidateHolders(
+    new[] { -1, -1, -1 }, new[] { "Damien Ward", "", "" }, 1, knownWorkers);
+HistoricalReignRules.ValidateHolders(
+    new[] { 202, -1, -1 }, new[] { "Tavitia", "", "" }, 1, knownWorkers);
+int chronologicalPosition = HistoricalReignRules.InsertionPosition(
+    new (DateTime Captured, DateTime Lost)[] {
+        (new DateTime(2010, 1, 1), new DateTime(2010, 12, 31)),
+        (new DateTime(2015, 1, 1), new DateTime(2015, 12, 31))
+    }, new DateTime(2014, 1, 1), new DateTime(2014, 12, 31), false);
+if (chronologicalPosition != 1)
+    throw new Exception("2014 title-history insertion was not placed between 2010 and 2015.");
+
+bool rejectedDuplicateWorker = false;
+try
+{
+    HistoricalReignRules.ValidateHolders(
+        new[] { 101, 101, -1 }, new[] { "Carson", "Carson", "" },
+        2, knownWorkers);
+}
+catch (InvalidOperationException) { rejectedDuplicateWorker = true; }
+if (!rejectedDuplicateWorker)
+    throw new Exception("A real worker appeared twice in the same tag-team history.");
+
+bool rejectedNonexistentWorker = false;
+try
+{
+    HistoricalReignRules.ValidateHolders(
+        new[] { 101, 999999, -1 }, new[] { "Carson", "Unknown worker", "" },
+        2, knownWorkers);
+}
+catch (InvalidOperationException) { rejectedNonexistentWorker = true; }
+if (!rejectedNonexistentWorker)
+    throw new Exception("An unlinked positive worker UID bypassed validation.");
+
+bool rejectedOverlap = false;
+try
+{
+    HistoricalReignRules.InsertionPosition(
+        new (DateTime Captured, DateTime Lost)[] {
+            (new DateTime(2013, 1, 1), new DateTime(2014, 6, 1))
+        }, new DateTime(2014, 1, 1), new DateTime(2014, 12, 1), false);
+}
+catch (InvalidOperationException) { rejectedOverlap = true; }
+if (!rejectedOverlap)
+    throw new Exception("An overlapping historical title reign bypassed validation.");
+Console.WriteLine("Passed name-only NPC tag team, 2014 title history and overlap safety checks.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);

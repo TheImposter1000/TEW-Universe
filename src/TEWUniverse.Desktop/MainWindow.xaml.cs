@@ -280,10 +280,14 @@ public partial class MainWindow : Window
     private string? ValueFor(string field) => _fields.FirstOrDefault(
         x => x.Table == "tblWorker" && x.Column.Equals(field, StringComparison.OrdinalIgnoreCase))?.Value;
 
-    // Show stored numeric codes consistently throughout the worker editor.
-    // We intentionally do not translate some TEW IX codes while leaving others raw.
+    // Map user-verified fields for presentation; all other numeric codes stay raw.
     private static string DisplayCode(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "Not recorded" : "Code " + value.Trim();
+
+    private static string DisplayWorkerCode(string field, string? value) =>
+        TewCodeLabels.IsMappedField("tblWorker", field)
+            ? TewCodeLabels.Display("tblWorker", field, value)
+            : DisplayCode(value);
 
     private static DateTime? ParseStoredDate(string? raw) =>
         StudioDateFormat.TryParse(raw, out var d) && d.Year is >= 1800 and <= 2200
@@ -319,7 +323,7 @@ public partial class MainWindow : Window
     {
         if (_worker == null) return;
         HeaderFactsPanel.Children.Clear();
-        var gender = DisplayCode(ValueFor("Gender"));
+        var gender = DisplayWorkerCode("Gender", ValueFor("Gender"));
         var dob = ParseStoredDate(ValueFor("Birthday"));
         AddHeaderFact("\uE77B", "Gender: " + gender);
         if (dob.HasValue)
@@ -329,9 +333,9 @@ public partial class MainWindow : Window
             AddHeaderFact("\uE787", FriendlyDate(ValueFor("Birthday")) + (years >= 0 ? $" ({years} years)" : ""));
         }
         if (ValueFor("Nationality") is string n && n.Length > 0)
-            AddHeaderFact("\uE774", "Nationality: " + DisplayCode(n));
+            AddHeaderFact("\uE774", "Nationality: " + DisplayWorkerCode("Nationality", n));
         if (ValueFor("Based_In") is string b && b.Length > 0)
-            AddHeaderFact("\uE80F", "Based in: " + DisplayCode(b));
+            AddHeaderFact("\uE80F", "Based in: " + DisplayWorkerCode("Based_In", b));
         if (ParseStoredDate(ValueFor("DebutDate")).HasValue)
             AddHeaderFact("\uE787", "Debut: " + FriendlyDate(ValueFor("DebutDate")));
 
@@ -343,9 +347,14 @@ public partial class MainWindow : Window
         {
             true => "Active", false => "Inactive", _ => "Not recorded"
         });
-        AddQuickFact("Nationality", DisplayCode(ValueFor("Nationality")));
-        AddQuickFact("Based In", DisplayCode(ValueFor("Based_In")));
-        AddQuickFact("Wrestling Style", DisplayCode(ValueFor("Style")));
+        AddQuickFact("Nationality", DisplayWorkerCode("Nationality", ValueFor("Nationality")));
+        AddQuickFact("Based In", DisplayWorkerCode("Based_In", ValueFor("Based_In")));
+        AddQuickFact("Wrestling Style", DisplayWorkerCode("Style", ValueFor("Style")));
+        foreach (var (column, label) in new[] {
+            ("Pronouns", "Pronouns"), ("Sexuality", "Sexuality"), ("Race", "Race")
+        })
+            if (ValueFor(column) is string value && value.Length > 0)
+                AddQuickFact(label, DisplayWorkerCode(column, value));
         AddQuickFact("Debut Date", FriendlyDate(ValueFor("DebutDate")));
     }
 
@@ -377,6 +386,31 @@ public partial class MainWindow : Window
             combo.SelectionChanged += (_, _) => {
                 if (combo.SelectedIndex < 0) return;
                 item.Value = combo.SelectedIndex == 0 ? "True" : "False";
+                if (!_loading) { RefreshDirty(); BuildWorkerFacts(); }
+            };
+            Grid.SetColumn(combo, 1);
+            grid.Children.Add(combo);
+        }
+        else if (TewCodeLabels.IsMappedField(item.Table, item.Column) &&
+                 TewCodeLabels.TryGetCode(item.Value, out int mappedCode) &&
+                 TewCodeLabels.Choices(item.Table, item.Column).Any(c => c.Code == mappedCode))
+        {
+            // Keep the original numeric draft; the readable label is UI-only.
+            // Unknown or blank values continue to use the original text editor.
+            var choices = TewCodeLabels.Choices(item.Table, item.Column);
+            var combo = new ComboBox {
+                Style = (Style)FindResource("DarkComboBox"),
+                ItemsSource = choices,
+                DisplayMemberPath = nameof(TewCodeChoice.Label),
+                SelectedItem = choices.First(c => c.Code == mappedCode),
+                Height = 35,
+                MaxDropDownHeight = 260,
+                ToolTip = $"{item.Table}.{item.Column} (stored code {item.Value})"
+            };
+            TextSearch.SetTextPath(combo, nameof(TewCodeChoice.Label));
+            combo.SelectionChanged += (_, _) => {
+                if (combo.SelectedItem is not TewCodeChoice selected) return;
+                item.Value = selected.Code.ToString(CultureInfo.InvariantCulture);
                 if (!_loading) { RefreshDirty(); BuildWorkerFacts(); }
             };
             Grid.SetColumn(combo, 1);
@@ -500,7 +534,8 @@ public partial class MainWindow : Window
         // The approved mockup groups common worker fields first, then provides
         // a separate Additional Details section, then opt-in advanced columns.
         // This retains full editing access without a wall of raw MDB columns.
-        var core = new[] { "Name", "Gender", "Birthday", "Nationality", "Based_In", "Active", "Style" };
+        var core = new[] { "Name", "Gender", "Pronouns", "Sexuality", "Race", "Birthday",
+            "Nationality", "Based_In", "Active", "Style" };
         var details = new[] { "Shortname", "ShortName", "Picture", "AlsoKnownAs", "CommentaryName",
             "RetirementDate", "DebutDate" };
         var coreFields = core.Select(name => profile.FirstOrDefault(x =>
@@ -2340,7 +2375,7 @@ public partial class MainWindow : Window
                 "Worker1" => "First worker",
                 "Worker2" => "Second worker",
                 "Fed" => "Company / game-wide",
-                _ => "Team type (stored code)"
+                _ => "Team type"
             },
             Foreground = Muted, FontSize = 12, FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 7)
@@ -2362,7 +2397,8 @@ public partial class MainWindow : Window
                     .Concat(_session.ListExistingRecords("Companies").Select(c =>
                         new TagTeamChoice(c.Id, $"{c.Name}  |  Company ID {c.Id}"))).ToList(),
                 "Type" => _session!.ListTagTeamTypeCodes().Select(code =>
-                    new TagTeamChoice(code, $"Stored team type code {code}")).ToList(),
+                    new TagTeamChoice(code, TewCodeLabels.Display("tblTeam", "Type",
+                        code.ToString(CultureInfo.InvariantCulture)))).ToList(),
                 _ => new()
             };
             combo.ItemsSource = choices;
@@ -2425,7 +2461,7 @@ public partial class MainWindow : Window
                     $"Create '{draft.Name}' as a NEW team in the active MDB?\n\n" +
                     $"Workers: #{draft.Worker1} and #{draft.Worker2}\n" +
                     $"Company ID: {draft.CompanyId}\n" +
-                    $"Team type (stored code): {draft.TypeCode}\n\n" +
+                    $"Team type: {TewCodeLabels.Display("tblTeam", "Type", draft.TypeCode.ToString(CultureInfo.InvariantCulture))} (stored code {draft.TypeCode})\n\n" +
                     "This creates one new tblTeam record, without changing other records. " +
                     "The backup will not be created automatically.",
                     "Confirm New Tag Team", MessageBoxButton.YesNo,
