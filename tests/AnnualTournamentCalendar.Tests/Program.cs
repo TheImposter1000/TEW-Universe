@@ -907,6 +907,8 @@ CheckMappedCategory("tblWorker", "Race", 9);
 CheckMappedCategory("tblWorker", "Based_In", 65);
 CheckMappedCategory("tblWorker", "Nationality", 200);
 CheckMappedCategory("tblWorker", "Style", 16);
+CheckMappedCategory("tblWorker", "CompetesAgainst", 5);
+CheckMappedCategory("tblWorker", "Outsiderel", 4);
 
 CheckCode("tblWorker", "Sexuality", 1, "Heterosexual");
 CheckCode("tblWorker", "Sexuality", 5, "Pansexual");
@@ -931,14 +933,26 @@ CheckCode("tblWorker", "Nationality", 200, "Zimbabwean");
 CheckCode("tblWorker", "Style", 1, "Regular");
 CheckCode("tblWorker", "Style", 13, "Technician Flyer");
 CheckCode("tblWorker", "Style", 16, "MMA Crossover");
+CheckCode("tblWorker", "CompetesAgainst", 1, "Any");
+CheckCode("tblWorker", "CompetesAgainst", 2, "Men's Division Only");
+CheckCode("tblWorker", "CompetesAgainst", 3, "Women's Division Only");
+CheckCode("tblWorker", "CompetesAgainst", 4, "Primarily Men's Division");
+CheckCode("tblWorker", "CompetesAgainst", 5, "Primary Women's Division");
+CheckCode("tblWorker", "Outsiderel", 1, "No");
+CheckCode("tblWorker", "Outsiderel", 2, "Dating");
+CheckCode("tblWorker", "Outsiderel", 3, "Engaged");
+CheckCode("tblWorker", "Outsiderel", 4, "Married");
 if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Choices("tblTeam", "Gender").Count != 0 ||
     !TewCodeLabels.IsMappedField("tblWorker", "Pronouns") ||
     !TewCodeLabels.IsMappedField("tblWorker", "Based_In") ||
     TewCodeLabels.Display("tblWorker", "Nationality", "999") != "Code 999" ||
-    TewCodeLabels.Display("tblWorker", "Pronouns", "0") != "Code 0")
+    TewCodeLabels.Display("tblWorker", "Pronouns", "0") != "Code 0" ||
+    TewCodeLabels.Display("tblWorker", "CompetesAgainst", "6") != "Code 6" ||
+    TewCodeLabels.Display("tblWorker", "Outsiderel", "0") != "Code 0" ||
+    TewCodeLabels.Display("tblTeam", "Outsiderel", "4") != "Code 4")
     throw new Exception("Category isolation or fallback for unknown codes failed.");
-Console.WriteLine("Passed all 314 mapped codes, six new categories, boundaries, and fallback checks.");
+Console.WriteLine("Passed all 323 mapped codes across ten categories, boundaries, and fallback checks.");
 
 static void CheckMappedCategory(string table, string column, int expectedCount)
 {
