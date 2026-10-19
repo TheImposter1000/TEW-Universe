@@ -333,9 +333,9 @@ public partial class MainWindow : Window
             AddHeaderFact("\uE787", FriendlyDate(ValueFor("Birthday")) + (years >= 0 ? $" ({years} years)" : ""));
         }
         if (ValueFor("Nationality") is string n && n.Length > 0)
-            AddHeaderFact("\uE774", "Nationality: " + DisplayCode(n));
+            AddHeaderFact("\uE774", "Nationality: " + DisplayWorkerCode("Nationality", n));
         if (ValueFor("Based_In") is string b && b.Length > 0)
-            AddHeaderFact("\uE80F", "Based in: " + DisplayCode(b));
+            AddHeaderFact("\uE80F", "Based in: " + DisplayWorkerCode("Based_In", b));
         if (ParseStoredDate(ValueFor("DebutDate")).HasValue)
             AddHeaderFact("\uE787", "Debut: " + FriendlyDate(ValueFor("DebutDate")));
 
@@ -347,9 +347,14 @@ public partial class MainWindow : Window
         {
             true => "Active", false => "Inactive", _ => "Not recorded"
         });
-        AddQuickFact("Nationality", DisplayCode(ValueFor("Nationality")));
-        AddQuickFact("Based In", DisplayCode(ValueFor("Based_In")));
-        AddQuickFact("Wrestling Style", DisplayCode(ValueFor("Style")));
+        AddQuickFact("Nationality", DisplayWorkerCode("Nationality", ValueFor("Nationality")));
+        AddQuickFact("Based In", DisplayWorkerCode("Based_In", ValueFor("Based_In")));
+        AddQuickFact("Wrestling Style", DisplayWorkerCode("Style", ValueFor("Style")));
+        foreach (var (column, label) in new[] {
+            ("Pronouns", "Pronouns"), ("Sexuality", "Sexuality"), ("Race", "Race")
+        })
+            if (ValueFor(column) is string value && value.Length > 0)
+                AddQuickFact(label, DisplayWorkerCode(column, value));
         AddQuickFact("Debut Date", FriendlyDate(ValueFor("DebutDate")));
     }
 
@@ -399,6 +404,7 @@ public partial class MainWindow : Window
                 DisplayMemberPath = nameof(TewCodeChoice.Label),
                 SelectedItem = choices.First(c => c.Code == mappedCode),
                 Height = 35,
+                MaxDropDownHeight = 260,
                 ToolTip = $"{item.Table}.{item.Column} (stored code {item.Value})"
             };
             TextSearch.SetTextPath(combo, nameof(TewCodeChoice.Label));
@@ -528,7 +534,8 @@ public partial class MainWindow : Window
         // The approved mockup groups common worker fields first, then provides
         // a separate Additional Details section, then opt-in advanced columns.
         // This retains full editing access without a wall of raw MDB columns.
-        var core = new[] { "Name", "Gender", "Birthday", "Nationality", "Based_In", "Active", "Style" };
+        var core = new[] { "Name", "Gender", "Pronouns", "Sexuality", "Race", "Birthday",
+            "Nationality", "Based_In", "Active", "Style" };
         var details = new[] { "Shortname", "ShortName", "Picture", "AlsoKnownAs", "CommentaryName",
             "RetirementDate", "DebutDate" };
         var coreFields = core.Select(name => profile.FirstOrDefault(x =>
