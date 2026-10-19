@@ -899,6 +899,71 @@ if (TewCodeLabels.Display("tblWorker", "Gender", "Code 5") != "Female" ||
     throw new Exception("Verified-code presentation, raw code parsing or unmapped fallbacks failed.");
 Console.WriteLine("Passed all 14 verified gender/team-type label mappings and numeric code fallbacks.");
 
+CheckMappedCategory("tblWorker", "Gender", 8);
+CheckMappedCategory("tblTeam", "Type", 6);
+CheckMappedCategory("tblWorker", "Sexuality", 5);
+CheckMappedCategory("tblWorker", "Pronouns", 5);
+CheckMappedCategory("tblWorker", "Race", 9);
+CheckMappedCategory("tblWorker", "Based_In", 65);
+CheckMappedCategory("tblWorker", "Nationality", 200);
+CheckMappedCategory("tblWorker", "Style", 16);
+
+CheckCode("tblWorker", "Sexuality", 1, "Heterosexual");
+CheckCode("tblWorker", "Sexuality", 5, "Pansexual");
+CheckCode("tblWorker", "Pronouns", 2, "She-Her");
+CheckCode("tblWorker", "Pronouns", 5, "She-Them");
+CheckCode("tblWorker", "Race", 7, "South Asian");
+CheckCode("tblWorker", "Race", 9, "Other");
+CheckCode("tblWorker", "Based_In", 1, "USA");
+CheckCode("tblWorker", "Based_In", 22, "Manitoba");
+CheckCode("tblWorker", "Based_In", 26, "The Maritimes");
+CheckCode("tblWorker", "Based_In", 43, "Northern Europe");
+CheckCode("tblWorker", "Based_In", 47, "Chubu");
+CheckCode("tblWorker", "Based_In", 65, "Western Australia");
+CheckCode("tblWorker", "Nationality", 1, "Afghan");
+CheckCode("tblWorker", "Nationality", 4, "American");
+CheckCode("tblWorker", "Nationality", 36, "Canadian");
+CheckCode("tblWorker", "Nationality", 94, "Japanese");
+CheckCode("tblWorker", "Nationality", 119, "Mexican");
+CheckCode("tblWorker", "Nationality", 146, "Puerto Rican");
+CheckCode("tblWorker", "Nationality", 197, "Welsh");
+CheckCode("tblWorker", "Nationality", 200, "Zimbabwean");
+CheckCode("tblWorker", "Style", 1, "Regular");
+CheckCode("tblWorker", "Style", 13, "Technician Flyer");
+CheckCode("tblWorker", "Style", 16, "MMA Crossover");
+if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
+    TewCodeLabels.Choices("tblTeam", "Gender").Count != 0 ||
+    !TewCodeLabels.IsMappedField("tblWorker", "Pronouns") ||
+    !TewCodeLabels.IsMappedField("tblWorker", "Based_In") ||
+    TewCodeLabels.Display("tblWorker", "Nationality", "999") != "Code 999" ||
+    TewCodeLabels.Display("tblWorker", "Pronouns", "0") != "Code 0")
+    throw new Exception("Category isolation or fallback for unknown codes failed.");
+Console.WriteLine("Passed all 314 mapped codes, six new categories, boundaries, and fallback checks.");
+
+static void CheckMappedCategory(string table, string column, int expectedCount)
+{
+    var labels = TewCodeLabels.Choices(table, column);
+    if (labels.Count != expectedCount)
+        throw new Exception($"{table}.{column} expected {expectedCount} values, got {labels.Count}.");
+    for (int i = 0; i < labels.Count; i++)
+    {
+        var value = labels[i];
+        string code = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (value.Code != i + 1 || string.IsNullOrWhiteSpace(value.Label) ||
+            TewCodeLabels.Display(table, column, code) != value.Label ||
+            TewCodeLabels.Display(table, column, "Code " + code) != value.Label)
+            throw new Exception($"{table}.{column} failed code round-trip at {code}.");
+    }
+}
+
+static void CheckCode(string table, string column, int code, string expected)
+{
+    string stored = code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (TewCodeLabels.Display(table, column, stored) != expected)
+        throw new Exception($"{table}.{column} code {code}: expected '{expected}'.");
+}
+
+
 
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
