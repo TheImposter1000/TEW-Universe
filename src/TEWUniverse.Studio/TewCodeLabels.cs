@@ -361,6 +361,21 @@ internal static class TewCodeLabels
         MMA Crossover
         """);
 
+    private static readonly TewCodeChoice[] CompetesAgainst = Ordered("""
+        Any
+        Men's Division Only
+        Women's Division Only
+        Primarily Men's Division
+        Primary Women's Division
+        """);
+
+    private static readonly TewCodeChoice[] OutsideRelationships = Ordered("""
+        No
+        Dating
+        Engaged
+        Married
+        """);
+
     public static bool IsMappedField(string table, string column) =>
         Choices(table, column).Count > 0;
 
@@ -376,6 +391,8 @@ internal static class TewCodeLabels
                 "based_in" => BasedInRegions,
                 "nationality" => Nationalities,
                 "style" => WrestlingStyles,
+                "competesagainst" => CompetesAgainst,
+                "outsiderel" => OutsideRelationships,
                 _ => Array.Empty<TewCodeChoice>()
             };
         if (table.Equals("tblTeam", StringComparison.OrdinalIgnoreCase) &&
