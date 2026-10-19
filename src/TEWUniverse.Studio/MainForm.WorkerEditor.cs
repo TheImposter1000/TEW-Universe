@@ -80,7 +80,7 @@ internal sealed partial class MainForm
 
             AddProfileGroup("IDENTITY", "Worker identity and display names", identity, record.Data.Rows[0]);
             AddProfileGroup("STATUS & DATES", "Activity, history, and date fields", general, record.Data.Rows[0]);
-            AddProfileGroup("GAME CODES", "Stored numeric TEW IX codes. Meanings are not verified.", codes, record.Data.Rows[0]);
+            AddProfileGroup("GAME CODES", "Verified codes use readable labels; other codes remain numeric.", codes, record.Data.Rows[0]);
             AddProfileGroup("ADDITIONAL DATABASE FIELDS",
                 "Other existing worker fields. Hover over a label to see its MDB column.",
                 remaining, record.Data.Rows[0]);
@@ -103,7 +103,8 @@ internal sealed partial class MainForm
         if (name.Equals("Name", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Shortname", StringComparison.OrdinalIgnoreCase))
             return 0;
-        if (WorkerFieldCatalog.IsUnknownCode(name, c.DataType)) return 2;
+        if (TewCodeLabels.IsMappedField("tblWorker", name) ||
+            WorkerFieldCatalog.IsUnknownCode(name, c.DataType)) return 2;
         if (name.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("User", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Regen", StringComparison.OrdinalIgnoreCase) ||
@@ -223,6 +224,25 @@ internal sealed partial class MainForm
                 CheckState.Unchecked => state == CheckState.Unchecked ? original : "False",
                 _ => ""
             };
+            editor = input;
+        }
+        else if (TewCodeLabels.IsMappedField("tblWorker", field) &&
+                 TewCodeLabels.TryGetCode(original, out int mappedCode) &&
+                 TewCodeLabels.Choices("tblWorker", field).Any(x => x.Code == mappedCode))
+        {
+            var choices = TewCodeLabels.Choices("tblWorker", field).ToArray();
+            var input = new ComboBox {
+                Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = _fieldBg, ForeColor = _light,
+                Font = new Font("Segoe UI", 10)
+            };
+            input.Items.AddRange(choices.Cast<object>().ToArray());
+            input.SelectedIndex = Array.FindIndex(choices, choice => choice.Code == mappedCode);
+            input.SelectedIndexChanged += (_, _) => MarkProfileEdited();
+            read = () => input.SelectedItem is TewCodeChoice selected
+                ? selected.Code == mappedCode ? original
+                    : selected.Code.ToString(CultureInfo.InvariantCulture)
+                : original;
             editor = input;
         }
         else if (type == typeof(DateTime) &&
