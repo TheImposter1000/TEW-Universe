@@ -51,11 +51,11 @@ internal sealed class WorkerContractCreationDialog : Window
         root.Children.Add(controls);
         var cancel = new Button { Content = "Cancel",
             Style = (Style)FindResource("ActionButton"),
-            Margin = new Thickness(0, 0, 10, 0), Padding = new Thickness(18, 9) };
+            Margin = new Thickness(0, 0, 10, 0), Padding = new Thickness(18, 9, 18, 9) };
         cancel.Click += (_, _) => DialogResult = false;
         controls.Children.Add(cancel);
         var create = new Button { Content = "Create Contract",
-            Style = (Style)FindResource("BlueButton"), Padding = new Thickness(18, 9) };
+            Style = (Style)FindResource("BlueButton"), Padding = new Thickness(18, 9, 18, 9) };
         create.Click += Create_Click;
         controls.Children.Add(create);
 
