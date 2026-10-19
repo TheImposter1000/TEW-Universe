@@ -85,4 +85,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
-          gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes "Experimental Windows editor for TEW IX working-copy databases. Contains no game data or passwords. Unsigned preview installer." --latest
+          $notes = @"
+          TEW Universe Studio preview update
+
+          New: 323 verified TEW IX numeric-to-label entries in worker and tag team editors, while preserving the original saved codes.
+          New: Create live worker contracts by reviewing and copying a real contract template from the selected company.
+          New: Edit individual historical championship reigns and insert name-only NPC holders (including a real wrestler paired with an NPC tag partner), without creating roster workers.
+
+          Safety: New contract and historical lineage writes require a manual backup and explicit confirmation. Test these operations on a COPY of a TEW IX scenario and run TEW IX Data Check before using them on important databases. The new insertion flows have passed compilation and pure regression tests but have not been validated in-game.
+          Body Shape is not translated yet: supplied mapping 1-8 does not match the observed BodyType 0-7 storage values.
+
+          This unsigned preview installer contains no game database files, passwords, or scenario data.
+          "@
+          gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
