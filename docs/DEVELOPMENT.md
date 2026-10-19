@@ -2,7 +2,7 @@
 
 ## Verified application-only code labels
 
-`TewCodeLabels` is a centralized catalog of maintainer-provided TEW IX enum labels. It maps `tblWorker` fields Gender (8 codes), Sexuality (5), Pronouns (5), Race (9), Based_In (65), Nationality (200), and Style (16), plus `tblTeam.Type` (6), for a total of 314 codes across eight categories. The WPF worker profile, Quick Facts, gender/nationality/region roster filters, tag team editors, Create Tag Team dialog and legacy Windows Forms worker profile use these labels only for presentation. The source numeric values remain the editor's draft values, filter keys and actual MDB values. Unknown codes retain the `Code N` fallback; no MDB table, column or record is altered by the mapping feature. Tests cover the contiguous code ranges, all 314 numeric code round-trips, mapping spot checks, unknown fallbacks and category isolation. The ordered label sets use their 1-based line position as the original TEW IX code, so their order must not be changed without verification.
+`TewCodeLabels` is a centralized catalog of maintainer-provided TEW IX enum labels. It maps `tblWorker` fields Gender (8 codes), Sexuality (5), Pronouns (5), Race (9), Based_In (65), Nationality (200), Style (16), CompetesAgainst (5), and Outsiderel (4), plus `tblTeam.Type` (6), for a total of 323 codes across ten categories. The WPF worker profile, Quick Facts, gender/nationality/region roster filters, tag team editors, Create Tag Team dialog and legacy Windows Forms worker profile use these labels only for presentation. The source numeric values remain the editor's draft values, filter keys and actual MDB values. Unknown codes retain the `Code N` fallback; no MDB table, column or record is altered by the mapping feature. Tests cover the contiguous code ranges, all 323 numeric code round-trips, mapping spot checks, all five Competes Against options and four Outside Relationship options, unknown fallbacks and category isolation. The ordered label sets use their 1-based line position as the original TEW IX code, so their order must not be changed without verification.
 
 ## Read-only compound worker filters
 
@@ -116,7 +116,7 @@ The Windows release now builds `src/TEWUniverse.Desktop` using WPF. Its MainWind
 
 ## Uniform display of TEW IX codes
 
-The worker editor uses verified labels for Gender, Sexuality, Pronouns, Race, Nationality, Based In and Wrestling Style fields when a known numeric code is encountered. The header and Quick Facts also show readable labels where those fields appear, while the draft model and MDB save path continue to use the original numeric code. Unknown codes still display `Code N`, with the text editor retained rather than silently coercing the value. True/False flags remain separate Boolean fields with Yes/No controls.
+The worker editor uses verified labels for Gender, Sexuality, Pronouns, Race, Nationality, Based In, Wrestling Style, Competes Against and Outside Relationship fields when a known numeric code is encountered. The header and Quick Facts also show readable labels where those fields appear, while the draft model and MDB save path continue to use the original numeric code. Unknown codes still display `Code N`, with the text editor retained rather than silently coercing the value. True/False flags remain separate Boolean fields with Yes/No controls.
 
 ### Advanced Generator: worker tenures and exact reigns
 
