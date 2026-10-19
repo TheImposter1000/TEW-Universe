@@ -29,7 +29,7 @@ internal static class WorkerFieldCatalog
 
     private static readonly HashSet<string> UnverifiedCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Gender", "Pronouns", "Sexuality", "CompetesAgainst", "Outsiderel"
+        "Pronouns", "Sexuality", "CompetesAgainst", "Outsiderel"
     };
 
     public static bool IsUnknownCode(string name, Type type) =>
@@ -46,6 +46,8 @@ internal static class WorkerFieldCatalog
     public static string FieldDescription(string name, Type type)
     {
         var raw = "TEW IX column: " + name;
+        if (TewCodeLabels.IsMappedField("tblWorker", name))
+            return raw + ". The label is display-only; the original numeric code is saved.";
         if (IsUnknownCode(name, type))
             return raw + ". Stored numeric code: the dropdown mapping has not been verified, so edit with care.";
         if (type == typeof(bool)) return raw + ". True, False, or blank (database null).";
