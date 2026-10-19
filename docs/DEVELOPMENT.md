@@ -1,10 +1,14 @@
 # Development and compatibility
 
+## Verified application-only code labels
+
+`TewCodeLabels` is a centralized catalog of maintainer-provided TEW IX enum labels. It maps `tblWorker.Gender` codes 1–8 and `tblTeam.Type` codes 1–6. The WPF worker profile, facts, gender roster filter, tag team editors, Create Tag Team dialog and legacy Windows Forms worker profile use these labels only for presentation. The source numeric values remain the editor's draft values, filter keys and actual MDB values. Unknown codes retain the `Code N` fallback; no MDB table, column or record is altered by the mapping feature. Tests cover all 14 known mappings and unknown/raw-code parsing.
+
 ## Read-only compound worker filters
 
 `WorkerRosterFilterEngine` defines immutable `WorkerFilterRecord` and `WorkerFilterCriteria` values and pure `Matches` / `AgeAt` functions. Multiple selected conditions are ANDed (alongside existing case-insensitive name/UID search), and the existing sort is applied afterward. Ages use the calendar date in the running Windows environment; unknown, future and sentinel birth dates cannot match an explicit age bound. The age editor accepts only 0–120 and flags a reversed or invalid range rather than silently ignoring it.
 
-`DatabaseSession.ReadWorkerFilterIndex` reads only worker IDs and verified `tblWorker` fields (Active from the existing catalog, Gender, Birthday, Nationality, Based_In and known role-flag fields actually present in the runtime schema). A separate batched `tblContract.WorkerUID/FedUID` scan supplies **current company** membership, including multiple simultaneous employers. Missing or incompatible role/company data disables those filter choices; unverified categorical integers are represented by raw `Code N` choices, never guessed labels. No per-keystroke database query or MDB write is performed.
+`DatabaseSession.ReadWorkerFilterIndex` reads only worker IDs and verified `tblWorker` fields (Active from the existing catalog, Gender, Birthday, Nationality, Based_In and known role-flag fields actually present in the runtime schema). A separate batched `tblContract.WorkerUID/FedUID` scan supplies **current company** membership, including multiple simultaneous employers. Missing or incompatible role/company data disables those filter choices; verified Gender codes show labels with their original `Code N` keys retained for filtering. Other unverified categorical integers still use raw `Code N` choices. No per-keystroke database query or MDB write is performed.
 
 `WorkerRosterFiltersView.cs` populates the compact, scrollable, collapsible Workers sidebar filter panel; resets all filters and search; refreshes indexes on database open, refresh, and profile saves; and updates the displayed matching count. `WorkerPortraitConverter.HasPicture` uses the exact same name-first/People-directory and MDB-picture-fallback filename matching as the live portrait renderer, with a cached existence check cleared when the picture folder changes. The actual picture lookup is deferred until a Pictures/No Pictures filter is requested to avoid decoding thousands of roster portraits. The filter feature makes no changes to external image files or MDB records. Pure regression tests exercise combined gender/age/status/role/company/nationality/region/picture conditions, overlapping companies, worker UID search, and age boundaries.
 
@@ -44,11 +48,11 @@ These linked-record editors have their own explicit Add / Save Selected / Remove
 
 ## Tag Teams: existing editing and safe team insertion
 
-The new **Tag Teams** navigation entry reuses the current existing-record list and detail editor. `ExistingEditors` targets `tblTeam` and allowlists `Name`, `Worker1`, `Worker2`, `Fed`, `Type`, `Experience`, `Formed`, `Finisher`, `TagFinisherDesc`, and `Active`. References are selectable from existing workers and companies, while numeric team-type codes are intentionally raw until we have confirmed the game's internal mapping. Save Changes calls the normal parameterized transactional update path, validates both worker IDs, company ID, and type code, and preserves UID/Recordname.
+The new **Tag Teams** navigation entry reuses the current existing-record list and detail editor. `ExistingEditors` targets `tblTeam` and allowlists `Name`, `Worker1`, `Worker2`, `Fed`, `Type`, `Experience`, `Formed`, `Finisher`, `TagFinisherDesc`, and `Active`. References are selectable from existing workers and companies; team-type codes 1–6 display the maintainer-supplied names while underlying values remain numeric. Save Changes calls the normal parameterized transactional update path, validates both worker IDs, company ID, and type code, and preserves UID/Recordname.
 
 **Create Tag Team** is guarded by an on-demand manual backup and confirmation. The database service checks the actual table schema, allocates a record UID and unique internal record name, verifies worker/company/type references against the active MDB and protects against duplicate partnerships in the same company. All inserts happen in a single transaction with rollback. Unknown mandatory schema columns and unverified global-company sentinel values fail closed rather than writing guessed data. Creation does not insert wrestlers, companies, or championship records. The uploaded sample MDB is never modified during development.
 
-This feature has Windows WPF build validation but cannot be considered TEW IX-compatible without testing on a copied scenario using TEW IX Data Check. Formation input follows the active MDB field type. Type descriptions (Permanent Unit, Unit, Individuals) remain unmapped until verified.
+Tag-team insertion must be tested on a copied scenario with TEW IX Data Check. Formation input follows the active MDB field type. Team-type display labels are app-only and do not change insertion validation or the stored type code.
 
 
 
@@ -112,7 +116,7 @@ The Windows release now builds `src/TEWUniverse.Desktop` using WPF. Its MainWind
 
 ## Uniform display of TEW IX codes
 
-The worker editor uses the stored numerical codes for Gender, Nationality, Based In, Wrestling Style and other unverified enumerations. The header and Quick Facts display `Code N`; the editable fields show their original numeric values and no longer translate Gender 1/2 into Male/Female dropdown labels. This avoids partially translated field values and does not alter the MDB schema or values by itself. True/False flags are Boolean fields and continue to use Yes/No controls.
+The worker editor uses verified labels for Gender codes 1–8 in the header, Quick Facts and editable dropdown, but the draft model and MDB save path still use the original numeric code. Nationality, Based In, Wrestling Style and other unverified enumerations continue to show `Code N` and retain the original values. True/False flags remain separate Boolean fields with Yes/No controls. Unmapped Gender codes use a numeric editor instead of being silently replaced.
 
 ### Advanced Generator: worker tenures and exact reigns
 
@@ -219,7 +223,7 @@ Workers and four existing-record modules are functional. The legacy WinForms not
 
 The Worker Profile tab now renders the actual MDB columns as clearly labeled form fields using their database types. Boolean columns use three-state checkboxes so a database NULL is not silently converted to False. Existing date columns use date pickers when representable, and unsupported date values remain text fields. Text and numeric fields preserve their real stored values; typed validation runs before Save Changes. Labels and tooltips retain each true TEW IX column name to aid investigation.
 
-The Skills, Popularity and Physical tabs retain their dense editable grids, but names are humanized and the source column is exposed in tooltips. Unverified enumerations such as Gender, Pronouns and Sexuality explicitly say "(code)" and stay numeric until mappings have been tested against the game; no speculative code conversion is performed. The search library now filters by the database's actual Active boolean with All, Active and Inactive filters. The profile side panel shows real worker status and a skills snapshot drawn only from recorded numeric skill fields.
+The Skills, Popularity and Physical tabs retain their dense editable grids, but names are humanized and the source column is exposed in tooltips. Pronouns and Sexuality remain unverified numeric codes. Gender now uses the maintainer-supplied eight-label mapping without changing the stored code; no speculative conversions are performed. The search library now filters by the database's actual Active boolean with All, Active and Inactive filters. The profile side panel shows real worker status and a skills snapshot drawn only from recorded numeric skill fields.
 
 **Do not confuse friendly field names with game-rule validation.** TEW IX internal relationships and numeric enum meanings still need testing, and the application only edits existing worker records. Save Changes writes to Current Copy without automatic backup. Create Backup remains a separate operation.
 
