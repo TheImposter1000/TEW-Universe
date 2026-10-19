@@ -979,6 +979,61 @@ static void CheckCode(string table, string column, int code, string expected)
 
 
 
+// The Carson story: a linked wrestler may win a tag title alongside his
+// deceased father, a name-only historical NPC not inserted into tblWorker.
+var knownWorkers = new HashSet<int> { 101, 202 };
+HistoricalReignRules.ValidateHolders(
+    new[] { 101, -1, -1 }, new[] { "Carson", "Carson's Father", "" },
+    2, knownWorkers);
+// A name-only predecessor (e.g. Damien Ward) and real successor (Tavitia)
+// may be represented independently, without inventing real worker identities.
+HistoricalReignRules.ValidateHolders(
+    new[] { -1, -1, -1 }, new[] { "Damien Ward", "", "" }, 1, knownWorkers);
+HistoricalReignRules.ValidateHolders(
+    new[] { 202, -1, -1 }, new[] { "Tavitia", "", "" }, 1, knownWorkers);
+int chronologicalPosition = HistoricalReignRules.InsertionPosition(
+    new (DateTime Captured, DateTime Lost)[] {
+        (new DateTime(2010, 1, 1), new DateTime(2010, 12, 31)),
+        (new DateTime(2015, 1, 1), new DateTime(2015, 12, 31))
+    }, new DateTime(2014, 1, 1), new DateTime(2014, 12, 31), false);
+if (chronologicalPosition != 1)
+    throw new Exception("2014 title-history insertion was not placed between 2010 and 2015.");
+
+bool rejectedDuplicateWorker = false;
+try
+{
+    HistoricalReignRules.ValidateHolders(
+        new[] { 101, 101, -1 }, new[] { "Carson", "Carson", "" },
+        2, knownWorkers);
+}
+catch (InvalidOperationException) { rejectedDuplicateWorker = true; }
+if (!rejectedDuplicateWorker)
+    throw new Exception("A real worker appeared twice in the same tag-team history.");
+
+bool rejectedNonexistentWorker = false;
+try
+{
+    HistoricalReignRules.ValidateHolders(
+        new[] { 101, 999999, -1 }, new[] { "Carson", "Unknown worker", "" },
+        2, knownWorkers);
+}
+catch (InvalidOperationException) { rejectedNonexistentWorker = true; }
+if (!rejectedNonexistentWorker)
+    throw new Exception("An unlinked positive worker UID bypassed validation.");
+
+bool rejectedOverlap = false;
+try
+{
+    HistoricalReignRules.InsertionPosition(
+        new (DateTime Captured, DateTime Lost)[] {
+            (new DateTime(2013, 1, 1), new DateTime(2014, 6, 1))
+        }, new DateTime(2014, 1, 1), new DateTime(2014, 12, 1), false);
+}
+catch (InvalidOperationException) { rejectedOverlap = true; }
+if (!rejectedOverlap)
+    throw new Exception("An overlapping historical title reign bypassed validation.");
+Console.WriteLine("Passed name-only NPC tag team, 2014 title history and overlap safety checks.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);
