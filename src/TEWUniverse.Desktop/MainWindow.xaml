@@ -729,7 +729,7 @@
              <StackPanel>
               <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="For team titles, choose the primary wrestler and each partner, or type a name-only NPC partner instead. Set total reigns, eligible years and any known winning years/durations. The generator fills other reigns with historical NPC teams."
+              <TextBlock Text="Choose an existing worker and optional ring-name alias, OR type a name and click Add Name-Only to import that historical person without creating a worker. Import Name List accepts pasted names or TXT/CSV files. For team titles, enter complete two- or three-person lineups. Set total reigns and known winning years, then generate."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel Margin="0,0,0,9">
@@ -750,9 +750,16 @@
                         Visibility="Collapsed" ToolTip="Partner 3: optional NAME-ONLY NPC, instead of a linked wrestler. For full-history mode only."/>
                <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
                         Width="175" Margin="0,0,8,6"
-                        ToolTip="Optional historical ring name, e.g. Dragonheart"/>
-               <Button Content="Add Superstar" Style="{StaticResource ActionButton}"
-                       Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"/>
+                        ToolTip="Historical Name / Alias. If you select a worker, this is their ring-name alias. Otherwise type a name and click Add Name-Only."/>
+               <Button Content="Add Linked Superstar" Style="{StaticResource ActionButton}"
+                       Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"
+                       ToolTip="Add the selected real wrestler with an optional ring name, or a typed historical name if no wrestler is selected"/>
+               <Button Content="Add Name-Only" Style="{StaticResource BlueButton}"
+                       Click="AdvancedAddNamedChampion_Click" Padding="13,7" Margin="0,0,8,6"
+                       ToolTip="Use the typed name as a separate NPC historical champion, not as an alias for the selected wrestler"/>
+               <Button Content="Import Name List" Style="{StaticResource ActionButton}"
+                       Click="AdvancedImportNames_Click" Padding="13,7" Margin="0,0,8,6"
+                       ToolTip="Paste names or load .txt/.csv historical champion names; team titles use full lineups per row"/>
               </WrapPanel>
               <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
                         Height="128" IsReadOnly="False" CanUserAddRows="False"
@@ -775,8 +782,8 @@
                 <DataGridTextColumn Header="Superstar / ring name"
                       Binding="{Binding DisplayName, UpdateSourceTrigger=LostFocus}"
                       Width="2*"/>
-                <DataGridTextColumn Header="Worker ID" Binding="{Binding WorkerId}"
-                      Width="94" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Worker ID (-1 NPC)" Binding="{Binding WorkerId}"
+                      Width="128" IsReadOnly="True"/>
                 <DataGridTextColumn x:Name="AdvancedPartner2Column" Header="Partner 2 UID (-1 NPC)"
                       Binding="{Binding Partner2Uid, UpdateSourceTrigger=LostFocus}"
                       Width="130" Visibility="Collapsed"/>
