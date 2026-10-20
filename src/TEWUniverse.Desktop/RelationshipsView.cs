@@ -57,7 +57,7 @@ public partial class MainWindow
     private void InitializeRelationshipsUI()
     {
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(370) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(450) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         RelationshipsWorkspace.Children.Add(grid);
 
@@ -127,12 +127,12 @@ public partial class MainWindow
             RowHeight = 30, ColumnHeaderHeight = 35
         };
         _relationGrid.Columns.Add(new DataGridTextColumn {
-            Header = "Worker 1", Binding = new Binding(nameof(RelationshipEntry.Worker1Name)),
-            Width = new DataGridLength(1, DataGridLengthUnitType.Star)
+            Header = "Workers", Binding = new Binding(nameof(RelationshipEntry.PairLabel)),
+            Width = new DataGridLength(1.1, DataGridLengthUnitType.Star)
         });
         _relationGrid.Columns.Add(new DataGridTextColumn {
-            Header = "Worker 2", Binding = new Binding(nameof(RelationshipEntry.Worker2Name)),
-            Width = new DataGridLength(1, DataGridLengthUnitType.Star)
+            Header = "Relationships", Binding = new Binding(nameof(RelationshipEntry.CategorySummary)),
+            Width = new DataGridLength(1.2, DataGridLengthUnitType.Star)
         });
         _relationGrid.SelectionChanged += RelationshipSelectionChanged;
         leftPanel.Children.Add(_relationGrid);
