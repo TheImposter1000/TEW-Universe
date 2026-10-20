@@ -102,8 +102,14 @@ public partial class MainWindow
         var actions = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         DockPanel.SetDock(actions, Dock.Bottom);
         leftPanel.Children.Add(actions);
-        actions.Children.Add(RelationButton("+ New Relationship",
-            (_, _) => ShowRelationshipForm(null), true));
+        actions.Children.Add(RelationButton("+ New Relationship", (_, _) => {
+            if (!ConfirmDiscardRelationshipForm()) return;
+            _loadingRelationshipForm = true;
+            try { _relationGrid.SelectedItem = null; }
+            finally { _loadingRelationshipForm = false; }
+            ShowRelationshipForm(null);
+            RefreshDirty();
+        }, true));
         actions.Children.Add(RelationButton("Refresh", (_, _) => {
             if (ConfirmDiscardRelationshipForm()) ReloadRelationships();
         }));
@@ -192,6 +198,20 @@ public partial class MainWindow
         buttons.Children.Add(_relationSave);
         _relationDelete = RelationButton("Delete Selected", DeleteRelationship_Click);
         buttons.Children.Add(_relationDelete);
+        foreach (var selector in new[] { _relationWorker1, _relationWorker2,
+                     _relationPersonal, _relationRomantic, _relationFamily })
+            selector.SelectionChanged += (_, _) => {
+                if (!_loadingRelationshipForm && _activeModule == "Relationships")
+                    RefreshDirty();
+            };
+        _relationMentor.Checked += (_, _) => {
+            if (!_loadingRelationshipForm && _activeModule == "Relationships")
+                RefreshDirty();
+        };
+        _relationMentor.Unchecked += (_, _) => {
+            if (!_loadingRelationshipForm && _activeModule == "Relationships")
+                RefreshDirty();
+        };
         form.Children.Add(new TextBlock {
             Text = "Every create, edit or delete requires CREATE BACKUP first, " +
                    "then explicit confirmation. Recheck important changes in TEW IX Data Check.",
