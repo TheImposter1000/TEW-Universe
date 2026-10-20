@@ -828,10 +828,12 @@ internal sealed partial class DatabaseSession : IDisposable
     /// No changes to tblWorker or tblGenerateWorker are ever made.
     /// </summary>
     public int RebuildTitleLineage(int beltId, IReadOnlyList<GeneratedTitleReign> proposed,
-        int expectedExistingRows, bool annualTournament = false)
+        int expectedExistingRows, bool annualTournament = false, int competitorCount = 1)
     {
-        if (beltId <= 0 || proposed.Count is < 1 or > 500)
-            throw new InvalidOperationException("Choose a valid title and 1–500 reigns.");
+        if (beltId <= 0 || proposed.Count is < 1 or > 500 ||
+            competitorCount is < 1 or > 3)
+            throw new InvalidOperationException(
+                "Choose a valid title, competitor format, and 1–500 reigns.");
         // Use the actual tblBelt.Name (not an internal UID/code) when making
         // TEW-friendly history Recordname identifiers, e.g. BCW Championship001.
         var title = ReadSection("tblBelt", beltId);
@@ -847,20 +849,25 @@ internal sealed partial class DatabaseSession : IDisposable
         {
             var reign = proposed[i];
             if (reign.Order != i + 1 ||
-                (reign.Holder1 != -1 && !workers.Contains(reign.Holder1)) ||
-                reign.Holder2 != -1 || !string.IsNullOrEmpty(reign.HolderName2) ||
-                string.IsNullOrWhiteSpace(reign.HolderName1) ||
-                reign.HolderName1.Length > 30 || reign.HolderName1.Any(char.IsControl) ||
                 reign.Captured.Year is < 1800 or > 2100 ||
                 (annualTournament
                     ? (reign.Lost != new DateTime(1666, 1, 1) || reign.Defences != -1)
                     : (reign.Lost.Year is < 1800 or > 2100 ||
                        reign.Captured > reign.Lost || reign.Defences < 0)))
                 throw new InvalidOperationException(
-                    $"Generated reign #{i + 1} is invalid or contains an unknown linked worker.");
+                    $"Generated reign #{i + 1} has an invalid date, defense count or order.");
+
+            // Every slot must have the full number of champions for the chosen
+            // title format, including NPCs. -1 plus a name is a real name-only
+            // history holder; -1 plus an empty name is an UNUSED position.
+            HistoricalReignRules.ValidateHolders(
+                new[] { reign.Holder1, reign.Holder2, reign.Holder3 },
+                new[] { reign.HolderName1, reign.HolderName2, reign.HolderName3 },
+                competitorCount, workers);
+
             if (i > 0 && (annualTournament
-                ? reign.Captured <= proposed[i-1].Captured
-                : reign.Captured <= proposed[i-1].Lost))
+                ? reign.Captured <= proposed[i - 1].Captured
+                : reign.Captured <= proposed[i - 1].Lost))
                 throw new InvalidOperationException(
                     "Generated capture and loss dates must be chronological and non-overlapping.");
         }
@@ -985,11 +992,11 @@ internal sealed partial class DatabaseSession : IDisposable
                 cmd.Parameters.Add("belt", OleDbType.Integer).Value = beltId;
                 cmd.Parameters.Add("order", OleDbType.SmallInt).Value = p.Order;
                 cmd.Parameters.Add("h1", OleDbType.Integer).Value = p.Holder1;
-                cmd.Parameters.Add("h2", OleDbType.Integer).Value = -1;
-                cmd.Parameters.Add("h3", OleDbType.Integer).Value = -1;
+                cmd.Parameters.Add("h2", OleDbType.Integer).Value = p.Holder2;
+                cmd.Parameters.Add("h3", OleDbType.Integer).Value = p.Holder3;
                 cmd.Parameters.Add("n1", OleDbType.VarWChar).Value = p.HolderName1;
-                cmd.Parameters.Add("n2", OleDbType.VarWChar).Value = "";
-                cmd.Parameters.Add("n3", OleDbType.VarWChar).Value = "";
+                cmd.Parameters.Add("n2", OleDbType.VarWChar).Value = p.HolderName2;
+                cmd.Parameters.Add("n3", OleDbType.VarWChar).Value = p.HolderName3;
                 cmd.Parameters.Add("captured", OleDbType.Date).Value = p.Captured;
                 cmd.Parameters.Add("lost", OleDbType.Date).Value = p.Lost;
                 cmd.Parameters.Add("defences", OleDbType.SmallInt).Value = p.Defences;
