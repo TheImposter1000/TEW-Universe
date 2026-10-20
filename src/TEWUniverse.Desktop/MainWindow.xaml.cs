@@ -1733,12 +1733,23 @@ public partial class MainWindow : Window
             var requests = new List<SuperstarReignInputPlanner.Request>();
             var teamLineups = new Dictionary<int, TeamHistoryPlanner.LinkedTeam>();
             int nextSourceOrder = 0;
+            int nextNameOnlyPlannerId = -2;
             foreach (var participant in _advancedParticipants)
             {
-                if (participant.WorkerId <= 0 ||
+                if (participant.WorkerId == 0 || participant.WorkerId < -1 ||
+                    participant.WorkerId > 0 &&
                     !_allWorkers.Any(w => w.Id == participant.WorkerId))
                     throw new InvalidOperationException(
-                        $"Superstar '{participant.DisplayName}' must link to an existing worker.");
+                        $"Champion '{participant.DisplayName}' must be a linked worker " +
+                        "or a name-only person with Worker ID -1.");
+                if (participant.WorkerId == -1 && AdvancedGenerationMode.SelectedIndex != 1)
+                    throw new InvalidOperationException(
+                        "Named historical champions require Build new full history.");
+                // Unique temporary scheduling IDs keep different named NPCs
+                // distinct even when their real TEW holder UID is always -1.
+                // These temporary IDs NEVER reach the MDB or exported CSV.
+                int scheduledId = participant.WorkerId == -1
+                    ? nextNameOnlyPlannerId-- : participant.WorkerId;
                 if (!int.TryParse(participant.FirstYear, NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out int from)
                     || !int.TryParse(participant.LastYear, NumberStyles.Integer,
@@ -1752,7 +1763,7 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException(
                         $"Enter a reign count from 1 to 500 for '{participant.DisplayName}'.");
                 requests.Add(new SuperstarReignInputPlanner.Request(
-                    participant.DisplayName.Trim(), participant.WorkerId, from, to,
+                    participant.DisplayName.Trim(), scheduledId, from, to,
                     reigns, participant.WinYears, participant.ReignLengths));
                 if (memberCount > 1)
                 {
@@ -1849,6 +1860,15 @@ public partial class MainWindow : Window
                     if (memberCount > 1)
                         candidateHistory = TeamHistoryPlanner.Populate(
                             candidateHistory, candidate, teamLineups, seeds, memberCount);
+                    else
+                        candidateHistory = candidateHistory.Select(r => r.Holder1 < -1
+                            ? r with { Holder1 = -1 } : r).ToList();
+                    // Assert: no temporary name-only scheduling identifier is
+                    // retained in the preview, CSV, or saved title lineage.
+                    if (candidateHistory.Any(r => r.Holder1 < -1 || r.Holder2 < -1 ||
+                            r.Holder3 < -1))
+                        throw new InvalidOperationException(
+                            "A temporary historical scheduling ID was not resolved.");
                     anchored = candidate;
                     chronologyNotes = candidateNotes;
                     proposal = candidateHistory;
@@ -1892,7 +1912,8 @@ public partial class MainWindow : Window
             // Preserve the intended per-reign requested duration even when
             // one superstar wins more than once in the same year.
             var requestedLengths = anchored
-                .GroupBy(w => (w.WorkerId, w.WinYear))
+                .GroupBy(w => (Id: w.WorkerId < -1 ? -1 : w.WorkerId,
+                    w.WinYear, w.Name))
                 .ToDictionary(g => g.Key,
                     g => new Queue<AnchoredHistoryPlanner.Anchor>(
                         g.OrderBy(w => w.SourceOrder)));
@@ -1916,7 +1937,8 @@ public partial class MainWindow : Window
                 else
                 {
                     AnchoredHistoryPlanner.Anchor? anchor = null;
-                    if (requestedLengths.TryGetValue((reign.Holder1, reign.Captured.Year),
+                    if (requestedLengths.TryGetValue(
+                            (reign.Holder1, reign.Captured.Year, reign.HolderName1),
                             out var pending) && pending.Count > 0)
                         anchor = pending.Dequeue();
                     string request = anchor?.ReignDays is int days
