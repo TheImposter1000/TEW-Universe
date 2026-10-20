@@ -2145,9 +2145,15 @@ public partial class MainWindow : Window
                 LineageReignCount.Text = history.Rows.Rows.Count.ToString(CultureInfo.InvariantCulture);
                 if (history.Rows.Columns.Contains("Holder2"))
                 {
+                    string? secondNameField = history.Rows.Columns.Contains("Holder_Name2")
+                        ? "Holder_Name2"
+                        : history.Rows.Columns.Contains("HolderName2") ? "HolderName2" : null;
                     bool tag = history.Rows.Rows.Cast<DataRow>().Any(row =>
                         row["Holder2"] != DBNull.Value &&
-                        Convert.ToInt32(row["Holder2"], CultureInfo.InvariantCulture) > 0);
+                            Convert.ToInt32(row["Holder2"], CultureInfo.InvariantCulture) > 0 ||
+                        secondNameField != null && row[secondNameField] != DBNull.Value &&
+                            !string.IsNullOrWhiteSpace(
+                                Convert.ToString(row[secondNameField], CultureInfo.InvariantCulture)));
                     LineageTeamType.SelectedIndex = tag ? 1 : 0;
                 }
             }
