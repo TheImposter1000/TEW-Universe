@@ -63,7 +63,8 @@ internal sealed record TitleLineageResult(DataTable Rows, string? LinkField, str
 internal sealed record GeneratedTitleReign(
     int Order, int Holder1, string HolderName1,
     int Holder2, string HolderName2,
-    DateTime Captured, DateTime Lost, short Defences);
+    DateTime Captured, DateTime Lost, short Defences,
+    int Holder3 = -1, string HolderName3 = "");
 
 internal sealed record RecordSection(string Table, string Key, DataTable Data)
 {
