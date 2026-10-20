@@ -69,7 +69,7 @@ internal static class TeamHistoryPlanner
         {
             int[] ids;
             string[] names;
-            if (slot.Holder1 > 0)
+            if (slot.Holder1 != -1)
             {
                 var key = (slot.Holder1, slot.Captured.Year);
                 if (!scheduledAnchors.TryGetValue(key, out var queue) || queue.Count == 0)
