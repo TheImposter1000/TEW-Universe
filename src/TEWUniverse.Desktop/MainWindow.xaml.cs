@@ -22,7 +22,9 @@ internal sealed class LineageParticipant
     public string WinYears { get; set; } = "";
     public string ReignLengths { get; set; } = "";
     public string Partner2Uid { get; set; } = "";
+    public string Partner2Name { get; set; } = "";
     public string Partner3Uid { get; set; } = "";
+    public string Partner3Name { get; set; } = "";
     public bool FillGaps { get; set; }
 }
 
@@ -1439,6 +1441,8 @@ public partial class MainWindow : Window
         AdvancedStartMonth.SelectedIndex = 0;
         AdvancedPartner2Picker.SelectedItem = null;
         AdvancedPartner3Picker.SelectedItem = null;
+        AdvancedPartner2NpcName.Clear();
+        AdvancedPartner3NpcName.Clear();
         ConfigureEmploymentCompanyPicker();
         var history = _session.ReadTitleLineage(_selectedExisting.Id);
         // Completed histories default to holder-only substitution, never an
@@ -1486,21 +1490,44 @@ public partial class MainWindow : Window
             ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
         var partner3 = format == TitleCompetitorFormat.Trios
             ? AdvancedPartner3Picker.SelectedItem as WorkerItem : null;
-        if (format >= TitleCompetitorFormat.TagTeam && partner2 == null ||
-            format == TitleCompetitorFormat.Trios && partner3 == null ||
+        string npc2 = format >= TitleCompetitorFormat.TagTeam
+            ? AdvancedPartner2NpcName.Text.Trim() : "";
+        string npc3 = format == TitleCompetitorFormat.Trios
+            ? AdvancedPartner3NpcName.Text.Trim() : "";
+        if (format >= TitleCompetitorFormat.TagTeam &&
+                (partner2 == null) == (npc2.Length == 0) ||
+            format == TitleCompetitorFormat.Trios &&
+                (partner3 == null) == (npc3.Length == 0) ||
             new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
-                .Take((int)format).Distinct().Count() != (int)format)
+                .Take((int)format).Where(id => id > 0).Distinct().Count() !=
+                new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+                    .Take((int)format).Count(id => id > 0) ||
+            new[] { alias, npc2, npc3 }.Any(n => n.Length > 30 || n.Any(char.IsControl)))
         {
             MessageBox.Show(this,
-                $"Choose {(int)format} different linked workers for this {format} title.");
+                "Select one existing worker OR enter one name-only NPC for each partner. " +
+                "Linked workers must be distinct; all historical names must be at most 30 characters.");
             return;
         }
-        if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
-            x.Partner2Uid == (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "") &&
-            x.Partner3Uid == (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "")))
+        if ((npc2.Length > 0 || npc3.Length > 0) &&
+            AdvancedGenerationMode.SelectedIndex == 0)
         {
             MessageBox.Show(this,
-                "This superstar is already in the list. Edit their reigns and years in the table.");
+                "Named NPC partners are supported in Build new full history. " +
+                "Existing-slot replacement requires a fully linked real-worker lineup.");
+            return;
+        }
+        string partner2Uid = format >= TitleCompetitorFormat.TagTeam
+            ? (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
+        string partner3Uid = format == TitleCompetitorFormat.Trios
+            ? (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
+        if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
+            x.Partner2Uid == partner2Uid && x.Partner3Uid == partner3Uid &&
+            x.Partner2Name.Equals(partner2?.Name ?? npc2, StringComparison.OrdinalIgnoreCase) &&
+            x.Partner3Name.Equals(partner3?.Name ?? npc3, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show(this,
+                "This exact team is already in the list. Edit their reigns and years in the table.");
             return;
         }
         // A one-year eligibility window already specifies the winning year;
@@ -1511,16 +1538,18 @@ public partial class MainWindow : Window
             DisplayName = alias, WorkerId = worker.Id,
             FirstYear = AdvancedStartYear.Text.Trim(), LastYear = AdvancedEndYear.Text.Trim(),
             RequiredReigns = "1", WinYears = winning, ReignLengths = "",
-            Partner2Uid = format >= TitleCompetitorFormat.TagTeam
-                ? partner2!.Id.ToString(CultureInfo.InvariantCulture) : "",
-            Partner3Uid = format == TitleCompetitorFormat.Trios
-                ? partner3!.Id.ToString(CultureInfo.InvariantCulture) : "",
+            Partner2Uid = partner2Uid,
+            Partner2Name = format >= TitleCompetitorFormat.TagTeam ? partner2?.Name ?? npc2 : "",
+            Partner3Uid = partner3Uid,
+            Partner3Name = format == TitleCompetitorFormat.Trios ? partner3?.Name ?? npc3 : "",
             FillGaps = false
         });
         ResetAdvancedDraft();
         AdvancedWorkerAlias.Clear();
         AdvancedPartner2Picker.SelectedItem = null;
         AdvancedPartner3Picker.SelectedItem = null;
+        AdvancedPartner2NpcName.Clear();
+        AdvancedPartner3NpcName.Clear();
         AdvancedCandidatesGrid.Items.Refresh();
         AdvancedGenerationStatus.Text = winning.Length > 0
             ? $"Added {alias} with a fixed win in {winning}. Generate when ready."
@@ -1707,17 +1736,25 @@ public partial class MainWindow : Window
                     int[] ids = memberCount == 2
                         ? new[] { participant.WorkerId, second }
                         : new[] { participant.WorkerId, second, third };
-                    if (ids.Any(id => id <= 0 || !_allWorkers.Any(w => w.Id == id)) ||
-                        ids.Distinct().Count() != memberCount)
+                    if (ids.Any(id => id < -1 || id == 0 ||
+                            id > 0 && !_allWorkers.Any(w => w.Id == id)) ||
+                        ids.Where(id => id > 0).Distinct().Count() !=
+                            ids.Count(id => id > 0))
                         throw new InvalidOperationException(
-                            $"Select {memberCount} different existing workers for " +
-                            $"{participant.DisplayName}. Check Partner 2 / Partner 3 UIDs.");
-                    string[] names = ids.Select((id, index) => index == 0
-                        ? participant.DisplayName.Trim()
-                        : _allWorkers.First(w => w.Id == id).Name).ToArray();
+                            $"Each lineup needs {memberCount} valid champion positions, " +
+                            "with distinct linked workers and -1 for a name-only NPC.");
+                    string[] names = ids.Select((id, index) => index switch {
+                        0 => participant.DisplayName.Trim(),
+                        1 => participant.Partner2Name.Trim().Length > 0
+                            ? participant.Partner2Name.Trim() :
+                            id > 0 ? _allWorkers.First(w => w.Id == id).Name : "",
+                        _ => participant.Partner3Name.Trim().Length > 0
+                            ? participant.Partner3Name.Trim() :
+                            id > 0 ? _allWorkers.First(w => w.Id == id).Name : ""
+                    }).ToArray();
                     if (names.Any(n => n.Length is < 1 or > 30 || n.Any(char.IsControl)))
                         throw new InvalidOperationException(
-                            "All linked champion names must contain 1–30 valid characters.");
+                            "Every linked or name-only team member needs a name of 1–30 characters.");
                     for (int i = 0; i < reigns; i++)
                         teamLineups.Add(nextSourceOrder + i,
                             new TeamHistoryPlanner.LinkedTeam(ids.ToArray(), names.ToArray()));
@@ -2138,11 +2175,19 @@ public partial class MainWindow : Window
             TitleCompetitorCombo.SelectedIndex = (int)format - 1;
             AdvancedPartner2Picker.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner2NpcName.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner3Picker.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3NpcName.Visibility = format == TitleCompetitorFormat.Trios
                 ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner2Column.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner2NameColumn.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner3Column.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3NameColumn.Visibility = format == TitleCompetitorFormat.Trios
                 ? Visibility.Visible : Visibility.Collapsed;
             TitleClassificationHelp.Text = annual
                 ? "Annual tournament: one winner per edition, no title-loss date or defences."
