@@ -99,7 +99,7 @@ public partial class MainWindow
         {
             var holder = proposal[i];
             string status = EmploymentFlag(
-                new[] { holder.Holder1, holder.Holder2 }.Where(x => x > 0).ToArray(),
+                new[] { holder.Holder1, holder.Holder2, holder.Holder3 }.Where(x => x > 0).ToArray(),
                 holder.Captured, holder.Lost, annual);
             preview.Rows[i]["Employment check"] = status;
             if (status.Contains("FLAG:", StringComparison.Ordinal))
