@@ -1475,16 +1475,37 @@ public partial class MainWindow : Window
                 : "No existing history: use Build new full history.");
     }
 
-    private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e)
+    private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e) =>
+        AddAdvancedChampion(forceNameOnly: false);
+
+    private void AdvancedAddNamedChampion_Click(object sender, RoutedEventArgs e) =>
+        AddAdvancedChampion(forceNameOnly: true);
+
+    private void AddAdvancedChampion(bool forceNameOnly)
     {
         if (_selectedExisting == null || _activeModule != "Titles") return;
-        if (AdvancedWorkerPicker.SelectedItem is not WorkerItem worker)
+        var selectedWorker = forceNameOnly
+            ? null : AdvancedWorkerPicker.SelectedItem as WorkerItem;
+        string name = AdvancedWorkerAlias.Text.Trim();
+        bool nameOnly = selectedWorker == null;
+        if (name.Length == 0)
         {
-            MessageBox.Show(this, "Select an existing worker from the list first.");
+            if (selectedWorker == null)
+            {
+                MessageBox.Show(this, "Type a historical champion name in the Name / Alias box. " +
+                    "Or choose an existing wrestler to use their actual worker record.");
+                return;
+            }
+            name = selectedWorker.Name;
+        }
+        if (nameOnly && AdvancedGenerationMode.SelectedIndex != 1)
+        {
+            MessageBox.Show(this,
+                "Name-only champions can be added in Build new full history mode. " +
+                "Choose that mode below first. It replaces this title's prior lineage " +
+                "only after generating a preview, making a backup, and confirming.");
             return;
         }
-        var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
-            ? worker.Name : AdvancedWorkerAlias.Text.Trim();
         var format = CurrentTitleFormat();
         var partner2 = format >= TitleCompetitorFormat.TagTeam
             ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
@@ -1498,11 +1519,11 @@ public partial class MainWindow : Window
                 (partner2 == null) == (npc2.Length == 0) ||
             format == TitleCompetitorFormat.Trios &&
                 (partner3 == null) == (npc3.Length == 0) ||
-            new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+            new[] { selectedWorker?.Id ?? -1, partner2?.Id ?? -1, partner3?.Id ?? -1 }
                 .Take((int)format).Where(id => id > 0).Distinct().Count() !=
-                new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+                new[] { selectedWorker?.Id ?? -1, partner2?.Id ?? -1, partner3?.Id ?? -1 }
                     .Take((int)format).Count(id => id > 0) ||
-            new[] { alias, npc2, npc3 }.Any(n => n.Length > 30 || n.Any(char.IsControl)))
+            new[] { name, npc2, npc3 }.Any(n => n.Length > 30 || n.Any(char.IsControl)))
         {
             MessageBox.Show(this,
                 "Select one existing worker OR enter one name-only NPC for each partner. " +
@@ -1513,35 +1534,44 @@ public partial class MainWindow : Window
             AdvancedGenerationMode.SelectedIndex == 0)
         {
             MessageBox.Show(this,
-                "Named NPC partners are supported in Build new full history. " +
+                "Named NPC partners require Build new full history. " +
                 "Existing-slot replacement requires a fully linked real-worker lineup.");
             return;
         }
+        int workerId = selectedWorker?.Id ?? -1;
         string partner2Uid = format >= TitleCompetitorFormat.TagTeam
             ? (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
         string partner3Uid = format == TitleCompetitorFormat.Trios
             ? (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
-        if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
-            x.Partner2Uid == partner2Uid && x.Partner3Uid == partner3Uid &&
-            x.Partner2Name.Equals(partner2?.Name ?? npc2, StringComparison.OrdinalIgnoreCase) &&
-            x.Partner3Name.Equals(partner3?.Name ?? npc3, StringComparison.OrdinalIgnoreCase)))
+        string partner2Name = format >= TitleCompetitorFormat.TagTeam
+            ? partner2?.Name ?? npc2 : "";
+        string partner3Name = format == TitleCompetitorFormat.Trios
+            ? partner3?.Name ?? npc3 : "";
+        string[] names = new[] { name, partner2Name, partner3Name }
+            .Take((int)format).ToArray();
+        if (names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length)
         {
-            MessageBox.Show(this,
-                "This exact team is already in the list. Edit their reigns and years in the table.");
+            MessageBox.Show(this, "A historical team must have different names in each holder position.");
             return;
         }
-        // A one-year eligibility window already specifies the winning year;
-        // longer windows require the user's explicitly entered winning years.
+        if (_advancedParticipants.Any(x => x.WorkerId == workerId &&
+            x.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+            x.Partner2Uid == partner2Uid && x.Partner3Uid == partner3Uid &&
+            x.Partner2Name.Equals(partner2Name, StringComparison.OrdinalIgnoreCase) &&
+            x.Partner3Name.Equals(partner3Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show(this, "This champion or team is already in the list. " +
+                "Edit its reign count and winning years in the table.");
+            return;
+        }
         string winning = AdvancedStartYear.Text.Trim() == AdvancedEndYear.Text.Trim()
             ? AdvancedStartYear.Text.Trim() : "";
         _advancedParticipants.Add(new LineageParticipant {
-            DisplayName = alias, WorkerId = worker.Id,
+            DisplayName = name, WorkerId = workerId,
             FirstYear = AdvancedStartYear.Text.Trim(), LastYear = AdvancedEndYear.Text.Trim(),
             RequiredReigns = "1", WinYears = winning, ReignLengths = "",
-            Partner2Uid = partner2Uid,
-            Partner2Name = format >= TitleCompetitorFormat.TagTeam ? partner2?.Name ?? npc2 : "",
-            Partner3Uid = partner3Uid,
-            Partner3Name = format == TitleCompetitorFormat.Trios ? partner3?.Name ?? npc3 : "",
+            Partner2Uid = partner2Uid, Partner2Name = partner2Name,
+            Partner3Uid = partner3Uid, Partner3Name = partner3Name,
             FillGaps = false
         });
         ResetAdvancedDraft();
@@ -1551,14 +1581,13 @@ public partial class MainWindow : Window
         AdvancedPartner2NpcName.Clear();
         AdvancedPartner3NpcName.Clear();
         AdvancedCandidatesGrid.Items.Refresh();
-        AdvancedGenerationStatus.Text = winning.Length > 0
-            ? $"Added {alias} with a fixed win in {winning}. Generate when ready."
-            : $"Added {alias}. Enter the years they won in the Superstars table.";
+        AdvancedGenerationStatus.Text = nameOnly
+            ? $"Added name-only historical champion {name}. No tblWorker record created."
+            : $"Added linked worker {name}. Set known win years or durations before generating.";
     }
 
-    // NPCs are not manually added to the superstar table. Their historical
-    // names are read from tblGenerateWorker during generation, so no extra
-    // tblWorker records and no NPC reign-count input are needed.
+    // The list can contain both real workers (positive UIDs) and named
+    // historical people (-1). Only the generated history carries their names.
 
     private void AdvancedCandidatesGrid_PreviewKeyDown(object sender,
         System.Windows.Input.KeyEventArgs e)
