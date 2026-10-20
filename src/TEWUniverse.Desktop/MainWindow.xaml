@@ -729,37 +729,77 @@
              <StackPanel>
               <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="Choose an existing worker and optional ring-name alias, OR type a name and click Add Name-Only to import that historical person without creating a worker. Import Name List accepts pasted names or TXT/CSV files. For team titles, enter complete two- or three-person lineups. Set total reigns and known winning years, then generate."
+              <TextBlock Text="Choose an existing worker and optional ring-name alias, OR type a name and click Add Name-Only to import that historical person without creating a worker. Import Name List accepts pasted names or TXT/CSV files. For each teammate: choose a wrestler and optionally type their ring-name alias, OR leave that wrestler dropdown empty and type a required NPC name. Set total reigns and known winning years, then generate."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
-              <WrapPanel Margin="0,0,0,9">
-               <ComboBox x:Name="AdvancedWorkerPicker" Width="240"
-                         Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                         ToolTip="Primary linked wrestler by name and UID"/>
-               <ComboBox x:Name="AdvancedPartner2Picker" Width="220"
-                         Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                         Visibility="Collapsed" ToolTip="Partner 2: choose a linked worker OR type a name-only NPC in the adjacent box"/>
-               <TextBox x:Name="AdvancedPartner2NpcName" Width="188"
-                        Style="{StaticResource FormTextBox}" Margin="0,0,8,6"
-                        Visibility="Collapsed" ToolTip="Partner 2: optional NAME-ONLY NPC, instead of a linked wrestler. For full-history mode only."/>
-               <ComboBox x:Name="AdvancedPartner3Picker" Width="220"
-                         Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                         Visibility="Collapsed" ToolTip="Partner 3: choose a linked worker OR type a name-only NPC in the adjacent box"/>
-               <TextBox x:Name="AdvancedPartner3NpcName" Width="188"
-                        Style="{StaticResource FormTextBox}" Margin="0,0,8,6"
-                        Visibility="Collapsed" ToolTip="Partner 3: optional NAME-ONLY NPC, instead of a linked wrestler. For full-history mode only."/>
-               <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
-                        Width="175" Margin="0,0,8,6"
-                        ToolTip="Historical Name / Alias. If you select a worker, this is their ring-name alias. Otherwise type a name and click Add Name-Only."/>
-               <Button Content="Add Linked Superstar" Style="{StaticResource ActionButton}"
-                       Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"
-                       ToolTip="Add the selected real wrestler with an optional ring name, or a typed historical name if no wrestler is selected"/>
-               <Button Content="Add Name-Only" Style="{StaticResource BlueButton}"
-                       Click="AdvancedAddNamedChampion_Click" Padding="13,7" Margin="0,0,8,6"
-                       ToolTip="Use the typed name as a separate NPC historical champion, not as an alias for the selected wrestler"/>
-               <Button Content="Import Name List" Style="{StaticResource ActionButton}"
-                       Click="AdvancedImportNames_Click" Padding="13,7" Margin="0,0,8,6"
-                       ToolTip="Paste names or load .txt/.csv historical champion names; team titles use full lineups per row"/>
+              <WrapPanel Margin="0,0,0,9" Orientation="Horizontal">
+               <StackPanel Width="240" Margin="0,0,8,6">
+                <TextBlock Text="Champion 1: existing worker"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <ComboBox x:Name="AdvancedWorkerPicker"
+                          Style="{StaticResource DarkComboBox}"
+                          SelectionChanged="AdvancedPartnerSelectionChanged"
+                          ToolTip="Choose an existing wrestler, or leave unselected to type a name-only champion."/>
+               </StackPanel>
+               <StackPanel x:Name="AdvancedPartner2PickerGroup" Width="220"
+                           Margin="0,0,8,6" Visibility="Collapsed">
+                <TextBlock Text="Partner 2: existing worker"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <ComboBox x:Name="AdvancedPartner2Picker"
+                          Style="{StaticResource DarkComboBox}"
+                          SelectionChanged="AdvancedPartnerSelectionChanged"
+                          ToolTip="Choose a real wrestler, or leave empty and use the adjacent NPC name field."/>
+               </StackPanel>
+               <StackPanel x:Name="AdvancedPartner2NameGroup" Width="220"
+                           Margin="0,0,8,6" Visibility="Collapsed">
+                <TextBlock x:Name="AdvancedPartner2NameLabel"
+                           Text="Partner 2: NPC name (if no worker selected)"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <TextBox x:Name="AdvancedPartner2NpcName"
+                         Style="{StaticResource FormTextBox}"
+                         ToolTip="No worker selected: required NPC name. Worker selected: optional ring-name alias."/>
+               </StackPanel>
+               <StackPanel x:Name="AdvancedPartner3PickerGroup" Width="220"
+                           Margin="0,0,8,6" Visibility="Collapsed">
+                <TextBlock Text="Partner 3: existing worker"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <ComboBox x:Name="AdvancedPartner3Picker"
+                          Style="{StaticResource DarkComboBox}"
+                          SelectionChanged="AdvancedPartnerSelectionChanged"
+                          ToolTip="Choose a real wrestler, or leave empty and use the adjacent NPC name field."/>
+               </StackPanel>
+               <StackPanel x:Name="AdvancedPartner3NameGroup" Width="220"
+                           Margin="0,0,8,6" Visibility="Collapsed">
+                <TextBlock x:Name="AdvancedPartner3NameLabel"
+                           Text="Partner 3: NPC name (if no worker selected)"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <TextBox x:Name="AdvancedPartner3NpcName"
+                         Style="{StaticResource FormTextBox}"
+                         ToolTip="No worker selected: required NPC name. Worker selected: optional ring-name alias."/>
+               </StackPanel>
+               <StackPanel Width="195" Margin="0,0,8,6">
+                <TextBlock x:Name="AdvancedPrimaryNameLabel"
+                           Text="Champion 1: name-only historical person"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <TextBox x:Name="AdvancedWorkerAlias"
+                         Style="{StaticResource FormTextBox}"
+                         ToolTip="With a selected first worker, this is their optional ring-name alias. Without a selected worker, type a historical name to add a name-only champion."/>
+               </StackPanel>
+               <StackPanel Margin="0,0,0,6">
+                <TextBlock Text="Add champion / team" Foreground="#BCD7EF"
+                           FontSize="11" Margin="0,0,0,5"/>
+                <WrapPanel>
+                 <Button Content="Add Linked Superstar" Style="{StaticResource ActionButton}"
+                         Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"
+                         ToolTip="Add the selected real wrestler and complete partners with their optional aliases"/>
+                 <Button Content="Add Name-Only" Style="{StaticResource BlueButton}"
+                         Click="AdvancedAddNamedChampion_Click" Padding="13,7" Margin="0,0,8,6"
+                         ToolTip="Use the Champion 1 name as an NPC historical champion, regardless of the first worker dropdown"/>
+                 <Button Content="Import Name List" Style="{StaticResource ActionButton}"
+                         Click="AdvancedImportNames_Click" Padding="13,7" Margin="0,0,8,6"
+                         ToolTip="Paste names or load .txt/.csv historical champions and full teams"/>
+                </WrapPanel>
+               </StackPanel>
               </WrapPanel>
               <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
                         Height="128" IsReadOnly="False" CanUserAddRows="False"
