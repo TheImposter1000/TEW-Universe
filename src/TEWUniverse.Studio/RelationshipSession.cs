@@ -18,6 +18,18 @@ internal sealed record RelationshipEntry(
     public string RomanticLabel => TewCodeLabels.Display("tblRelation", "R_Rel", Romantic.ToString(CultureInfo.InvariantCulture));
     public string FamilyLabel => TewCodeLabels.Display("tblRelation", "F_Rel", Family.ToString(CultureInfo.InvariantCulture));
     public string MentorLabel => Mentor ? "Yes" : "No";
+    public string CategorySummary
+    {
+        get
+        {
+            var labels = new List<string>();
+            if (Personal != 0) labels.Add("Personal: " + PersonalLabel);
+            if (Romantic != 0) labels.Add("Romantic: " + RomanticLabel);
+            if (Family != 0) labels.Add("Family: " + FamilyLabel);
+            if (Mentor) labels.Add("Mentor");
+            return labels.Count == 0 ? "None" : string.Join("; ", labels);
+        }
+    }
 }
 
 internal sealed partial class DatabaseSession
