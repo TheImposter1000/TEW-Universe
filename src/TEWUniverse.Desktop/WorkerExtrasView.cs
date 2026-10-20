@@ -447,22 +447,24 @@ public partial class MainWindow
                     _attributeNumericCodes = numeric;
                     _attributeName.IsEditable = !numeric;
                     _attributeNameCaption.Text = numeric
-                        ? "Stored attribute code (select an existing numeric code)"
+                        ? "Attribute (verified name + stored numeric code)"
                         : "Attribute name";
                     _attributeHelp.Text = numeric
-                        ? "This MDB stores attributes as NUMERIC CODES, not text names. " +
-                          "Choose a code already present in the scenario. " +
-                          "Codes are displayed as Code N (unverified); gameplay meanings " +
-                          "have not been mapped. Hidden and Permanent are preserved. " +
-                          "No guessed or unknown new codes can be added."
+                        ? "52 known, assignable attributes across Personality, Alignment, " +
+                          "Gimmick and Other Performance. Each shows its stored code. " +
+                          "Five Personality codes are reserved as Unassigned and cannot be added. " +
+                          "Other codes remain unmapped, readable, and preserved if unchanged."
                         : "This MDB stores attributes as text names. Choose a known " +
                           "attribute or type its exact game name.";
-                    _attributeName.ItemsSource = known;
+                    _attributeName.ItemsSource = numeric
+                        ? (System.Collections.IEnumerable)WorkerAttributeValue.Options(known)
+                        : known;
                     _attributesGrid.ItemsSource = records;
                     _attributesGrid.SelectedItem = attributeUid.HasValue
                         ? records.FirstOrDefault(r => r.Uid == attributeUid.Value) : null;
                     _attributeSummary.Text = $"{records.Count} attribute(s) linked to {_worker.Name}. " +
-                        (numeric ? "Attribute values are stored NUMERIC codes (unverified). " :
+                        (numeric ? "Verified codes display their attribute names; " +
+                                   "unknown codes remain unmapped. " :
                                    "Attribute values are stored as text. ") +
                         "Hidden and Permanent reflect the actual MDB flags.";
                 }
@@ -515,7 +517,9 @@ public partial class MainWindow
             var item = _attributesGrid.SelectedItem as WorkerAttributeEntry;
             _attributeSave.IsEnabled = _attributeDelete.IsEnabled = item != null;
             if (_attributeNumericCodes)
-                _attributeName.SelectedItem = item?.Attribute;
+                _attributeName.SelectedItem = item == null ? null :
+                    _attributeName.Items.Cast<WorkerAttributeOption>()
+                        .FirstOrDefault(x => x.StoredCode == item.Attribute);
             else
                 _attributeName.Text = item?.Attribute ?? "";
             _attributeHidden.IsChecked = item?.Hidden ?? false;
@@ -547,6 +551,10 @@ public partial class MainWindow
         finally { _settingWorkerExtraForm = false; }
     }
 
+    private string CurrentAttributeValue() => _attributeNumericCodes
+        ? (_attributeName.SelectedItem as WorkerAttributeOption)?.StoredCode ?? ""
+        : _attributeName.Text.Trim();
+
     /// <summary>
     /// Unlike normal worker profile fields, these linked rows use dedicated
     /// Add/Save Selected actions. Protect typed but unapplied values when users
@@ -560,7 +568,7 @@ public partial class MainWindow
         if (_currentTab == "Attributes")
         {
             var entry = _attributesGrid.SelectedItem as WorkerAttributeEntry;
-            string name = _attributeName.Text.Trim();
+            string name = CurrentAttributeValue();
             if (entry == null)
                 return name.Length != 0 || _attributeHidden.IsChecked == true ||
                     _attributePermanent.IsChecked == true;
@@ -607,7 +615,7 @@ public partial class MainWindow
             MessageBox.Show(this, "Select an existing attribute to save.");
             return;
         }
-        string name = _attributeName.Text.Trim();
+        string name = CurrentAttributeValue();
         bool hidden = _attributeHidden.IsChecked == true;
         bool permanent = _attributePermanent.IsChecked == true;
         if (name.Length == 0)
@@ -616,25 +624,28 @@ public partial class MainWindow
             return;
         }
 
-        // Numeric attribute IDs are NOT game labels. Only codes actually
-        // present in this scenario can be selected; the DB write retains
-        // that exact numeric value rather than storing text.
-        bool observed = _session.ListKnownWorkerAttributes().Any(x =>
-            x.Equals(name, StringComparison.OrdinalIgnoreCase));
-        if (_attributeNumericCodes && !observed)
+        // New codes must be positively verified. Existing unknown and
+        // Unassigned codes can be retained while flags are edited.
+        if (_attributeNumericCodes &&
+            !WorkerAttributeValue.MaySaveCode(name, createNew ? null : selected?.Attribute))
         {
             MessageBox.Show(this,
-                "Choose an attribute numeric code already used in this database. " +
-                "The game meanings of new, unobserved codes are not verified.",
+                "This is an Unassigned/reserved or still-unmapped code. " +
+                "It may be preserved on an existing record but cannot be newly assigned. " +
+                "Choose one of the verified named attributes instead.",
                 "Unverified Attribute Code", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        string warning = observed ? "" :
+        bool observed = _session.ListKnownWorkerAttributes().Any(x =>
+            x.Equals(name, StringComparison.OrdinalIgnoreCase));
+        string warning = _attributeNumericCodes || observed ? "" :
             "\n\nThis attribute name is not used elsewhere in this database. " +
             "Verify its exact spelling in the TEW IX editor.";
+        string readable = _attributeNumericCodes
+            ? WorkerAttributeValue.Label(name, typeof(int)) : name;
         if (!ConfirmExtraWrite(
-                (createNew ? $"Add '{name}' to {_worker.Name}?" :
-                $"Update attribute UID {selected!.Uid} for {_worker.Name}?") + warning,
+                (createNew ? $"Add '{readable}' to {_worker.Name}?" :
+                $"Update attribute UID {selected!.Uid} for {_worker.Name} to '{readable}'?") + warning,
                 createNew ? "Add Worker Attribute" : "Save Worker Attribute")) return;
 
         try
