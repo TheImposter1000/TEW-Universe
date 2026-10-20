@@ -11,7 +11,7 @@ internal sealed record WorkerAttributeEntry(
     bool NumericCode = false)
 {
     public string DisplayAttribute => NumericCode
-        ? "Code " + Attribute + " (unverified)" : Attribute;
+        ? WorkerAttributeValue.Label(Attribute, typeof(int)) : Attribute;
 }
 
 internal sealed record WorkerEmploymentEntry(
@@ -138,13 +138,23 @@ internal sealed partial class DatabaseSession
             throw new InvalidOperationException(
                 "Unrecognized tblAttribute.Attribute column type: " + attributeType.Name);
         object storedAttribute = WorkerAttributeValue.Parse(name, attributeType);
-        // Numeric codes must already occur in tblAttribute; until the complete
-        // game enum is verified we do not allow guessing arbitrary codes.
-        if (WorkerAttributeValue.IsNumeric(attributeType) &&
-            !ListKnownWorkerAttributes().Contains(name, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException(
-                "Select a numeric attribute code already present in this database. " +
-                "Unverified new code numbers cannot be created.");
+        // Verified named codes are assignable. The 'Unassigned' placeholders
+        // and unknown codes can only be preserved on their existing records,
+        // never newly assigned because they happen to occur in the database.
+        if (WorkerAttributeValue.IsNumeric(attributeType))
+        {
+            string? original = entryUid is int existingUid
+                ? ReadWorkerAttributes(workerId)
+                    .FirstOrDefault(r => r.Uid == existingUid)?.Attribute
+                : null;
+            if (entryUid.HasValue && original == null)
+                throw new InvalidOperationException("Attribute no longer exists. Reload it first.");
+            if (!WorkerAttributeValue.MaySaveCode(name, original))
+                throw new InvalidOperationException(
+                    "Only verified named attribute codes can be added. " +
+                    "Unassigned and unmapped codes may be preserved on an existing " +
+                    "record but cannot be newly assigned.");
+        }
         if (schema.Columns["UID"]!.DataType != typeof(int) ||
             schema.Columns["WorkerUID"]!.DataType != typeof(int))
             throw new InvalidOperationException(
