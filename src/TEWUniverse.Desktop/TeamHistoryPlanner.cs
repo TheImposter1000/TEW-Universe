@@ -88,7 +88,10 @@ internal static class TeamHistoryPlanner
                 string[]? picked = null;
                 for (int attempt = 0; attempt < 60; attempt++)
                 {
-                    var candidate = pool.OrderBy(_ => random.Next()).Take(members).ToArray();
+                    var chosen = new HashSet<int>();
+                    while (chosen.Count < members)
+                        chosen.Add(random.Next(pool.Length));
+                    var candidate = chosen.Select(index => pool[index]).ToArray();
                     if (previous != null && candidate.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                             .SequenceEqual(previous.OrderBy(n => n, StringComparer.OrdinalIgnoreCase),
                                 StringComparer.OrdinalIgnoreCase))
