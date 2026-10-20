@@ -277,17 +277,21 @@ public partial class MainWindow
              r.Worker1.ToString(CultureInfo.InvariantCulture).Contains(search, StringComparison.OrdinalIgnoreCase) ||
              r.Worker2.ToString(CultureInfo.InvariantCulture).Contains(search, StringComparison.OrdinalIgnoreCase) ||
              r.RecordName.Contains(search, StringComparison.OrdinalIgnoreCase))).ToList();
+        // Filtering must not discard edits in progress. The selected row may
+        // disappear from the current list, but the form remains untouched.
+        bool keepEditing = !selectUid.HasValue && HasPendingRelationshipEdits();
+        int? keepUid = selectUid ?? _selectedRelationship?.Uid;
         _loadingRelationshipForm = true;
         try
         {
             _relationGrid.ItemsSource = visible;
-            _relationGrid.SelectedItem = selectUid is int uid
+            _relationGrid.SelectedItem = keepUid is int uid
                 ? visible.FirstOrDefault(r => r.Uid == uid)
                 : null;
         }
         finally { _loadingRelationshipForm = false; }
         _relationSummary.Text = $"{visible.Count:N0} of {_relationshipRows.Count:N0} records";
-        ShowRelationshipForm(_relationGrid.SelectedItem as RelationshipEntry);
+        if (!keepEditing) ShowRelationshipForm(_relationGrid.SelectedItem as RelationshipEntry);
     }
 
     private void RelationshipSelectionChanged(object sender, SelectionChangedEventArgs e)
