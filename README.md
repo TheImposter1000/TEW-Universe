@@ -16,6 +16,12 @@ A new `Workers → Contracts → Create Contract From Template` action can inser
 
 **Pending, not mapped:** Body Shape was supplied as 1 Average, 2 Skinny, 3 Toned, 4 Muscular, 5 Ripped, 6 Flabby, 7 Bulky, 8 Obese. An earlier audit observed `tblWorker.BodyType` values 0–7, so those labels are intentionally **not** bound to `BodyType` until the offset is verified. The app must not mislabel code 1 as Average if its actual meaning is different.
 
+## Dual-purpose partner text boxes (next update, PR #19)
+
+For Tag Team and Trios history entry, each partner has an **existing worker** dropdown and one adjacent **name field**. When the dropdown is empty, a name is **required** and identifies a name-only historical NPC (holder UID `-1`), available in Build new full history. When a real wrestler is selected, the same field is an **optional ring-name alias** for that person: leaving it blank uses the worker's existing name, while typing a different name retains the real positive worker UID. This permits two or three fully linked workers with independent display aliases and is also valid in safe existing-slot replacement mode. Dynamic field labels and tooltips clarify which interpretation is active.
+
+The independent primary champion's ring-name / name-only entry remains separate. The generator continues to disallow duplicate linked worker UIDs within a team and limits historical display names to 30 characters. No new roster workers or teams are created by alias entry.
+
 ## Import custom historical champion names (draft)
 
 In **Titles → Advanced Generator → Build new full history**, the Name / Alias box no longer requires a selected roster worker. Use **Add Name-Only** to add the typed person independently, or **Import Name List** to paste multiple names or read a .txt/.csv file. Singles accepts one name per line (or comma-separated), tag teams accept two names per line, and trios accept three names per line; team entries use / or comma separators. Imported people appear in the editable candidates grid with Worker ID -1; set each entry's required reigns and winning years as desired. The generator uses temporary internal scheduling identities to keep unrelated name-only champions distinct, but stores EVERY unlinked person as UID -1 + historical name in title lineage. No tblWorker, tblGenerateWorker, or tblTeam record is created or modified.
