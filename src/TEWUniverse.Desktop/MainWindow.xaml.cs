@@ -1515,14 +1515,25 @@ public partial class MainWindow : Window
         // selected, text is an optional ring-name alias. With no worker,
         // text is a required name-only NPC, allowed for full-history builds.
         bool allowNameOnlyPartners = AdvancedGenerationMode.SelectedIndex == 1;
-        HistoricalPartnerInput.Choice? resolved2 = format >= TitleCompetitorFormat.TagTeam
-            ? HistoricalPartnerInput.Resolve(partner2?.Id, partner2?.Name,
-                AdvancedPartner2NpcName.Text, 2, allowNameOnlyPartners)
-            : null;
-        HistoricalPartnerInput.Choice? resolved3 = format == TitleCompetitorFormat.Trios
-            ? HistoricalPartnerInput.Resolve(partner3?.Id, partner3?.Name,
-                AdvancedPartner3NpcName.Text, 3, allowNameOnlyPartners)
-            : null;
+        HistoricalPartnerInput.Choice? resolved2;
+        HistoricalPartnerInput.Choice? resolved3;
+        try
+        {
+            resolved2 = format >= TitleCompetitorFormat.TagTeam
+                ? HistoricalPartnerInput.Resolve(partner2?.Id, partner2?.Name,
+                    AdvancedPartner2NpcName.Text, 2, allowNameOnlyPartners)
+                : null;
+            resolved3 = format == TitleCompetitorFormat.Trios
+                ? HistoricalPartnerInput.Resolve(partner3?.Id, partner3?.Name,
+                    AdvancedPartner3NpcName.Text, 3, allowNameOnlyPartners)
+                : null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Check Championship Team",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         int[] linkedIds = new[] { selectedWorker?.Id ?? -1,
             resolved2?.WorkerId ?? -1, resolved3?.WorkerId ?? -1 }
             .Take((int)format).Where(id => id > 0).ToArray();
