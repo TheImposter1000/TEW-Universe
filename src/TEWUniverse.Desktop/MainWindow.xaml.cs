@@ -96,14 +96,16 @@ public partial class MainWindow : Window
         ShowSection("Profile");
     }
 
-    private bool HasEdits() => _activeModule == "Workers"
-        ? (_fields.Any(x => x.Dirty) || (_bioExists && BioEditor.Text != _originalBio))
-        : _existingFields.Any(x => x.Dirty);
+    private bool HasEdits() => _activeModule switch {
+        "Workers" => _fields.Any(x => x.Dirty) ||
+            (_bioExists && BioEditor.Text != _originalBio),
+        "Relationships" => HasPendingRelationshipEdits(),
+        _ => _existingFields.Any(x => x.Dirty)
+    };
 
     private bool MayLeave()
     {
-        if (!HasEdits() && !HasUnappliedWorkerExtraForm() &&
-            !HasPendingRelationshipEdits()) return true;
+        if (!HasEdits() && !HasUnappliedWorkerExtraForm()) return true;
         return MessageBox.Show(this,
             "Discard unsaved changes? Use Save Changes for worker fields, or " +
             "Add / Save Selected for attributes and employment history first.",
