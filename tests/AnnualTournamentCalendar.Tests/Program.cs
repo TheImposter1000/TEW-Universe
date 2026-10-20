@@ -1032,6 +1032,71 @@ static void CheckCode(string table, string column, int code, string expected)
 
 
 
+// Historical name import must accept manually typed champion names without
+// linked tblWorker rows, including full lineups for tag team and trios titles.
+var singleNames = NameOnlyChampionImport.Parse(
+    "Grant Cade\nDamien Ward, Another Historic Name", 1);
+if (singleNames.Count != 3 || singleNames[0].Names[0] != "Grant Cade" ||
+    singleNames[1].Names[0] != "Damien Ward")
+    throw new Exception("Typed historical singles list import failed.");
+var tagNames = NameOnlyChampionImport.Parse(
+    "Carson Cade / Grant Cade\nTag Partner A, Tag Partner B", 2);
+if (tagNames.Count != 2 || tagNames[0].Names[1] != "Grant Cade" ||
+    tagNames[1].Names[1] != "Tag Partner B")
+    throw new Exception("Complete historic tag-team list import failed.");
+var triosNames = NameOnlyChampionImport.Parse("A / B / C\nD,E,F", 3);
+if (triosNames.Count != 2 || triosNames[1].Names[2] != "F")
+    throw new Exception("Complete historic trios list import failed.");
+
+bool invalidIncompleteImport = false;
+try { NameOnlyChampionImport.Parse("Carson Cade", 2); }
+catch (InvalidOperationException) { invalidIncompleteImport = true; }
+if (!invalidIncompleteImport)
+    throw new Exception("Incomplete historical team import was accepted.");
+
+var nameOnlyInput = SuperstarReignInputPlanner.Expand(
+    new[] { new SuperstarReignInputPlanner.Request(
+        "Grant Cade", -2, 2014, 2014, 1, "2014", "") },
+    2013, 2015);
+if (nameOnlyInput.Count != 1 || nameOnlyInput[0].WorkerId != -2 ||
+    nameOnlyInput[0].Name != "Grant Cade")
+    throw new Exception("A name-only historical winner was rejected by the year planner.");
+var nameOnlySchedule = AnchoredHistoryPlanner.GenerateFromYears(
+    nameOnlyInput, new[] { new NpcNameSeed("Background NPC", null, null),
+        new NpcNameSeed("Another NPC", null, null) },
+    2014, 2014, startMonth: 1);
+if (!nameOnlySchedule.Any(r => r.Holder1 == -2 &&
+    r.HolderName1 == "Grant Cade" && r.Captured.Year == 2014))
+    throw new Exception("Name-only champion was lost by the scheduler.");
+
+var mixedNameOnlyAnchors = new[] {
+    new AnchoredHistoryPlanner.Anchor("Grant Cade", -2, 2014, 2014, 2014,
+        SourceOrder: 0)
+};
+var nameOnlyTagReigns = new[] {
+    new GeneratedTitleReign(1, -2, "Grant Cade", -1, "",
+        new DateTime(2014, 1, 1), new DateTime(2014, 12, 31), 8)
+};
+var nameOnlyTagTeams = new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+    [0] = new(new[] { -1, 501 }, new[] { "Grant Cade", "Carson Cade" })
+};
+var nameOnlyTagResult = TeamHistoryPlanner.Populate(
+    nameOnlyTagReigns, mixedNameOnlyAnchors, nameOnlyTagTeams,
+    new[] { new NpcNameSeed("Background", null, null),
+        new NpcNameSeed("Other Background", null, null) },
+    2, new Random(1));
+if (nameOnlyTagResult.Count != 1 ||
+    nameOnlyTagResult[0].Holder1 != -1 || nameOnlyTagResult[0].Holder2 != 501 ||
+    nameOnlyTagResult[0].HolderName1 != "Grant Cade" ||
+    nameOnlyTagResult[0].HolderName2 != "Carson Cade")
+    throw new Exception("Named NPC primary champion was not linked to real teammate.");
+HistoricalReignRules.ValidateHolders(
+    new[] { nameOnlyTagResult[0].Holder1, nameOnlyTagResult[0].Holder2, -1 },
+    new[] { nameOnlyTagResult[0].HolderName1, nameOnlyTagResult[0].HolderName2, "" },
+    2, new HashSet<int> { 501 });
+
+Console.WriteLine("Passed typed historical name imports and name-only pinned winner generation.");
+
 // Full tag-team history: fixed real linked champions, NPC teams before and
 // after them, and dates/defenses preserved exactly from the singles scheduler.
 var tagDate1 = new DateTime(2012, 1, 1);
