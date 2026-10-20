@@ -1067,6 +1067,23 @@ if (tagHistory.Count != 3 || tagHistory[1].Holder1 != 101 ||
     tagHistory[1].Captured != tagDate2 || tagHistory[1].Defences != 12)
     throw new Exception("Tag-team full-history mapping altered worker links, NPC partners or dates.");
 
+// Named NPC partners are valid even when the first team member is linked,
+// e.g. Carson holds a historical tag title alongside his late father.
+var carsonWithFather = TeamHistoryPlanner.Populate(
+    new[] { generatedTeamSingles[1] }, fixedTagAnchors,
+    new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+        [0] = new(new[] { 101, -1 }, new[] { "Carson", "Carson's Father" })
+    }, teamSeeds, 2, new Random(55));
+if (carsonWithFather.Count != 1 ||
+    carsonWithFather[0].Holder1 != 101 ||
+    carsonWithFather[0].Holder2 != -1 ||
+    carsonWithFather[0].HolderName2 != "Carson's Father")
+    throw new Exception("Mixed linked/NPC tag partners were not retained.");
+HistoricalReignRules.ValidateHolders(
+    new[] { carsonWithFather[0].Holder1, carsonWithFather[0].Holder2, -1 },
+    new[] { carsonWithFather[0].HolderName1, carsonWithFather[0].HolderName2, "" },
+    2, new HashSet<int> { 101 });
+
 foreach (var reign in tagHistory)
     HistoricalReignRules.ValidateHolders(
         new[] { reign.Holder1, reign.Holder2, reign.Holder3 },
