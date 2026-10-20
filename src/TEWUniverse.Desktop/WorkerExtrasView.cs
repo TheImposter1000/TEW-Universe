@@ -22,6 +22,9 @@ public partial class MainWindow
     private Button _attributeSave = null!;
     private Button _attributeDelete = null!;
     private TextBlock _attributeSummary = null!;
+    private TextBlock _attributeHelp = null!;
+    private TextBlock _attributeNameCaption = null!;
+    private bool _attributeNumericCodes;
 
     private DataGrid _employmentGrid = null!;
     private ComboBox _employmentCompany = null!;
@@ -194,7 +197,8 @@ public partial class MainWindow
     private void InitializeWorkerExtrasUI()
     {
         _attributesGrid = ExtraGrid();
-        TextColumn(_attributesGrid, "Attribute", "Attribute", new DataGridLength(1, DataGridLengthUnitType.Star));
+        TextColumn(_attributesGrid, "Attribute (stored code)", "DisplayAttribute",
+            new DataGridLength(1, DataGridLengthUnitType.Star));
         _attributesGrid.Columns.Add(new DataGridCheckBoxColumn {
             Header = "Hidden", Binding = new Binding("Hidden"), Width = 74
         });
@@ -205,7 +209,8 @@ public partial class MainWindow
         var attrEditor = new StackPanel { Margin = new Thickness(1, 0, 8, 6) };
         attrEditor.Children.Add(ExtraLabel("Attribute details", true));
         _attributeName = ExtraPicker(editable: true);
-        AddExtraField(attrEditor, ExtraLabel("Attribute name"), _attributeName);
+        _attributeNameCaption = ExtraLabel("Attribute name");
+        AddExtraField(attrEditor, _attributeNameCaption, _attributeName);
         _attributeHidden = new CheckBox {
             Content = "Hidden (still takes effect in TEW IX)",
             Foreground = ExtraColor("#E8F5FF"), Margin = new Thickness(0, 3, 0, 11)
@@ -216,12 +221,12 @@ public partial class MainWindow
         };
         attrEditor.Children.Add(_attributeHidden);
         attrEditor.Children.Add(_attributePermanent);
-        attrEditor.Children.Add(new TextBlock {
-            Text = "Choose a known attribute or type its exact TEW IX name. " +
-                "Studio cannot automatically detect clashing or unrecognized attributes.",
+        _attributeHelp = new TextBlock {
+            Text = "Loading the tblAttribute storage type...",
             Foreground = ExtraColor("#A6BDD9"), TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 16)
-        });
+        };
+        attrEditor.Children.Add(_attributeHelp);
         attrEditor.Children.Add(ExtraButton("+ Add Attribute", true, AddAttribute_Click));
         _attributeSave = ExtraButton("Save Selected Attribute", false, SaveAttribute_Click);
         _attributeDelete = ExtraButton("Remove Selected Attribute", false, RemoveAttribute_Click);
@@ -434,14 +439,31 @@ public partial class MainWindow
             if (tab == "Attributes")
             {
                 var records = _session.ReadWorkerAttributes(_worker.Id);
+                bool numeric = _session.WorkerAttributesUseNumericCodes();
+                var known = _session.ListKnownWorkerAttributes();
                 _settingWorkerExtraForm = true;
                 try
                 {
-                    _attributeName.ItemsSource = _session.ListKnownWorkerAttributes();
+                    _attributeNumericCodes = numeric;
+                    _attributeName.IsEditable = !numeric;
+                    _attributeNameCaption.Text = numeric
+                        ? "Stored attribute code (select an existing numeric code)"
+                        : "Attribute name";
+                    _attributeHelp.Text = numeric
+                        ? "This MDB stores attributes as NUMERIC CODES, not text names. " +
+                          "Choose a code already present in the scenario. " +
+                          "Codes are displayed as Code N (unverified); gameplay meanings " +
+                          "have not been mapped. Hidden and Permanent are preserved. " +
+                          "No guessed or unknown new codes can be added."
+                        : "This MDB stores attributes as text names. Choose a known " +
+                          "attribute or type its exact game name.";
+                    _attributeName.ItemsSource = known;
                     _attributesGrid.ItemsSource = records;
                     _attributesGrid.SelectedItem = attributeUid.HasValue
                         ? records.FirstOrDefault(r => r.Uid == attributeUid.Value) : null;
                     _attributeSummary.Text = $"{records.Count} attribute(s) linked to {_worker.Name}. " +
+                        (numeric ? "Attribute values are stored NUMERIC codes (unverified). " :
+                                   "Attribute values are stored as text. ") +
                         "Hidden and Permanent reflect the actual MDB flags.";
                 }
                 finally { _settingWorkerExtraForm = false; }
@@ -492,7 +514,10 @@ public partial class MainWindow
         {
             var item = _attributesGrid.SelectedItem as WorkerAttributeEntry;
             _attributeSave.IsEnabled = _attributeDelete.IsEnabled = item != null;
-            _attributeName.Text = item?.Attribute ?? "";
+            if (_attributeNumericCodes)
+                _attributeName.SelectedItem = item?.Attribute;
+            else
+                _attributeName.Text = item?.Attribute ?? "";
             _attributeHidden.IsChecked = item?.Hidden ?? false;
             _attributePermanent.IsChecked = item?.Permanent ?? false;
         }
@@ -591,13 +616,22 @@ public partial class MainWindow
             return;
         }
 
-        // A name not used elsewhere in the MDB may be a valid TEW attribute,
-        // but we have no verified full catalogue of game-specific names.
-        bool verifiedName = _session.ListKnownWorkerAttributes().Any(x =>
+        // Numeric attribute IDs are NOT game labels. Only codes actually
+        // present in this scenario can be selected; the DB write retains
+        // that exact numeric value rather than storing text.
+        bool observed = _session.ListKnownWorkerAttributes().Any(x =>
             x.Equals(name, StringComparison.OrdinalIgnoreCase));
-        string warning = verifiedName ? "" :
+        if (_attributeNumericCodes && !observed)
+        {
+            MessageBox.Show(this,
+                "Choose an attribute numeric code already used in this database. " +
+                "The game meanings of new, unobserved codes are not verified.",
+                "Unverified Attribute Code", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        string warning = observed ? "" :
             "\n\nThis attribute name is not used elsewhere in this database. " +
-            "Verify its exact spelling in the TEW IX editor; Studio cannot validate new attribute names.";
+            "Verify its exact spelling in the TEW IX editor.";
         if (!ConfirmExtraWrite(
                 (createNew ? $"Add '{name}' to {_worker.Name}?" :
                 $"Update attribute UID {selected!.Uid} for {_worker.Name}?") + warning,
