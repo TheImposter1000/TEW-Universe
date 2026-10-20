@@ -85,6 +85,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         InitializeWorkerExtrasUI();
         InitializeWorkerFiltersUI();
+        InitializeRelationshipsUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
@@ -101,7 +102,8 @@ public partial class MainWindow : Window
 
     private bool MayLeave()
     {
-        if (!HasEdits() && !HasUnappliedWorkerExtraForm()) return true;
+        if (!HasEdits() && !HasUnappliedWorkerExtraForm() &&
+            !HasPendingRelationshipEdits()) return true;
         return MessageBox.Show(this,
             "Discard unsaved changes? Use Save Changes for worker fields, or " +
             "Add / Save Selected for attributes and employment history first.",
@@ -120,7 +122,8 @@ public partial class MainWindow : Window
     private void RefreshDirty()
     {
         bool dirty = HasEdits();
-        SaveButton.IsEnabled = _session != null && (_activeModule == "Workers"
+        SaveButton.IsEnabled = _session != null && _activeModule != "Relationships" &&
+            (_activeModule == "Workers"
             ? _worker != null && _currentTab is not ("Attributes" or "Contracts" or "Employment")
             : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
@@ -843,7 +846,13 @@ public partial class MainWindow : Window
             _lastSaved = null;
             SearchBox.Text = "";
             FilterWorkers();
-            if (_activeModule != "Workers") LoadExistingCatalog();
+            if (_activeModule == "Relationships")
+            {
+                _relationWorker1.ItemsSource = _allWorkers;
+                _relationWorker2.ItemsSource = _allWorkers;
+                ReloadRelationships();
+            }
+            else if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
             SetStatus($"Loaded {list.Count:N0} existing workers");
             if (_settings.RememberDatabasePassword)
@@ -914,6 +923,11 @@ public partial class MainWindow : Window
     private void FutureNav_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string section) return;
+        if (section == "Relationships")
+        {
+            SelectRelationshipsModule();
+            return;
+        }
         if (ExistingEditors.TryGet(section, out _))
         {
             SelectModule(section);
@@ -939,6 +953,8 @@ public partial class MainWindow : Window
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+        RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+        RelationshipsNav.Style = (Style)FindResource("NavigationButton");
         TitleClassificationOptions.Visibility = section == "Titles"
             ? Visibility.Visible : Visibility.Collapsed;
         ClearGeneratedLineage();
