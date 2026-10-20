@@ -41,7 +41,7 @@ internal static class TeamHistoryPlanner
                 team.Names.Any(name => string.IsNullOrWhiteSpace(name) ||
                     name.Trim().Length > 30 || name.Any(char.IsControl)))
                 throw new InvalidOperationException(
-                    "Fixed tag team/trios championship holders must be distinct linked workers with valid names.");
+                    "Fixed teams require distinct linked workers or named -1 NPCs, with valid historical names.");
         }
 
         var scheduledAnchors = anchored
