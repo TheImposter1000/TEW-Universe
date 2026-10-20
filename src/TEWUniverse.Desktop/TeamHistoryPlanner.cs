@@ -34,8 +34,9 @@ internal static class TeamHistoryPlanner
         {
             var anchor = byOrder[order];
             if (team.WorkerIds.Length != members || team.Names.Length != members ||
-                team.WorkerIds.Any(id => id <= 0) ||
-                team.WorkerIds.Distinct().Count() != members ||
+                team.WorkerIds.Any(id => id < -1 || id == 0) ||
+                team.WorkerIds.Where(id => id > 0).Distinct().Count() !=
+                    team.WorkerIds.Count(id => id > 0) ||
                 team.WorkerIds[0] != anchor.WorkerId ||
                 team.Names.Any(name => string.IsNullOrWhiteSpace(name) ||
                     name.Trim().Length > 30 || name.Any(char.IsControl)))
