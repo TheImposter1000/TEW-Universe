@@ -7,7 +7,12 @@ namespace TEWUniverse.Studio;
 // These are actual TEW IX pregame MDB records. Attributes are not profile
 // scalars, and tblCV employment history is not the current tblContract roster.
 internal sealed record WorkerAttributeEntry(
-    int Uid, int WorkerUid, string Attribute, bool Hidden, bool Permanent);
+    int Uid, int WorkerUid, string Attribute, bool Hidden, bool Permanent,
+    bool NumericCode = false)
+{
+    public string DisplayAttribute => NumericCode
+        ? "Code " + Attribute + " (unverified)" : Attribute;
+}
 
 internal sealed record WorkerEmploymentEntry(
     string RecordName, int WorkerUid, int FedUid, string Initials,
@@ -64,11 +69,21 @@ internal sealed partial class DatabaseSession
         value == DBNull.Value ? "" :
         (Convert.ToString(value, CultureInfo.InvariantCulture) ?? "");
 
+    public bool WorkerAttributesUseNumericCodes()
+    {
+        var schema = ValidateWorkerExtraSchema("tblAttribute",
+            "UID", "WorkerUID", "Attribute", "Hidden", "Permanent");
+        var type = schema.Columns["Attribute"]!.DataType;
+        if (!WorkerAttributeValue.IsSupported(type))
+            throw new InvalidOperationException(
+                "Unknown tblAttribute.Attribute storage type: " + type.Name);
+        return WorkerAttributeValue.IsNumeric(type);
+    }
+
     public List<WorkerAttributeEntry> ReadWorkerAttributes(int workerId)
     {
         CheckLinkedWorker(workerId);
-        ValidateWorkerExtraSchema("tblAttribute",
-            "UID", "WorkerUID", "Attribute", "Hidden", "Permanent");
+        bool numeric = WorkerAttributesUseNumericCodes();
         using var cmd = new OleDbCommand(
             "SELECT [UID], [WorkerUID], [Attribute], [Hidden], [Permanent] " +
             "FROM [tblAttribute] WHERE [WorkerUID]=? ORDER BY [Attribute]", _connection);
@@ -80,7 +95,8 @@ internal sealed partial class DatabaseSession
             result.Add(new WorkerAttributeEntry(
                 Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture),
                 Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
-                FieldText(reader.GetValue(2)), Flag(reader.GetValue(3)), Flag(reader.GetValue(4))));
+                FieldText(reader.GetValue(2)), Flag(reader.GetValue(3)), Flag(reader.GetValue(4)),
+                numeric));
         return result;
     }
 
@@ -98,7 +114,10 @@ internal sealed partial class DatabaseSession
             string name = FieldText(reader.GetValue(0)).Trim();
             if (name.Length > 0) names.Add(name);
         }
-        return names.ToList();
+        var schema = ValidateWorkerExtraSchema("tblAttribute", "Attribute");
+        return WorkerAttributeValue.IsNumeric(schema.Columns["Attribute"]!.DataType)
+            ? names.OrderBy(x => long.Parse(x, CultureInfo.InvariantCulture)).ToList()
+            : names.ToList();
     }
 
     /// <summary>
@@ -114,18 +133,29 @@ internal sealed partial class DatabaseSession
             throw new InvalidOperationException("Choose a valid TEW IX attribute.");
         var schema = ValidateWorkerExtraSchema("tblAttribute",
             "UID", "WorkerUID", "Attribute", "Hidden", "Permanent");
-        if (schema.Columns["Attribute"]!.DataType != typeof(string))
+        Type attributeType = schema.Columns["Attribute"]!.DataType;
+        if (!WorkerAttributeValue.IsSupported(attributeType))
             throw new InvalidOperationException(
-                "Unexpected tblAttribute.Attribute type. Changes are blocked.");
+                "Unrecognized tblAttribute.Attribute column type: " + attributeType.Name);
+        object storedAttribute = WorkerAttributeValue.Parse(name, attributeType);
+        // Numeric codes must already occur in tblAttribute; until the complete
+        // game enum is verified we do not allow guessing arbitrary codes.
+        if (WorkerAttributeValue.IsNumeric(attributeType) &&
+            !ListKnownWorkerAttributes().Contains(name, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "Select a numeric attribute code already present in this database. " +
+                "Unverified new code numbers cannot be created.");
         if (schema.Columns["UID"]!.DataType != typeof(int) ||
             schema.Columns["WorkerUID"]!.DataType != typeof(int))
             throw new InvalidOperationException(
                 "Unexpected tblAttribute identifier types. Changes are blocked.");
         foreach (string flag in new[] { "Hidden", "Permanent" })
-            if (schema.Columns[flag]!.DataType != typeof(bool))
+            if (schema.Columns[flag]!.DataType != typeof(bool) &&
+                !WorkerAttributeValue.IsNumeric(schema.Columns[flag]!.DataType))
                 throw new InvalidOperationException(
-                    $"Unexpected tblAttribute.{flag} type. Changes are blocked.");
-        if (schema.Columns["Attribute"]!.MaxLength > 0 &&
+                    $"Unsupported tblAttribute.{flag} type. Changes are blocked.");
+        if (attributeType == typeof(string) &&
+            schema.Columns["Attribute"]!.MaxLength > 0 &&
             name.Length > schema.Columns["Attribute"]!.MaxLength)
             throw new InvalidOperationException("This attribute exceeds its MDB text limit.");
 
@@ -147,7 +177,7 @@ internal sealed partial class DatabaseSession
                 "AND [Attribute]=? AND [UID]<>?", _connection, tx))
             {
                 dup.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
-                dup.Parameters.Add("name", OleDbType.VarWChar).Value = name;
+                dup.Parameters.Add("name", ToOleDbType(attributeType)).Value = storedAttribute;
                 dup.Parameters.Add("uid", OleDbType.Integer).Value = entryUid ?? -1;
                 if (Convert.ToInt32(dup.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
                     throw new InvalidOperationException(
@@ -161,9 +191,11 @@ internal sealed partial class DatabaseSession
                 using var update = new OleDbCommand(
                     "UPDATE [tblAttribute] SET [Attribute]=?, [Hidden]=?, [Permanent]=? " +
                     "WHERE [UID]=? AND [WorkerUID]=?", _connection, tx);
-                update.Parameters.Add("name", OleDbType.VarWChar).Value = name;
-                update.Parameters.Add("hidden", OleDbType.Boolean).Value = hidden;
-                update.Parameters.Add("permanent", OleDbType.Boolean).Value = permanent;
+                update.Parameters.Add("name", ToOleDbType(attributeType)).Value = storedAttribute;
+                update.Parameters.Add("hidden", ToOleDbType(schema.Columns["Hidden"]!.DataType)).Value =
+                    WorkerAttributeValue.BooleanFlag(hidden, schema.Columns["Hidden"]!.DataType);
+                update.Parameters.Add("permanent", ToOleDbType(schema.Columns["Permanent"]!.DataType)).Value =
+                    WorkerAttributeValue.BooleanFlag(permanent, schema.Columns["Permanent"]!.DataType);
                 update.Parameters.Add("uid", OleDbType.Integer).Value = uid;
                 update.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
                 if (update.ExecuteNonQuery() != 1)
@@ -190,9 +222,11 @@ internal sealed partial class DatabaseSession
                 if (!autoId)
                     insert.Parameters.Add("uid", OleDbType.Integer).Value = uid;
                 insert.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
-                insert.Parameters.Add("name", OleDbType.VarWChar).Value = name;
-                insert.Parameters.Add("hidden", OleDbType.Boolean).Value = hidden;
-                insert.Parameters.Add("permanent", OleDbType.Boolean).Value = permanent;
+                insert.Parameters.Add("name", ToOleDbType(attributeType)).Value = storedAttribute;
+                insert.Parameters.Add("hidden", ToOleDbType(schema.Columns["Hidden"]!.DataType)).Value =
+                    WorkerAttributeValue.BooleanFlag(hidden, schema.Columns["Hidden"]!.DataType);
+                insert.Parameters.Add("permanent", ToOleDbType(schema.Columns["Permanent"]!.DataType)).Value =
+                    WorkerAttributeValue.BooleanFlag(permanent, schema.Columns["Permanent"]!.DataType);
                 if (insert.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException("The new attribute was not inserted.");
                 if (autoId)
