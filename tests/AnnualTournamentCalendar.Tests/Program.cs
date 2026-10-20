@@ -1032,6 +1032,44 @@ static void CheckCode(string table, string column, int code, string expected)
 
 
 
+// tblAttribute.Attribute may be numeric, not a string. Round-trip the REAL
+// numeric storage values, without pretending the code has a verified label.
+foreach (var (type, raw, expected) in new (Type Type, string Raw, object Expected)[] {
+    (typeof(byte), "7", (byte)7),
+    (typeof(short), "255", (short)255),
+    (typeof(int), "1042", 1042),
+    (typeof(long), "65000", 65000L),
+    (typeof(string), "Excellent Personality", "Excellent Personality")
+})
+{
+    if (!Equals(WorkerAttributeValue.Parse(raw, type), expected))
+        throw new Exception("Attribute value round-trip failed for " + type.Name);
+}
+if (WorkerAttributeValue.Label("7", typeof(byte)) != "Code 7 (unverified)" ||
+    WorkerAttributeValue.Label("Excellent Personality", typeof(string)) !=
+        "Excellent Personality")
+    throw new Exception("Raw attribute code should never be presented as a verified name.");
+if (!Equals(WorkerAttributeValue.BooleanFlag(true, typeof(bool)), true) ||
+    !Equals(WorkerAttributeValue.BooleanFlag(true, typeof(byte)), (byte)1) ||
+    !Equals(WorkerAttributeValue.BooleanFlag(false, typeof(short)), (short)0))
+    throw new Exception("Attribute Hidden/Permanent flag type coercion failed.");
+bool rejectedNumericText = false;
+try { WorkerAttributeValue.Parse("Mutual Respect", typeof(byte)); }
+catch (InvalidOperationException) { rejectedNumericText = true; }
+if (!rejectedNumericText)
+    throw new Exception("An invented string label was accepted as a numeric attribute.");
+bool rejectedOutsideByte = false;
+try { WorkerAttributeValue.Parse("300", typeof(byte)); }
+catch (InvalidOperationException) { rejectedOutsideByte = true; }
+if (!rejectedOutsideByte)
+    throw new Exception("Attribute code overflow was not rejected.");
+bool rejectedNegativeNumeric = false;
+try { WorkerAttributeValue.Parse("-1", typeof(short)); }
+catch (InvalidOperationException) { rejectedNegativeNumeric = true; }
+if (!rejectedNegativeNumeric)
+    throw new Exception("Negative attribute codes were accepted.");
+Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
+
 // Dual-purpose partner text boxes: optional aliases for LINKED workers,
  // required NPC names when no real worker is selected.
 var linkedAliased = HistoricalPartnerInput.Resolve(
