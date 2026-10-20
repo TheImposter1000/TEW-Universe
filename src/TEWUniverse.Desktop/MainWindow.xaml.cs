@@ -2009,7 +2009,9 @@ public partial class MainWindow : Window
                   "Review the flagged entries before importing."
                 : "") +
             "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
-            "without a backup. Creating one first is recommended but optional.\n\nContinue?",
+            (_advancedFullRebuild
+                ? "without a backup. A manual backup has been verified for this scenario.\n\nContinue?"
+                : "without a backup. Creating one first is recommended.\n\nContinue?"),
             _advancedSlotMode ? "Confirm Targeted Holder Substitution"
                 : "Confirm Championship History Rebuild",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
