@@ -407,7 +407,7 @@ internal static class AnchoredHistoryPlanner
             for (int i = 0; i < inYear.Length; i++)
             {
                 var a = inYear[i];
-                if (a.WorkerId <= 0 ||
+                if (a.WorkerId is 0 or -1 ||
                     a.WinYear < startYear || a.WinYear > endYear ||
                     a.WinYear < a.FirstEligibleYear || a.WinYear > a.LastEligibleYear ||
                     string.IsNullOrWhiteSpace(a.Name) || a.Name.Length > 30)
