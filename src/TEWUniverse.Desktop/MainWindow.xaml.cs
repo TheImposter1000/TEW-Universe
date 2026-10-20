@@ -1511,42 +1511,37 @@ public partial class MainWindow : Window
             ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
         var partner3 = format == TitleCompetitorFormat.Trios
             ? AdvancedPartner3Picker.SelectedItem as WorkerItem : null;
-        string npc2 = format >= TitleCompetitorFormat.TagTeam
-            ? AdvancedPartner2NpcName.Text.Trim() : "";
-        string npc3 = format == TitleCompetitorFormat.Trios
-            ? AdvancedPartner3NpcName.Text.Trim() : "";
-        if (format >= TitleCompetitorFormat.TagTeam &&
-                (partner2 == null) == (npc2.Length == 0) ||
-            format == TitleCompetitorFormat.Trios &&
-                (partner3 == null) == (npc3.Length == 0) ||
-            new[] { selectedWorker?.Id ?? -1, partner2?.Id ?? -1, partner3?.Id ?? -1 }
-                .Take((int)format).Where(id => id > 0).Distinct().Count() !=
-                new[] { selectedWorker?.Id ?? -1, partner2?.Id ?? -1, partner3?.Id ?? -1 }
-                    .Take((int)format).Count(id => id > 0) ||
-            new[] { name, npc2, npc3 }.Any(n => n.Length > 30 || n.Any(char.IsControl)))
+        // The partner text boxes have TWO modes. When a real worker is
+        // selected, text is an optional ring-name alias. With no worker,
+        // text is a required name-only NPC, allowed for full-history builds.
+        bool allowNameOnlyPartners = AdvancedGenerationMode.SelectedIndex == 1;
+        HistoricalPartnerInput.Choice? resolved2 = format >= TitleCompetitorFormat.TagTeam
+            ? HistoricalPartnerInput.Resolve(partner2?.Id, partner2?.Name,
+                AdvancedPartner2NpcName.Text, 2, allowNameOnlyPartners)
+            : null;
+        HistoricalPartnerInput.Choice? resolved3 = format == TitleCompetitorFormat.Trios
+            ? HistoricalPartnerInput.Resolve(partner3?.Id, partner3?.Name,
+                AdvancedPartner3NpcName.Text, 3, allowNameOnlyPartners)
+            : null;
+        int[] linkedIds = new[] { selectedWorker?.Id ?? -1,
+            resolved2?.WorkerId ?? -1, resolved3?.WorkerId ?? -1 }
+            .Take((int)format).Where(id => id > 0).ToArray();
+        if (linkedIds.Distinct().Count() != linkedIds.Length)
         {
-            MessageBox.Show(this,
-                "Select one existing worker OR enter one name-only NPC for each partner. " +
-                "Linked workers must be distinct; all historical names must be at most 30 characters.");
+            MessageBox.Show(this, "The same roster wrestler cannot occupy " +
+                "multiple champion positions in a tag team or trios lineup.");
             return;
         }
-        if ((npc2.Length > 0 || npc3.Length > 0) &&
-            AdvancedGenerationMode.SelectedIndex == 0)
+        if (name.Length > 30 || name.Any(char.IsControl))
         {
-            MessageBox.Show(this,
-                "Named NPC partners require Build new full history. " +
-                "Existing-slot replacement requires a fully linked real-worker lineup.");
+            MessageBox.Show(this, "The primary champion's ring name must be at most 30 characters.");
             return;
         }
         int workerId = selectedWorker?.Id ?? -1;
-        string partner2Uid = format >= TitleCompetitorFormat.TagTeam
-            ? (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
-        string partner3Uid = format == TitleCompetitorFormat.Trios
-            ? (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
-        string partner2Name = format >= TitleCompetitorFormat.TagTeam
-            ? partner2?.Name ?? npc2 : "";
-        string partner3Name = format == TitleCompetitorFormat.Trios
-            ? partner3?.Name ?? npc3 : "";
+        string partner2Uid = resolved2?.WorkerId.ToString(CultureInfo.InvariantCulture) ?? "";
+        string partner3Uid = resolved3?.WorkerId.ToString(CultureInfo.InvariantCulture) ?? "";
+        string partner2Name = resolved2?.DisplayName ?? "";
+        string partner3Name = resolved3?.DisplayName ?? "";
         string[] names = new[] { name, partner2Name, partner3Name }
             .Take((int)format).ToArray();
         if (names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length)
@@ -1584,6 +1579,37 @@ public partial class MainWindow : Window
         AdvancedGenerationStatus.Text = nameOnly
             ? $"Added name-only historical champion {name}. No tblWorker record created."
             : $"Added linked worker {name}. Set known win years or durations before generating.";
+    }
+
+    private void AdvancedPartnerSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        UpdateAdvancedPartnerInputLabels();
+
+    private void UpdateAdvancedPartnerInputLabels()
+    {
+        if (AdvancedPartner2Picker == null || AdvancedPartner2NameLabel == null ||
+            AdvancedPartner3Picker == null || AdvancedPartner3NameLabel == null ||
+            AdvancedWorkerPicker == null || AdvancedPrimaryNameLabel == null)
+            return;
+
+        void UpdatePartner(ComboBox picker, TextBox nameBox, TextBlock label, int index)
+        {
+            bool linked = picker.SelectedItem is WorkerItem;
+            label.Text = linked
+                ? $"Partner {index}: ring-name alias (optional)"
+                : $"Partner {index}: NPC name (if no worker selected)";
+            nameBox.ToolTip = linked
+                ? $"Optional alternative ring name for the selected Partner {index} wrestler. " +
+                  "Leave blank to use their existing worker name. Their real UID is preserved."
+                : $"Enter Partner {index}'s historical name (required if no worker is selected). " +
+                  "This name-only champion uses holder UID -1 and requires full-history mode.";
+        }
+        UpdatePartner(AdvancedPartner2Picker, AdvancedPartner2NpcName,
+            AdvancedPartner2NameLabel, 2);
+        UpdatePartner(AdvancedPartner3Picker, AdvancedPartner3NpcName,
+            AdvancedPartner3NameLabel, 3);
+        AdvancedPrimaryNameLabel.Text = AdvancedWorkerPicker.SelectedItem is WorkerItem
+            ? "Champion 1: ring-name alias (optional)"
+            : "Champion 1: name-only historical person";
     }
 
     // The list can contain both real workers (positive UIDs) and named
@@ -2232,14 +2258,15 @@ public partial class MainWindow : Window
             TitleKindCombo.SelectedIndex = annual ? 1 : 0;
             var format = CurrentTitleFormat();
             TitleCompetitorCombo.SelectedIndex = (int)format - 1;
-            AdvancedPartner2Picker.Visibility = format >= TitleCompetitorFormat.TagTeam
+            AdvancedPartner2PickerGroup.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
-            AdvancedPartner2NpcName.Visibility = format >= TitleCompetitorFormat.TagTeam
+            AdvancedPartner2NameGroup.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
-            AdvancedPartner3Picker.Visibility = format == TitleCompetitorFormat.Trios
+            AdvancedPartner3PickerGroup.Visibility = format == TitleCompetitorFormat.Trios
                 ? Visibility.Visible : Visibility.Collapsed;
-            AdvancedPartner3NpcName.Visibility = format == TitleCompetitorFormat.Trios
+            AdvancedPartner3NameGroup.Visibility = format == TitleCompetitorFormat.Trios
                 ? Visibility.Visible : Visibility.Collapsed;
+            UpdateAdvancedPartnerInputLabels();
             AdvancedPartner2Column.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner2NameColumn.Visibility = format >= TitleCompetitorFormat.TagTeam
