@@ -909,6 +909,9 @@ CheckMappedCategory("tblWorker", "Nationality", 200);
 CheckMappedCategory("tblWorker", "Style", 16);
 CheckMappedCategory("tblWorker", "CompetesAgainst", 5);
 CheckMappedCategory("tblWorker", "Outsiderel", 4);
+CheckMappedCategory("tblRelation", "P_Rel", 9, 0);
+CheckMappedCategory("tblRelation", "R_Rel", 7, 0);
+CheckMappedCategory("tblRelation", "F_Rel", 7, 0);
 
 CheckCode("tblWorker", "Sexuality", 1, "Heterosexual");
 CheckCode("tblWorker", "Sexuality", 5, "Pansexual");
@@ -942,6 +945,55 @@ CheckCode("tblWorker", "Outsiderel", 1, "No");
 CheckCode("tblWorker", "Outsiderel", 2, "Dating");
 CheckCode("tblWorker", "Outsiderel", 3, "Engaged");
 CheckCode("tblWorker", "Outsiderel", 4, "Married");
+var verifiedRelationshipValues = new[] {
+    (Field: "P_Rel", Labels: new[] {
+        "None", "Mutual Respect", "Friendship", "Deep Friendship", "Like Family",
+        "Strong Dislike", "Open Hostility", "Hatred", "Mutual Loathing"
+    }),
+    (Field: "R_Rel", Labels: new[] {
+        "None", "Dating", "Engaged", "Married", "Broken Up",
+        "Permanent Split", "Divorced"
+    }),
+    (Field: "F_Rel", Labels: new[] {
+        "None", "Sibling", "Parent", "Cousin", "Grandparent",
+        "Aunt / Uncle", "Distant Relative"
+    })
+};
+foreach (var category in verifiedRelationshipValues)
+{
+    for (int code = 0; code < category.Labels.Length; code++)
+        CheckCode("tblRelation", category.Field, code, category.Labels[code]);
+    if (TewCodeLabels.Display("tblRelation", category.Field, "999") != "Code 999" ||
+        TewCodeLabels.Display("tblWorker", category.Field, "0") != "Code 0" ||
+        TewCodeLabels.Choices("tblRelation", category.Field).First().Code != 0)
+        throw new Exception("Zero-based relation label fallback or category isolation failed.");
+}
+if (TewCodeLabels.Choices("tblRelation", "Mentor").Count != 0)
+    throw new Exception("Boolean Mentor should never be a numeric translation.");
+var knownRelationWorkers = new HashSet<int> { 11, 22, 33 };
+RelationshipRules.ValidatePair(11, 22, knownRelationWorkers);
+if (RelationshipRules.Pair(11, 22) != RelationshipRules.Pair(22, 11))
+    throw new Exception("Relationship duplicate-pair checking should ignore worker order.");
+RelationshipRules.ValidateCodes(1, 2, 3, true);
+RelationshipRules.ValidateCodes(0, 0, 0, true);
+bool rejectedEmpty = false;
+try { RelationshipRules.ValidateCodes(0, 0, 0, false); }
+catch (InvalidOperationException) { rejectedEmpty = true; }
+if (!rejectedEmpty) throw new Exception("Blank relationship records were accepted.");
+bool rejectedCode = false;
+try { RelationshipRules.ValidateCodes(9, 0, 0, false); }
+catch (InvalidOperationException) { rejectedCode = true; }
+if (!rejectedCode) throw new Exception("Unverified Personal code was accepted.");
+bool rejectedSameWorker = false;
+try { RelationshipRules.ValidatePair(11, 11, knownRelationWorkers); }
+catch (InvalidOperationException) { rejectedSameWorker = true; }
+if (!rejectedSameWorker) throw new Exception("Self relationship pair was accepted.");
+bool rejectedMissingWorker = false;
+try { RelationshipRules.ValidatePair(11, 99, knownRelationWorkers); }
+catch (InvalidOperationException) { rejectedMissingWorker = true; }
+if (!rejectedMissingWorker) throw new Exception("Missing relation worker was accepted.");
+Console.WriteLine("Passed all 23 verified zero-based relationship codes, coexistence and worker-pair checks.");
+
 if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Choices("tblTeam", "Gender").Count != 0 ||
     !TewCodeLabels.IsMappedField("tblWorker", "Pronouns") ||
@@ -952,9 +1004,10 @@ if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Display("tblWorker", "Outsiderel", "0") != "Code 0" ||
     TewCodeLabels.Display("tblTeam", "Outsiderel", "4") != "Code 4")
     throw new Exception("Category isolation or fallback for unknown codes failed.");
-Console.WriteLine("Passed all 323 mapped codes across ten categories, boundaries, and fallback checks.");
+Console.WriteLine("Passed all 346 mapped codes across thirteen categories, boundaries, and fallback checks.");
 
-static void CheckMappedCategory(string table, string column, int expectedCount)
+static void CheckMappedCategory(string table, string column, int expectedCount,
+    int firstCode = 1)
 {
     var labels = TewCodeLabels.Choices(table, column);
     if (labels.Count != expectedCount)
@@ -962,8 +1015,8 @@ static void CheckMappedCategory(string table, string column, int expectedCount)
     for (int i = 0; i < labels.Count; i++)
     {
         var value = labels[i];
-        string code = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (value.Code != i + 1 || string.IsNullOrWhiteSpace(value.Label) ||
+        string code = (i + firstCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (value.Code != i + firstCode || string.IsNullOrWhiteSpace(value.Label) ||
             TewCodeLabels.Display(table, column, code) != value.Label ||
             TewCodeLabels.Display(table, column, "Code " + code) != value.Label)
             throw new Exception($"{table}.{column} failed code round-trip at {code}.");
