@@ -416,6 +416,83 @@ internal static class TewCodeLabels
         Distant Relative
         """);
 
+    // tblAttribute.Attribute stores one numeric code; the game's code sets
+    // are DISJOINT, not a single contiguous enumeration. Do not renumber them.
+    // User-verified labels (including explicit Unassigned slots) are retained
+    // exactly as supplied. The latter are display-only, never selectable.
+    private static TewCodeChoice[] StartingAt(int code, string labels) =>
+        labels.Split('\n', StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries)
+        .Select((label, index) => new TewCodeChoice(code + index, label))
+        .ToArray();
+
+    private static readonly TewCodeChoice[] WorkerAttributes = StartingAt(1, """
+        Professional
+        Quiet
+        Stalwart
+        Relaxed
+        Lively
+        Unassigned
+        Party Animal
+        People Person
+        Irrepressible
+        Free Spirit
+        Driven
+        Intense
+        Unassigned
+        Loner
+        Prickly
+        Selfish
+        Unassigned
+        Insecure
+        Needy
+        Unassigned
+        Troublemaker
+        Agitator
+        Unassigned
+        Unpredictable
+        Grifter
+        Bully
+        Wild
+        Scumbag
+        """)
+        .Concat(StartingAt(310, """
+        100% Babyface
+        Better As Babyface
+        Better As Heel
+        100% Heel
+        Amazing Babyface
+        Amazing Heel
+        """))
+        .Concat(StartingAt(320, """
+        Plays Dominant Well
+        Plays Comedy Well
+        Plays Swagger Well
+        Plays Gimmicky / Cartoonish Well
+        Plays Bad Ass Well
+        Plays Legitimate Well
+        Plays Weasely / Underdog Well
+        Plays Realistic Well
+        Plays Mysterious / Occult Well
+        Plays Offbeat / Unstable Well
+        Can't Play Dominant
+        Can't Play Comedy
+        Can't Play Swagger
+        Can't Play Gimmicky / Cartoonish
+        Can't Play Bad Ass
+        Can't Play Legitimate
+        Can't Play Weasely / Underdog
+        Can't Play Realistic
+        Can't Play Mysterious / Occult
+        Can't Play Offbeat / Unstable
+        """))
+        .Concat(StartingAt(374, """
+        No Sense of Humor
+        Big Match Specialist
+        Mr. Finale
+        """))
+        .ToArray();
+
     public static bool IsMappedField(string table, string column) =>
         Choices(table, column).Count > 0;
 
@@ -443,6 +520,9 @@ internal static class TewCodeLabels
                 "f_rel" => FamilyRelationships,
                 _ => Array.Empty<TewCodeChoice>()
             };
+        if (table.Equals("tblAttribute", StringComparison.OrdinalIgnoreCase) &&
+            column.Equals("Attribute", StringComparison.OrdinalIgnoreCase))
+            return WorkerAttributes;
         if (table.Equals("tblTeam", StringComparison.OrdinalIgnoreCase) &&
             column.Equals("Type", StringComparison.OrdinalIgnoreCase))
             return TagTeamTypes;

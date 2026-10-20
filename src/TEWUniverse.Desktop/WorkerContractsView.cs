@@ -168,7 +168,7 @@ public partial class MainWindow
             _contractDetails.Children.Add(new TextBlock {
                 Text = "New contracts copy the complete terms of an existing contract " +
                     "from the same company. Review every value before creation; " +
-                    "unverified fields are never invented. A manual backup is required.",
+                    "unverified fields are never invented. Backup is offered but optional.",
                 Foreground = ExtraColor("#93B4D5"), FontSize = 11,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 10, 0, 10)
@@ -193,16 +193,6 @@ public partial class MainWindow
             MessageBox.Show(this, "Save or discard unsaved changes before creating a contract.");
             return;
         }
-        if (string.IsNullOrWhiteSpace(_lastManualBackup) ||
-            !File.Exists(_lastManualBackup) ||
-            !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk))
-        {
-            MessageBox.Show(this,
-                "Choose CREATE BACKUP before adding a contract. The scenario MDB " +
-                "must be recoverable if TEW IX rejects any copied contract terms.",
-                "Create a backup first", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
         try
         {
             var dialog = new WorkerContractCreationDialog(_session, _worker,
@@ -222,6 +212,7 @@ public partial class MainWindow
                 "Please verify the result using TEW IX Data Check.",
                 "Confirm New Contract", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (!OfferOptionalBackupBeforeWrite("creating this worker contract")) return;
             int newId = _session.CreateWorkerContract(
                 _worker.Id, template, dialog.Terms);
             _lastSaved = DateTime.Now;

@@ -213,8 +213,8 @@ public partial class MainWindow
                 RefreshDirty();
         };
         form.Children.Add(new TextBlock {
-            Text = "Every create, edit or delete requires CREATE BACKUP first, " +
-                   "then explicit confirmation. Recheck important changes in TEW IX Data Check.",
+            Text = "Before writing, choose to create a backup, continue without one, " +
+                   "or cancel. Final confirmation is still required. Verify changes using TEW IX Data Check.",
             Foreground = RelationBrush("#E5BF78"), TextWrapping = TextWrapping.Wrap,
             FontSize = 12, Margin = new Thickness(0, 15, 0, 0)
         });
@@ -400,17 +400,7 @@ public partial class MainWindow
             MessageBox.Show(this, "Select a TEW IX scenario MDB first.");
             return false;
         }
-        if (string.IsNullOrWhiteSpace(_lastManualBackup) ||
-            !File.Exists(_lastManualBackup) ||
-            !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk))
-        {
-            MessageBox.Show(this,
-                "Choose CREATE BACKUP before creating, editing, or deleting relationships. " +
-                "Test changes on a copied scenario and run TEW IX Data Check.",
-                "Back up first", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
-        }
-        return true;
+        return OfferOptionalBackupBeforeWrite("editing worker relationships");
     }
 
     private void SaveRelationship_Click(object sender, RoutedEventArgs e)

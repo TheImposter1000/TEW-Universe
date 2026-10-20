@@ -88,16 +88,18 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
-          NEW: Relationships editor. Browse, filter, create, edit and remove worker relationships, using 23 newly verified zero-based TEW IX code labels: personal (P_Rel 0-8), romantic (R_Rel 0-6) and family (F_Rel 0-6). Mentor remains Yes/No. Total mappings: 346 verified codes across 13 categories.
+          NEW: Verified worker attribute names for 57 actual TEW IX numeric codes: Personality (1-28), Alignment (310-315), Gimmick (320-339), and Other Performance (374-376). Five Personality codes (6, 13, 17, 20, 23) are Unassigned/reserved and cannot be newly assigned. The other 52 codes can be selected by name. Unknown existing attribute codes remain visible and unchanged; original numeric values are always stored. Total verified mappings: 403 across 14 database fields.
 
-          NEW: Advanced Championship History Generator now supports complete Tag Team and Trios histories (two or three individual holders per reign), including linked workers, name-only NPCs and combinations of both. Full-history previews, employment checks and CSV export cover every holder position.
+          FIX: Worker Attributes can read and write numeric tblAttribute.Attribute columns instead of incorrectly requiring text. Hidden and Permanent flags remain independent. No worker attributes are migrated or removed by installation.
 
-          NEW: Add Name-Only and Import Name List in the Advanced Generator. Type historical champions directly or paste/load TXT/CSV name lists for Singles, Tag Team and Trios. These name-only holders use ID -1 and do not become roster workers.
+          FIX: Advanced Championship History Generator partner 2 and partner 3 name boxes have two uses. When a real wrestler is selected, the name box is an optional ring-name alias while preserving their worker UID. With no wrestler selected, the box requires a name-only historical NPC in full-history mode. Explicit dynamic labels clarify each mode.
 
-          PREVIOUSLY ADDED: Template-based contract creation and historical championship lineage editing, including name-only NPC champions.
+          CHANGE: Relationships and Create Contract From Template now offer optional backup choices (create backup / continue without backup / cancel) instead of requiring a backup. Destructive full-title-history replacement still requires one.
 
-          IMPORTANT: This is an EXPERIMENTAL Windows update. GitHub Windows build and regression checks passed, but new relationship and full-lineage database write operations have NOT been verified by running TEW IX. Always use a disposable COPY of your TEW IX database, create a manual backup before making changes, and run TEW IX Data Check before trusting the results. A full-history rebuild deletes/replaces the selected title's previous lineage after explicit confirmation. Do not use the new write features on an irreplaceable live scenario until validated in-game.
+          PREVIOUS FEATURES: Relationships editor; full Singles, Tag Team and Trios championship history generation; name-only NPC champions; TXT/CSV historical name import; contract creation and title lineage edits.
 
-          Body Shape labels remain unmapped pending verification of stored 0-7 values vs supplied 1-8 descriptions. Installer is unsigned and contains no game database, scenario or password.
+          IMPORTANT: Experimental unsigned Windows installer. Automated Windows builds and regression tests pass; actual Access MDB write compatibility has NOT yet been verified by TEW IX. Work on a disposable COPY of your scenario, consider creating a backup, and use TEW IX Data Check before trusting results. The full-history generator deletes and replaces the selected title's existing historical reigns after confirmation.
+
+          No TEW IX game database, save data or passwords are included. Body Shape code numbering is still awaiting verification.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest

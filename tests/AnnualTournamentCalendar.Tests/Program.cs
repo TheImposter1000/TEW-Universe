@@ -968,6 +968,86 @@ foreach (var category in verifiedRelationshipValues)
         TewCodeLabels.Choices("tblRelation", category.Field).First().Code != 0)
         throw new Exception("Zero-based relation label fallback or category isolation failed.");
 }
+// Exhaustive, sparse numeric TEW IX worker Attribute codes. These four
+// groups occupy ONE MDB field: tblAttribute.Attribute. Preserve the five
+// explicit "Unassigned" personality slots without letting them be assigned.
+var attributeGroups = new[] {
+    (Start: 1, Category: "Personality", Labels: new[] {
+        "Professional", "Quiet", "Stalwart", "Relaxed", "Lively", "Unassigned",
+        "Party Animal", "People Person", "Irrepressible", "Free Spirit",
+        "Driven", "Intense", "Unassigned", "Loner", "Prickly", "Selfish",
+        "Unassigned", "Insecure", "Needy", "Unassigned", "Troublemaker",
+        "Agitator", "Unassigned", "Unpredictable", "Grifter", "Bully",
+        "Wild", "Scumbag"
+    }),
+    (Start: 310, Category: "Alignment", Labels: new[] {
+        "100% Babyface", "Better As Babyface", "Better As Heel", "100% Heel",
+        "Amazing Babyface", "Amazing Heel"
+    }),
+    (Start: 320, Category: "Gimmick", Labels: new[] {
+        "Plays Dominant Well", "Plays Comedy Well", "Plays Swagger Well",
+        "Plays Gimmicky / Cartoonish Well", "Plays Bad Ass Well",
+        "Plays Legitimate Well", "Plays Weasely / Underdog Well",
+        "Plays Realistic Well", "Plays Mysterious / Occult Well",
+        "Plays Offbeat / Unstable Well", "Can't Play Dominant",
+        "Can't Play Comedy", "Can't Play Swagger",
+        "Can't Play Gimmicky / Cartoonish", "Can't Play Bad Ass",
+        "Can't Play Legitimate", "Can't Play Weasely / Underdog",
+        "Can't Play Realistic", "Can't Play Mysterious / Occult",
+        "Can't Play Offbeat / Unstable"
+    }),
+    (Start: 374, Category: "Other Performance", Labels: new[] {
+        "No Sense of Humor", "Big Match Specialist", "Mr. Finale"
+    })
+};
+int attributeCount = 0;
+foreach (var group in attributeGroups)
+{
+    for (int i = 0; i < group.Labels.Length; i++)
+    {
+        int code = group.Start + i;
+        CheckCode("tblAttribute", "Attribute", code, group.Labels[i]);
+        string raw = code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string display = WorkerAttributeValue.Label(raw, typeof(int));
+        if (!display.StartsWith(group.Category + ": " + group.Labels[i] + " (Code " + code,
+            StringComparison.Ordinal) ||
+            WorkerAttributeValue.IsAssignable(raw) == (group.Labels[i] == "Unassigned"))
+            throw new Exception("Wrong attribute category/assigned-state for code " + code);
+        attributeCount++;
+    }
+}
+if (attributeCount != 57 ||
+    TewCodeLabels.Choices("tblAttribute", "Attribute").Count != 57 ||
+    TewCodeLabels.Choices("tblWorker", "Attribute").Count != 0 ||
+    TewCodeLabels.Display("tblAttribute", "Attribute", "309") != "Code 309" ||
+    TewCodeLabels.Display("tblAttribute", "Attribute", "340") != "Code 340")
+    throw new Exception("Expected 57 sparse attribute codes and unmodified fallback.");
+var reserveCodes = new[] { 6, 13, 17, 20, 23 };
+foreach (int code in reserveCodes)
+{
+    string raw = code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (!WorkerAttributeValue.IsReserved(raw) ||
+        WorkerAttributeValue.MaySaveCode(raw, null) ||
+        !WorkerAttributeValue.MaySaveCode(raw, raw))
+        throw new Exception("Reserved Unassigned code improperly created/changed: " + code);
+}
+if (!WorkerAttributeValue.MaySaveCode("310", null) ||
+    !WorkerAttributeValue.MaySaveCode("376", null) ||
+    WorkerAttributeValue.MaySaveCode("999", null) ||
+    !WorkerAttributeValue.MaySaveCode("999", "999") ||
+    WorkerAttributeValue.MaySaveCode("999", "310"))
+    throw new Exception("Attribute assignment/preservation guard failed.");
+
+var attrOptions = WorkerAttributeValue.Options(new[] { "1", "310", "999" });
+if (attrOptions.Count != 58 ||
+    !attrOptions.Any(o => o.StoredCode == "310" && o.Assignable &&
+        o.DisplayText.Contains("100% Babyface")) ||
+    !attrOptions.Any(o => o.StoredCode == "6" && !o.Assignable && o.Verified) ||
+    !attrOptions.Any(o => o.StoredCode == "999" && !o.Assignable && !o.Verified))
+    throw new Exception("Verified attribute picker must include unseen named codes " +
+        "and preserve existing unverified codes without assigning them.");
+Console.WriteLine("Passed 57 exact attribute mappings, 5 reserved codes, categories and picker protections.");
+
 if (TewCodeLabels.Choices("tblRelation", "Mentor").Count != 0)
     throw new Exception("Boolean Mentor should never be a numeric translation.");
 var knownRelationWorkers = new HashSet<int> { 11, 22, 33 };
@@ -1004,7 +1084,7 @@ if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Display("tblWorker", "Outsiderel", "0") != "Code 0" ||
     TewCodeLabels.Display("tblTeam", "Outsiderel", "4") != "Code 4")
     throw new Exception("Category isolation or fallback for unknown codes failed.");
-Console.WriteLine("Passed all 346 mapped codes across thirteen categories, boundaries, and fallback checks.");
+Console.WriteLine("Passed all 403 mapped codes across fourteen fields, boundaries, and fallback checks.");
 
 static void CheckMappedCategory(string table, string column, int expectedCount,
     int firstCode = 1)
@@ -1031,6 +1111,83 @@ static void CheckCode(string table, string column, int code, string expected)
 }
 
 
+
+// tblAttribute.Attribute may be numeric, not a string. Round-trip the REAL
+// numeric storage values, without pretending the code has a verified label.
+foreach (var (type, raw, expected) in new (Type Type, string Raw, object Expected)[] {
+    (typeof(byte), "7", (byte)7),
+    (typeof(short), "255", (short)255),
+    (typeof(int), "1042", 1042),
+    (typeof(long), "65000", 65000L),
+    (typeof(string), "Excellent Personality", "Excellent Personality")
+})
+{
+    if (!Equals(WorkerAttributeValue.Parse(raw, type), expected))
+        throw new Exception("Attribute value round-trip failed for " + type.Name);
+}
+if (WorkerAttributeValue.Label("7", typeof(byte)) != "Personality: Party Animal (Code 7)" ||
+    WorkerAttributeValue.Label("Excellent Personality", typeof(string)) !=
+        "Excellent Personality")
+    throw new Exception("Raw attribute code should never be presented as a verified name.");
+if (!Equals(WorkerAttributeValue.BooleanFlag(true, typeof(bool)), true) ||
+    !Equals(WorkerAttributeValue.BooleanFlag(true, typeof(byte)), (byte)1) ||
+    !Equals(WorkerAttributeValue.BooleanFlag(false, typeof(short)), (short)0))
+    throw new Exception("Attribute Hidden/Permanent flag type coercion failed.");
+bool rejectedNumericText = false;
+try { WorkerAttributeValue.Parse("Mutual Respect", typeof(byte)); }
+catch (InvalidOperationException) { rejectedNumericText = true; }
+if (!rejectedNumericText)
+    throw new Exception("An invented string label was accepted as a numeric attribute.");
+bool rejectedOutsideByte = false;
+try { WorkerAttributeValue.Parse("300", typeof(byte)); }
+catch (InvalidOperationException) { rejectedOutsideByte = true; }
+if (!rejectedOutsideByte)
+    throw new Exception("Attribute code overflow was not rejected.");
+bool rejectedNegativeNumeric = false;
+try { WorkerAttributeValue.Parse("-1", typeof(short)); }
+catch (InvalidOperationException) { rejectedNegativeNumeric = true; }
+if (!rejectedNegativeNumeric)
+    throw new Exception("Negative attribute codes were accepted.");
+Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
+
+// Dual-purpose partner text boxes: optional aliases for LINKED workers,
+ // required NPC names when no real worker is selected.
+var linkedAliased = HistoricalPartnerInput.Resolve(
+    4964, "Brooke Mercer", "Chelsea Morgan", 2, allowNameOnly: false);
+if (linkedAliased.WorkerId != 4964 ||
+    linkedAliased.DisplayName != "Chelsea Morgan" || linkedAliased.NameOnly)
+    throw new Exception("Partner 2 ring alias must preserve the linked worker UID.");
+var linkedBlank = HistoricalPartnerInput.Resolve(
+    4964, "Brooke Mercer", "", 2, allowNameOnly: false);
+if (linkedBlank.WorkerId != 4964 || linkedBlank.DisplayName != "Brooke Mercer")
+    throw new Exception("Blank optional linked-worker alias should use original name.");
+var linkedTriosAlias = HistoricalPartnerInput.Resolve(
+    503, "Partner Three", "Different Ring Name", 3, allowNameOnly: true);
+if (linkedTriosAlias.WorkerId != 503 ||
+    linkedTriosAlias.DisplayName != "Different Ring Name")
+    throw new Exception("Partner 3 linked alias did not override its display name.");
+var historicalNpc = HistoricalPartnerInput.Resolve(
+    null, null, "Grant Cade", 2, allowNameOnly: true);
+if (historicalNpc.WorkerId != -1 ||
+    historicalNpc.DisplayName != "Grant Cade" || !historicalNpc.NameOnly)
+    throw new Exception("Unlinked Partner 2 name was not mapped to NPC UID -1.");
+bool missingPartnerRejected = false;
+try { HistoricalPartnerInput.Resolve(null, null, "", 2, allowNameOnly: true); }
+catch (InvalidOperationException) { missingPartnerRejected = true; }
+if (!missingPartnerRejected)
+    throw new Exception("Unselected and unnamed partner incorrectly accepted.");
+bool safeNpcRejected = false;
+try { HistoricalPartnerInput.Resolve(null, null, "Grant Cade", 2, allowNameOnly: false); }
+catch (InvalidOperationException) { safeNpcRejected = true; }
+if (!safeNpcRejected)
+    throw new Exception("Safe existing-slot mode accepted an unlinked NPC partner.");
+bool longAliasRejected = false;
+try { HistoricalPartnerInput.Resolve(4964, "Brooke Mercer",
+    new string('X', 31), 2, allowNameOnly: true); }
+catch (InvalidOperationException) { longAliasRejected = true; }
+if (!longAliasRejected)
+    throw new Exception("Linked ring-name alias exceeded the 30-character limit.");
+Console.WriteLine("Passed dual-purpose partner names: linked aliases and unlinked NPC teammates.");
 
 // Historical name import must accept manually typed champion names without
 // linked tblWorker rows, including full lineups for tag team and trios titles.
