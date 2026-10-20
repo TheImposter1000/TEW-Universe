@@ -11,6 +11,7 @@
     <Compile Include="../../src/TEWUniverse.Studio/WorkerRosterFilterEngine.cs" Link="WorkerRosterFilterEngine.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/TewCodeLabels.cs" Link="TewCodeLabels.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/HistoricalReignRules.cs" Link="HistoricalReignRules.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/WorkerAttributeValue.cs" Link="WorkerAttributeValue.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RelationshipRules.cs" Link="RelationshipRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/StudioRecordNames.cs" Link="StudioRecordNames.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RecordNameRepairPlanner.cs" Link="RecordNameRepairPlanner.cs" />
