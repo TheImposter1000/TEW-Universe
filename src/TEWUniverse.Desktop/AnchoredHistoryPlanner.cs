@@ -49,7 +49,7 @@ internal static class AnchoredHistoryPlanner
         var reserved = new Dictionary<int, List<Anchor>>();
         foreach (var win in fixedWins)
         {
-            if (win.WorkerId <= 0 || string.IsNullOrWhiteSpace(win.Name) ||
+            if (win.WorkerId is 0 or -1 || string.IsNullOrWhiteSpace(win.Name) ||
                 win.Name.Length > 30 || win.Name.Any(char.IsControl) ||
                 win.WinYear < firstYear || win.WinYear > lastYear ||
                 win.FirstEligibleYear > win.WinYear || win.LastEligibleYear < win.WinYear ||
