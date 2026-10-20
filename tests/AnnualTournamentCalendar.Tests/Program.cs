@@ -968,6 +968,86 @@ foreach (var category in verifiedRelationshipValues)
         TewCodeLabels.Choices("tblRelation", category.Field).First().Code != 0)
         throw new Exception("Zero-based relation label fallback or category isolation failed.");
 }
+// Exhaustive, sparse numeric TEW IX worker Attribute codes. These four
+// groups occupy ONE MDB field: tblAttribute.Attribute. Preserve the five
+// explicit "Unassigned" personality slots without letting them be assigned.
+var attributeGroups = new[] {
+    (Start: 1, Category: "Personality", Labels: new[] {
+        "Professional", "Quiet", "Stalwart", "Relaxed", "Lively", "Unassigned",
+        "Party Animal", "People Person", "Irrepressible", "Free Spirit",
+        "Driven", "Intense", "Unassigned", "Loner", "Prickly", "Selfish",
+        "Unassigned", "Insecure", "Needy", "Unassigned", "Troublemaker",
+        "Agitator", "Unassigned", "Unpredictable", "Grifter", "Bully",
+        "Wild", "Scumbag"
+    }),
+    (Start: 310, Category: "Alignment", Labels: new[] {
+        "100% Babyface", "Better As Babyface", "Better As Heel", "100% Heel",
+        "Amazing Babyface", "Amazing Heel"
+    }),
+    (Start: 320, Category: "Gimmick", Labels: new[] {
+        "Plays Dominant Well", "Plays Comedy Well", "Plays Swagger Well",
+        "Plays Gimmicky / Cartoonish Well", "Plays Bad Ass Well",
+        "Plays Legitimate Well", "Plays Weasely / Underdog Well",
+        "Plays Realistic Well", "Plays Mysterious / Occult Well",
+        "Plays Offbeat / Unstable Well", "Can't Play Dominant",
+        "Can't Play Comedy", "Can't Play Swagger",
+        "Can't Play Gimmicky / Cartoonish", "Can't Play Bad Ass",
+        "Can't Play Legitimate", "Can't Play Weasely / Underdog",
+        "Can't Play Realistic", "Can't Play Mysterious / Occult",
+        "Can't Play Offbeat / Unstable"
+    }),
+    (Start: 374, Category: "Other Performance", Labels: new[] {
+        "No Sense of Humor", "Big Match Specialist", "Mr. Finale"
+    })
+};
+int attributeCount = 0;
+foreach (var group in attributeGroups)
+{
+    for (int i = 0; i < group.Labels.Length; i++)
+    {
+        int code = group.Start + i;
+        CheckCode("tblAttribute", "Attribute", code, group.Labels[i]);
+        string raw = code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string display = WorkerAttributeValue.Label(raw, typeof(int));
+        if (!display.StartsWith(group.Category + ": " + group.Labels[i] + " (Code " + code,
+            StringComparison.Ordinal) ||
+            WorkerAttributeValue.IsAssignable(raw) == (group.Labels[i] == "Unassigned"))
+            throw new Exception("Wrong attribute category/assigned-state for code " + code);
+        attributeCount++;
+    }
+}
+if (attributeCount != 57 ||
+    TewCodeLabels.Choices("tblAttribute", "Attribute").Count != 57 ||
+    TewCodeLabels.Choices("tblWorker", "Attribute").Count != 0 ||
+    TewCodeLabels.Display("tblAttribute", "Attribute", "309") != "Code 309" ||
+    TewCodeLabels.Display("tblAttribute", "Attribute", "340") != "Code 340")
+    throw new Exception("Expected 57 sparse attribute codes and unmodified fallback.");
+var reserveCodes = new[] { 6, 13, 17, 20, 23 };
+foreach (int code in reserveCodes)
+{
+    string raw = code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    if (!WorkerAttributeValue.IsReserved(raw) ||
+        WorkerAttributeValue.MaySaveCode(raw, null) ||
+        !WorkerAttributeValue.MaySaveCode(raw, raw))
+        throw new Exception("Reserved Unassigned code improperly created/changed: " + code);
+}
+if (!WorkerAttributeValue.MaySaveCode("310", null) ||
+    !WorkerAttributeValue.MaySaveCode("376", null) ||
+    WorkerAttributeValue.MaySaveCode("999", null) ||
+    !WorkerAttributeValue.MaySaveCode("999", "999") ||
+    WorkerAttributeValue.MaySaveCode("999", "310"))
+    throw new Exception("Attribute assignment/preservation guard failed.");
+
+var attrOptions = WorkerAttributeValue.Options(new[] { "1", "310", "999" });
+if (attrOptions.Count != 58 ||
+    !attrOptions.Any(o => o.StoredCode == "310" && o.Assignable &&
+        o.DisplayText.Contains("100% Babyface")) ||
+    !attrOptions.Any(o => o.StoredCode == "6" && !o.Assignable && o.Verified) ||
+    !attrOptions.Any(o => o.StoredCode == "999" && !o.Assignable && !o.Verified))
+    throw new Exception("Verified attribute picker must include unseen named codes " +
+        "and preserve existing unverified codes without assigning them.");
+Console.WriteLine("Passed 57 exact attribute mappings, 5 reserved codes, categories and picker protections.");
+
 if (TewCodeLabels.Choices("tblRelation", "Mentor").Count != 0)
     throw new Exception("Boolean Mentor should never be a numeric translation.");
 var knownRelationWorkers = new HashSet<int> { 11, 22, 33 };
@@ -1004,7 +1084,7 @@ if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Display("tblWorker", "Outsiderel", "0") != "Code 0" ||
     TewCodeLabels.Display("tblTeam", "Outsiderel", "4") != "Code 4")
     throw new Exception("Category isolation or fallback for unknown codes failed.");
-Console.WriteLine("Passed all 346 mapped codes across thirteen categories, boundaries, and fallback checks.");
+Console.WriteLine("Passed all 403 mapped codes across fourteen fields, boundaries, and fallback checks.");
 
 static void CheckMappedCategory(string table, string column, int expectedCount,
     int firstCode = 1)
@@ -1045,7 +1125,7 @@ foreach (var (type, raw, expected) in new (Type Type, string Raw, object Expecte
     if (!Equals(WorkerAttributeValue.Parse(raw, type), expected))
         throw new Exception("Attribute value round-trip failed for " + type.Name);
 }
-if (WorkerAttributeValue.Label("7", typeof(byte)) != "Code 7 (unverified)" ||
+if (WorkerAttributeValue.Label("7", typeof(byte)) != "Personality: Party Animal (Code 7)" ||
     WorkerAttributeValue.Label("Excellent Personality", typeof(string)) !=
         "Excellent Personality")
     throw new Exception("Raw attribute code should never be presented as a verified name.");
