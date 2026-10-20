@@ -376,6 +376,46 @@ internal static class TewCodeLabels
         Married
         """);
 
+    // Relationship codes are zero-based, unlike the previously mapped
+    // worker and team categories. Zero is a real value: None.
+    private static TewCodeChoice[] ZeroBased(string labels) =>
+        labels.Split('\n', StringSplitOptions.RemoveEmptyEntries |
+            StringSplitOptions.TrimEntries)
+        .Select((label, index) => new TewCodeChoice(index, label))
+        .ToArray();
+
+    private static readonly TewCodeChoice[] PersonalRelationships = ZeroBased("""
+        None
+        Mutual Respect
+        Friendship
+        Deep Friendship
+        Like Family
+        Strong Dislike
+        Open Hostility
+        Hatred
+        Mutual Loathing
+        """);
+
+    private static readonly TewCodeChoice[] RomanticRelationships = ZeroBased("""
+        None
+        Dating
+        Engaged
+        Married
+        Broken Up
+        Permanent Split
+        Divorced
+        """);
+
+    private static readonly TewCodeChoice[] FamilyRelationships = ZeroBased("""
+        None
+        Sibling
+        Parent
+        Cousin
+        Grandparent
+        Aunt / Uncle
+        Distant Relative
+        """);
+
     public static bool IsMappedField(string table, string column) =>
         Choices(table, column).Count > 0;
 
@@ -393,6 +433,14 @@ internal static class TewCodeLabels
                 "style" => WrestlingStyles,
                 "competesagainst" => CompetesAgainst,
                 "outsiderel" => OutsideRelationships,
+                _ => Array.Empty<TewCodeChoice>()
+            };
+        if (table.Equals("tblRelation", StringComparison.OrdinalIgnoreCase))
+            return column.ToLowerInvariant() switch
+            {
+                "p_rel" => PersonalRelationships,
+                "r_rel" => RomanticRelationships,
+                "f_rel" => FamilyRelationships,
                 _ => Array.Empty<TewCodeChoice>()
             };
         if (table.Equals("tblTeam", StringComparison.OrdinalIgnoreCase) &&

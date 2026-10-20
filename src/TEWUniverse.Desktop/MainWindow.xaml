@@ -139,7 +139,7 @@
 <Button x:Name="TagTeamsNav" Tag="Tag Teams" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tag Teams" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="EventsNav" Tag="Events" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Events" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="StablesNav" Tag="Stables" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Stables" VerticalAlignment="Center"/></StackPanel></Button>
-<Button Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
+<Button x:Name="RelationshipsNav" Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
 <Button Tag="History" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE81C;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="History" VerticalAlignment="Center"/></StackPanel></Button>
 <Button Tag="Tools" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tools" VerticalAlignment="Center"/></StackPanel></Button></StackPanel>
        </DockPanel>
@@ -449,6 +449,10 @@
           </Border>
         </Grid>
       </Grid>
+      <!-- Relationship records are managed separately from generic existing-record editing. -->
+      <Grid x:Name="RelationshipsWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
+            Visibility="Collapsed" Margin="10,10,11,10"/>
+
       <!-- Existing-record editor for companies, titles, events, and stables.
            All fields are bound to allowlisted existing MDB records. -->
       <Grid x:Name="ExistingWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
@@ -714,7 +718,7 @@
                         HorizontalScrollBarVisibility="Disabled">
            <StackPanel Margin="0,0,8,10">
             <TextBlock Text="Build a Championship History" FontSize="20" FontWeight="Bold"/>
-            <TextBlock Text="Your superstars have fixed title-winning years. NPCs fill the remaining historical years automatically; they are not added to tblWorker."
+            <TextBlock Text="Build complete Singles, Tag Team or Trios championship histories. Linked champions keep their real worker UIDs; historical NPCs have name-only -1 holder IDs and never become roster workers."
                        Foreground="#ACC6E6" TextWrapping="Wrap" FontSize="12"
                        Margin="0,5,0,12"/>
 
@@ -725,7 +729,7 @@
              <StackPanel>
               <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="Set the wrestler's total reigns and active years. Specify only the winning years and durations you know; the rest are generated."
+              <TextBlock Text="Choose an existing worker and optional ring-name alias, OR type a name and click Add Name-Only to import that historical person without creating a worker. Import Name List accepts pasted names or TXT/CSV files. For team titles, enter complete two- or three-person lineups. Set total reigns and known winning years, then generate."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel Margin="0,0,0,9">
@@ -734,15 +738,28 @@
                          ToolTip="Primary linked wrestler by name and UID"/>
                <ComboBox x:Name="AdvancedPartner2Picker" Width="220"
                          Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                         Visibility="Collapsed" ToolTip="Second linked wrestler for tag teams and trios"/>
+                         Visibility="Collapsed" ToolTip="Partner 2: choose a linked worker OR type a name-only NPC in the adjacent box"/>
+               <TextBox x:Name="AdvancedPartner2NpcName" Width="188"
+                        Style="{StaticResource FormTextBox}" Margin="0,0,8,6"
+                        Visibility="Collapsed" ToolTip="Partner 2: optional NAME-ONLY NPC, instead of a linked wrestler. For full-history mode only."/>
                <ComboBox x:Name="AdvancedPartner3Picker" Width="220"
                          Style="{StaticResource DarkComboBox}" Margin="0,0,8,6"
-                         Visibility="Collapsed" ToolTip="Third linked wrestler for trios"/>
+                         Visibility="Collapsed" ToolTip="Partner 3: choose a linked worker OR type a name-only NPC in the adjacent box"/>
+               <TextBox x:Name="AdvancedPartner3NpcName" Width="188"
+                        Style="{StaticResource FormTextBox}" Margin="0,0,8,6"
+                        Visibility="Collapsed" ToolTip="Partner 3: optional NAME-ONLY NPC, instead of a linked wrestler. For full-history mode only."/>
                <TextBox x:Name="AdvancedWorkerAlias" Style="{StaticResource FormTextBox}"
                         Width="175" Margin="0,0,8,6"
-                        ToolTip="Optional historical ring name, e.g. Dragonheart"/>
-               <Button Content="Add Superstar" Style="{StaticResource ActionButton}"
-                       Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"/>
+                        ToolTip="Historical Name / Alias. If you select a worker, this is their ring-name alias. Otherwise type a name and click Add Name-Only."/>
+               <Button Content="Add Linked Superstar" Style="{StaticResource ActionButton}"
+                       Click="AdvancedAddWorker_Click" Padding="13,7" Margin="0,0,8,6"
+                       ToolTip="Add the selected real wrestler with an optional ring name, or a typed historical name if no wrestler is selected"/>
+               <Button Content="Add Name-Only" Style="{StaticResource BlueButton}"
+                       Click="AdvancedAddNamedChampion_Click" Padding="13,7" Margin="0,0,8,6"
+                       ToolTip="Use the typed name as a separate NPC historical champion, not as an alias for the selected wrestler"/>
+               <Button Content="Import Name List" Style="{StaticResource ActionButton}"
+                       Click="AdvancedImportNames_Click" Padding="13,7" Margin="0,0,8,6"
+                       ToolTip="Paste names or load .txt/.csv historical champion names; team titles use full lineups per row"/>
               </WrapPanel>
               <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
                         Height="128" IsReadOnly="False" CanUserAddRows="False"
@@ -765,14 +782,20 @@
                 <DataGridTextColumn Header="Superstar / ring name"
                       Binding="{Binding DisplayName, UpdateSourceTrigger=LostFocus}"
                       Width="2*"/>
-                <DataGridTextColumn Header="Worker ID" Binding="{Binding WorkerId}"
-                      Width="94" IsReadOnly="True"/>
-                <DataGridTextColumn x:Name="AdvancedPartner2Column" Header="Partner 2 UID"
+                <DataGridTextColumn Header="Worker ID (-1 NPC)" Binding="{Binding WorkerId}"
+                      Width="128" IsReadOnly="True"/>
+                <DataGridTextColumn x:Name="AdvancedPartner2Column" Header="Partner 2 UID (-1 NPC)"
                       Binding="{Binding Partner2Uid, UpdateSourceTrigger=LostFocus}"
-                      Width="112" Visibility="Collapsed"/>
-                <DataGridTextColumn x:Name="AdvancedPartner3Column" Header="Partner 3 UID"
+                      Width="130" Visibility="Collapsed"/>
+                <DataGridTextColumn x:Name="AdvancedPartner2NameColumn" Header="Partner 2 name"
+                      Binding="{Binding Partner2Name, UpdateSourceTrigger=LostFocus}"
+                      Width="145" Visibility="Collapsed"/>
+                <DataGridTextColumn x:Name="AdvancedPartner3Column" Header="Partner 3 UID (-1 NPC)"
                       Binding="{Binding Partner3Uid, UpdateSourceTrigger=LostFocus}"
-                      Width="112" Visibility="Collapsed"/>
+                      Width="130" Visibility="Collapsed"/>
+                <DataGridTextColumn x:Name="AdvancedPartner3NameColumn" Header="Partner 3 name"
+                      Binding="{Binding Partner3Name, UpdateSourceTrigger=LostFocus}"
+                      Width="145" Visibility="Collapsed"/>
                 <DataGridTextColumn Header="Active from" Binding="{Binding FirstYear, UpdateSourceTrigger=LostFocus}"
                       Width="96"/>
                 <DataGridTextColumn Header="Active until" Binding="{Binding LastYear, UpdateSourceTrigger=LostFocus}"
@@ -787,7 +810,7 @@
                       Width="1.7*"/>
                </DataGrid.Columns>
               </DataGrid>
-              <TextBlock Text="Reigns = total number won. Winning years are optional: 2016, 2016 is allowed; 2011 with six reigns leaves five years automatic. Use a dash for an unknown earlier year, e.g. -, -, 2011. Reign lengths are independently optional: 719d = EXACT 719 days; 2y = two calendar years plus up to 90 days; 6m = six calendar months plus up to 30 days. To set only one tenure use -, -, 2y and leave the others blank or random. Annual Cup editions still require distinct known winning years."
+              <TextBlock Text="Reigns = total wins for the exact linked team. For a historical NPC partner in FULL-history mode, type the NPC name rather than selecting a worker (the saved UID is -1); safe placeholder replacement still requires linked workers. Winning years are optional: 2016, 2016 is allowed; 2011 with six reigns leaves five years automatic. Use a dash for an unknown earlier year, e.g. -, -, 2011. Reign lengths are independently optional: 719d = EXACT 719 days; 2y = two calendar years plus up to 90 days; 6m = six calendar months plus up to 30 days. To set only one tenure use -, -, 2y and leave the others blank or random. Annual Cup editions still require distinct known winning years."
                          FontSize="11" Foreground="#ADC9E8" TextWrapping="Wrap"
                          Margin="0,7,0,0"/>
                <CheckBox x:Name="AdvancedRespectTournamentDates"
@@ -910,7 +933,7 @@
               <ComboBoxItem Content="Replace only name-only/unused reigns (preserve dates)" IsSelected="True"/>
               <ComboBoxItem Content="Build new full history (replaces existing lineage)"/>
              </ComboBox>
-             <TextBlock Text="The safe replacement mode never overwrites real linked champions. Reigns already linked to the selected wrestler count toward their total."
+             <TextBlock Text="Safe replacement only fills existing slots, preserving dates. Full history can create new Singles, Tag Team or Trios histories, including name-only NPC lineups; it REPLACES all prior reigns for the selected title and REQUIRES a manual backup."
                         Foreground="#ADC9E8" FontSize="11" TextWrapping="Wrap"
                         Margin="0,5,0,0"/>
             </StackPanel>

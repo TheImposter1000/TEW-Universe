@@ -24,7 +24,7 @@ internal static class SuperstarReignInputPlanner
         int order = 0;
         foreach (var request in requests)
         {
-            if (request.WorkerId <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
+            if (request.WorkerId is 0 or -1 || string.IsNullOrWhiteSpace(request.Name) ||
                 request.Name.Length > 30 || request.Name.Any(char.IsControl) ||
                 request.Reigns is < 1 or > 500 ||
                 request.FirstYear > request.LastYear ||

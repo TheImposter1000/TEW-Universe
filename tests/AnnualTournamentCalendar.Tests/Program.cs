@@ -909,6 +909,9 @@ CheckMappedCategory("tblWorker", "Nationality", 200);
 CheckMappedCategory("tblWorker", "Style", 16);
 CheckMappedCategory("tblWorker", "CompetesAgainst", 5);
 CheckMappedCategory("tblWorker", "Outsiderel", 4);
+CheckMappedCategory("tblRelation", "P_Rel", 9, 0);
+CheckMappedCategory("tblRelation", "R_Rel", 7, 0);
+CheckMappedCategory("tblRelation", "F_Rel", 7, 0);
 
 CheckCode("tblWorker", "Sexuality", 1, "Heterosexual");
 CheckCode("tblWorker", "Sexuality", 5, "Pansexual");
@@ -942,6 +945,55 @@ CheckCode("tblWorker", "Outsiderel", 1, "No");
 CheckCode("tblWorker", "Outsiderel", 2, "Dating");
 CheckCode("tblWorker", "Outsiderel", 3, "Engaged");
 CheckCode("tblWorker", "Outsiderel", 4, "Married");
+var verifiedRelationshipValues = new[] {
+    (Field: "P_Rel", Labels: new[] {
+        "None", "Mutual Respect", "Friendship", "Deep Friendship", "Like Family",
+        "Strong Dislike", "Open Hostility", "Hatred", "Mutual Loathing"
+    }),
+    (Field: "R_Rel", Labels: new[] {
+        "None", "Dating", "Engaged", "Married", "Broken Up",
+        "Permanent Split", "Divorced"
+    }),
+    (Field: "F_Rel", Labels: new[] {
+        "None", "Sibling", "Parent", "Cousin", "Grandparent",
+        "Aunt / Uncle", "Distant Relative"
+    })
+};
+foreach (var category in verifiedRelationshipValues)
+{
+    for (int code = 0; code < category.Labels.Length; code++)
+        CheckCode("tblRelation", category.Field, code, category.Labels[code]);
+    if (TewCodeLabels.Display("tblRelation", category.Field, "999") != "Code 999" ||
+        TewCodeLabels.Display("tblWorker", category.Field, "0") != "Code 0" ||
+        TewCodeLabels.Choices("tblRelation", category.Field).First().Code != 0)
+        throw new Exception("Zero-based relation label fallback or category isolation failed.");
+}
+if (TewCodeLabels.Choices("tblRelation", "Mentor").Count != 0)
+    throw new Exception("Boolean Mentor should never be a numeric translation.");
+var knownRelationWorkers = new HashSet<int> { 11, 22, 33 };
+RelationshipRules.ValidatePair(11, 22, knownRelationWorkers);
+if (RelationshipRules.Pair(11, 22) != RelationshipRules.Pair(22, 11))
+    throw new Exception("Relationship duplicate-pair checking should ignore worker order.");
+RelationshipRules.ValidateCodes(1, 2, 3, true);
+RelationshipRules.ValidateCodes(0, 0, 0, true);
+bool rejectedEmpty = false;
+try { RelationshipRules.ValidateCodes(0, 0, 0, false); }
+catch (InvalidOperationException) { rejectedEmpty = true; }
+if (!rejectedEmpty) throw new Exception("Blank relationship records were accepted.");
+bool rejectedCode = false;
+try { RelationshipRules.ValidateCodes(9, 0, 0, false); }
+catch (InvalidOperationException) { rejectedCode = true; }
+if (!rejectedCode) throw new Exception("Unverified Personal code was accepted.");
+bool rejectedSameWorker = false;
+try { RelationshipRules.ValidatePair(11, 11, knownRelationWorkers); }
+catch (InvalidOperationException) { rejectedSameWorker = true; }
+if (!rejectedSameWorker) throw new Exception("Self relationship pair was accepted.");
+bool rejectedMissingWorker = false;
+try { RelationshipRules.ValidatePair(11, 99, knownRelationWorkers); }
+catch (InvalidOperationException) { rejectedMissingWorker = true; }
+if (!rejectedMissingWorker) throw new Exception("Missing relation worker was accepted.");
+Console.WriteLine("Passed all 23 verified zero-based relationship codes, coexistence and worker-pair checks.");
+
 if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Choices("tblTeam", "Gender").Count != 0 ||
     !TewCodeLabels.IsMappedField("tblWorker", "Pronouns") ||
@@ -952,9 +1004,10 @@ if (TewCodeLabels.Choices("tblWorker", "Type").Count != 0 ||
     TewCodeLabels.Display("tblWorker", "Outsiderel", "0") != "Code 0" ||
     TewCodeLabels.Display("tblTeam", "Outsiderel", "4") != "Code 4")
     throw new Exception("Category isolation or fallback for unknown codes failed.");
-Console.WriteLine("Passed all 323 mapped codes across ten categories, boundaries, and fallback checks.");
+Console.WriteLine("Passed all 346 mapped codes across thirteen categories, boundaries, and fallback checks.");
 
-static void CheckMappedCategory(string table, string column, int expectedCount)
+static void CheckMappedCategory(string table, string column, int expectedCount,
+    int firstCode = 1)
 {
     var labels = TewCodeLabels.Choices(table, column);
     if (labels.Count != expectedCount)
@@ -962,8 +1015,8 @@ static void CheckMappedCategory(string table, string column, int expectedCount)
     for (int i = 0; i < labels.Count; i++)
     {
         var value = labels[i];
-        string code = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (value.Code != i + 1 || string.IsNullOrWhiteSpace(value.Label) ||
+        string code = (i + firstCode).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (value.Code != i + firstCode || string.IsNullOrWhiteSpace(value.Label) ||
             TewCodeLabels.Display(table, column, code) != value.Label ||
             TewCodeLabels.Display(table, column, "Code " + code) != value.Label)
             throw new Exception($"{table}.{column} failed code round-trip at {code}.");
@@ -978,6 +1031,193 @@ static void CheckCode(string table, string column, int code, string expected)
 }
 
 
+
+// Historical name import must accept manually typed champion names without
+// linked tblWorker rows, including full lineups for tag team and trios titles.
+var singleNames = NameOnlyChampionImport.Parse(
+    "Grant Cade\nDamien Ward, Another Historic Name", 1);
+if (singleNames.Count != 3 || singleNames[0].Names[0] != "Grant Cade" ||
+    singleNames[1].Names[0] != "Damien Ward")
+    throw new Exception("Typed historical singles list import failed.");
+var tagNames = NameOnlyChampionImport.Parse(
+    "Carson Cade / Grant Cade\nTag Partner A, Tag Partner B", 2);
+if (tagNames.Count != 2 || tagNames[0].Names[1] != "Grant Cade" ||
+    tagNames[1].Names[1] != "Tag Partner B")
+    throw new Exception("Complete historic tag-team list import failed.");
+var triosNames = NameOnlyChampionImport.Parse("A / B / C\nD,E,F", 3);
+if (triosNames.Count != 2 || triosNames[1].Names[2] != "F")
+    throw new Exception("Complete historic trios list import failed.");
+
+bool invalidIncompleteImport = false;
+try { NameOnlyChampionImport.Parse("Carson Cade", 2); }
+catch (InvalidOperationException) { invalidIncompleteImport = true; }
+if (!invalidIncompleteImport)
+    throw new Exception("Incomplete historical team import was accepted.");
+
+var nameOnlyInput = SuperstarReignInputPlanner.Expand(
+    new[] { new SuperstarReignInputPlanner.Request(
+        "Grant Cade", -2, 2014, 2014, 1, "2014", "") },
+    2013, 2015);
+if (nameOnlyInput.Count != 1 || nameOnlyInput[0].WorkerId != -2 ||
+    nameOnlyInput[0].Name != "Grant Cade")
+    throw new Exception("A name-only historical winner was rejected by the year planner.");
+var nameOnlySchedule = AnchoredHistoryPlanner.GenerateFromYears(
+    nameOnlyInput, new[] { new NpcNameSeed("Background NPC", null, null),
+        new NpcNameSeed("Another NPC", null, null) },
+    2014, 2014, startMonth: 1);
+if (!nameOnlySchedule.Any(r => r.Holder1 == -2 &&
+    r.HolderName1 == "Grant Cade" && r.Captured.Year == 2014))
+    throw new Exception("Name-only champion was lost by the scheduler.");
+
+var mixedNameOnlyAnchors = new[] {
+    new AnchoredHistoryPlanner.Anchor("Grant Cade", -2, 2014, 2014, 2014,
+        SourceOrder: 0)
+};
+var nameOnlyTagReigns = new[] {
+    new GeneratedTitleReign(1, -2, "Grant Cade", -1, "",
+        new DateTime(2014, 1, 1), new DateTime(2014, 12, 31), 8)
+};
+var nameOnlyTagTeams = new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+    [0] = new(new[] { -1, 501 }, new[] { "Grant Cade", "Carson Cade" })
+};
+var nameOnlyTagResult = TeamHistoryPlanner.Populate(
+    nameOnlyTagReigns, mixedNameOnlyAnchors, nameOnlyTagTeams,
+    new[] { new NpcNameSeed("Background", null, null),
+        new NpcNameSeed("Other Background", null, null) },
+    2, new Random(1));
+if (nameOnlyTagResult.Count != 1 ||
+    nameOnlyTagResult[0].Holder1 != -1 || nameOnlyTagResult[0].Holder2 != 501 ||
+    nameOnlyTagResult[0].HolderName1 != "Grant Cade" ||
+    nameOnlyTagResult[0].HolderName2 != "Carson Cade")
+    throw new Exception("Named NPC primary champion was not linked to real teammate.");
+HistoricalReignRules.ValidateHolders(
+    new[] { nameOnlyTagResult[0].Holder1, nameOnlyTagResult[0].Holder2, -1 },
+    new[] { nameOnlyTagResult[0].HolderName1, nameOnlyTagResult[0].HolderName2, "" },
+    2, new HashSet<int> { 501 });
+
+Console.WriteLine("Passed typed historical name imports and name-only pinned winner generation.");
+
+// Full tag-team history: fixed real linked champions, NPC teams before and
+// after them, and dates/defenses preserved exactly from the singles scheduler.
+var tagDate1 = new DateTime(2012, 1, 1);
+var tagDate2 = new DateTime(2014, 4, 5);
+var tagDate3 = new DateTime(2016, 1, 1);
+var generatedTeamSingles = new[] {
+    new GeneratedTitleReign(1, -1, "NPC 1", -1, "", tagDate1,
+        new DateTime(2014, 4, 4), 4),
+    new GeneratedTitleReign(2, 101, "Carson", -1, "", tagDate2,
+        new DateTime(2015, 12, 31), 12),
+    new GeneratedTitleReign(3, -1, "NPC 2", -1, "", tagDate3,
+        new DateTime(2018, 1, 1), 7)
+};
+var fixedTagAnchors = new[] {
+    new AnchoredHistoryPlanner.Anchor("Carson", 101, 2014, 2010, 2020,
+        SourceOrder: 0)
+};
+var teamSeeds = Enumerable.Range(1, 12)
+    .Select(n => new NpcNameSeed($"Historical Wrestler {n}", null, null)).ToArray();
+var fixedTags = new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+    [0] = new(new[] { 101, 202 }, new[] { "Carson", "Tag Partner" })
+};
+var tagHistory = TeamHistoryPlanner.Populate(
+    generatedTeamSingles, fixedTagAnchors, fixedTags, teamSeeds, 2, new Random(123));
+if (tagHistory.Count != 3 || tagHistory[1].Holder1 != 101 ||
+    tagHistory[1].Holder2 != 202 || tagHistory[1].Holder3 != -1 ||
+    tagHistory[1].HolderName1 != "Carson" ||
+    tagHistory[1].HolderName2 != "Tag Partner" ||
+    tagHistory[1].HolderName3 != "" ||
+    tagHistory[0].Holder1 != -1 || tagHistory[0].Holder2 != -1 ||
+    tagHistory[0].HolderName1 == tagHistory[0].HolderName2 ||
+    tagHistory[2].HolderName1 == tagHistory[2].HolderName2 ||
+    tagHistory[1].Captured != tagDate2 || tagHistory[1].Defences != 12)
+    throw new Exception("Tag-team full-history mapping altered worker links, NPC partners or dates.");
+
+// Named NPC partners are valid even when the first team member is linked,
+// e.g. Carson holds a historical tag title alongside his late father.
+var carsonWithFather = TeamHistoryPlanner.Populate(
+    new[] { generatedTeamSingles[1] }, fixedTagAnchors,
+    new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+        [0] = new(new[] { 101, -1 }, new[] { "Carson", "Carson's Father" })
+    }, teamSeeds, 2, new Random(55));
+if (carsonWithFather.Count != 1 ||
+    carsonWithFather[0].Holder1 != 101 ||
+    carsonWithFather[0].Holder2 != -1 ||
+    carsonWithFather[0].HolderName2 != "Carson's Father")
+    throw new Exception("Mixed linked/NPC tag partners were not retained.");
+HistoricalReignRules.ValidateHolders(
+    new[] { carsonWithFather[0].Holder1, carsonWithFather[0].Holder2, -1 },
+    new[] { carsonWithFather[0].HolderName1, carsonWithFather[0].HolderName2, "" },
+    2, new HashSet<int> { 101 });
+
+foreach (var reign in tagHistory)
+    HistoricalReignRules.ValidateHolders(
+        new[] { reign.Holder1, reign.Holder2, reign.Holder3 },
+        new[] { reign.HolderName1, reign.HolderName2, reign.HolderName3 },
+        2, new HashSet<int> { 101, 202 });
+
+// Two different trios with the same primary wrestler winning twice in 2014
+// must map to their distinct SourceOrder teams, not accidentally share partners.
+var triosAnchors = new[] {
+    new AnchoredHistoryPlanner.Anchor("Tavitia", 301, 2014, 2010, 2020,
+        SourceOrder: 0),
+    new AnchoredHistoryPlanner.Anchor("Tavitia", 301, 2014, 2010, 2020,
+        SourceOrder: 1)
+};
+var triosSingles = new[] {
+    new GeneratedTitleReign(1, 301, "Tavitia", -1, "",
+        new DateTime(2014, 2, 1), new DateTime(2014, 5, 31), 3),
+    new GeneratedTitleReign(2, 301, "Tavitia", -1, "",
+        new DateTime(2014, 8, 1), new DateTime(2014, 11, 30), 5),
+    new GeneratedTitleReign(3, -1, "Generated", -1, "",
+        new DateTime(2015, 1, 1), new DateTime(2015, 12, 31), 4)
+};
+var triosTeams = new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+    [0] = new(new[] { 301, 302, 303 }, new[] { "Tavitia", "Partner A", "Partner B" }),
+    [1] = new(new[] { 301, 304, 305 }, new[] { "Tavitia", "Partner C", "Partner D" })
+};
+var triosHistory = TeamHistoryPlanner.Populate(
+    triosSingles, triosAnchors, triosTeams, teamSeeds, 3, new Random(4321));
+if (triosHistory.Count != 3 ||
+    triosHistory[0].Holder3 != 303 || triosHistory[0].HolderName3 != "Partner B" ||
+    triosHistory[1].Holder2 != 304 || triosHistory[1].Holder3 != 305 ||
+    triosHistory[2].Holder1 != -1 || triosHistory[2].Holder2 != -1 ||
+    triosHistory[2].Holder3 != -1 ||
+    new[] { triosHistory[2].HolderName1, triosHistory[2].HolderName2,
+        triosHistory[2].HolderName3 }.Distinct().Count() != 3 ||
+    triosHistory[1].Captured != new DateTime(2014, 8, 1))
+    throw new Exception("Trios history lost third holders, repeat winning-year teams or NPC identities.");
+
+foreach (var reign in triosHistory)
+    HistoricalReignRules.ValidateHolders(
+        new[] { reign.Holder1, reign.Holder2, reign.Holder3 },
+        new[] { reign.HolderName1, reign.HolderName2, reign.HolderName3 },
+        3, new HashSet<int> { 301, 302, 303, 304, 305 });
+
+bool rejectsIncompleteTeam = false;
+try
+{
+    TeamHistoryPlanner.Populate(generatedTeamSingles, fixedTagAnchors,
+        new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+            [0] = new(new[] { 101, 101 }, new[] { "Carson", "Carson" })
+        }, teamSeeds, 2);
+}
+catch (InvalidOperationException) { rejectsIncompleteTeam = true; }
+if (!rejectsIncompleteTeam)
+    throw new Exception("Generated team validation accepted a duplicate linked worker.");
+
+bool rejectsInsufficientNpcNames = false;
+try
+{
+    TeamHistoryPlanner.Populate(
+        new[] { generatedTeamSingles[0] }, Array.Empty<AnchoredHistoryPlanner.Anchor>(),
+        new Dictionary<int, TeamHistoryPlanner.LinkedTeam>(),
+        new[] { teamSeeds[0], teamSeeds[1] }, 3, new Random(10));
+}
+catch (InvalidOperationException) { rejectsInsufficientNpcNames = true; }
+if (!rejectsInsufficientNpcNames)
+    throw new Exception("Generated trios validation accepted too few name-only NPCs.");
+
+Console.WriteLine("Passed complete tag-team/trios title-history lineups, NPCs, multiple fixed teams and dates.");
 
 // The Carson story: a linked wrestler may win a tag title alongside his
 // deceased father, a name-only historical NPC not inserted into tblWorker.

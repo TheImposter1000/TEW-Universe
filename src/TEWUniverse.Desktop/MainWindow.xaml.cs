@@ -22,7 +22,9 @@ internal sealed class LineageParticipant
     public string WinYears { get; set; } = "";
     public string ReignLengths { get; set; } = "";
     public string Partner2Uid { get; set; } = "";
+    public string Partner2Name { get; set; } = "";
     public string Partner3Uid { get; set; } = "";
+    public string Partner3Name { get; set; } = "";
     public bool FillGaps { get; set; }
 }
 
@@ -85,6 +87,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         InitializeWorkerExtrasUI();
         InitializeWorkerFiltersUI();
+        InitializeRelationshipsUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
@@ -95,9 +98,12 @@ public partial class MainWindow : Window
         ShowSection("Profile");
     }
 
-    private bool HasEdits() => _activeModule == "Workers"
-        ? (_fields.Any(x => x.Dirty) || (_bioExists && BioEditor.Text != _originalBio))
-        : _existingFields.Any(x => x.Dirty);
+    private bool HasEdits() => _activeModule switch {
+        "Workers" => _fields.Any(x => x.Dirty) ||
+            (_bioExists && BioEditor.Text != _originalBio),
+        "Relationships" => HasPendingRelationshipEdits(),
+        _ => _existingFields.Any(x => x.Dirty)
+    };
 
     private bool MayLeave()
     {
@@ -120,7 +126,8 @@ public partial class MainWindow : Window
     private void RefreshDirty()
     {
         bool dirty = HasEdits();
-        SaveButton.IsEnabled = _session != null && (_activeModule == "Workers"
+        SaveButton.IsEnabled = _session != null && _activeModule != "Relationships" &&
+            (_activeModule == "Workers"
             ? _worker != null && _currentTab is not ("Attributes" or "Contracts" or "Employment")
             : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
@@ -843,7 +850,13 @@ public partial class MainWindow : Window
             _lastSaved = null;
             SearchBox.Text = "";
             FilterWorkers();
-            if (_activeModule != "Workers") LoadExistingCatalog();
+            if (_activeModule == "Relationships")
+            {
+                _relationWorker1.ItemsSource = _allWorkers;
+                _relationWorker2.ItemsSource = _allWorkers;
+                ReloadRelationships();
+            }
+            else if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
             SetStatus($"Loaded {list.Count:N0} existing workers");
             if (_settings.RememberDatabasePassword)
@@ -914,6 +927,11 @@ public partial class MainWindow : Window
     private void FutureNav_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string section) return;
+        if (section == "Relationships")
+        {
+            SelectRelationshipsModule();
+            return;
+        }
         if (ExistingEditors.TryGet(section, out _))
         {
             SelectModule(section);
@@ -939,6 +957,8 @@ public partial class MainWindow : Window
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+        RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+        RelationshipsNav.Style = (Style)FindResource("NavigationButton");
         TitleClassificationOptions.Visibility = section == "Titles"
             ? Visibility.Visible : Visibility.Collapsed;
         ClearGeneratedLineage();
@@ -1421,6 +1441,8 @@ public partial class MainWindow : Window
         AdvancedStartMonth.SelectedIndex = 0;
         AdvancedPartner2Picker.SelectedItem = null;
         AdvancedPartner3Picker.SelectedItem = null;
+        AdvancedPartner2NpcName.Clear();
+        AdvancedPartner3NpcName.Clear();
         ConfigureEmploymentCompanyPicker();
         var history = _session.ReadTitleLineage(_selectedExisting.Id);
         // Completed histories default to holder-only substitution, never an
@@ -1453,65 +1475,119 @@ public partial class MainWindow : Window
                 : "No existing history: use Build new full history.");
     }
 
-    private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e)
+    private void AdvancedAddWorker_Click(object sender, RoutedEventArgs e) =>
+        AddAdvancedChampion(forceNameOnly: false);
+
+    private void AdvancedAddNamedChampion_Click(object sender, RoutedEventArgs e) =>
+        AddAdvancedChampion(forceNameOnly: true);
+
+    private void AddAdvancedChampion(bool forceNameOnly)
     {
         if (_selectedExisting == null || _activeModule != "Titles") return;
-        if (AdvancedWorkerPicker.SelectedItem is not WorkerItem worker)
+        var selectedWorker = forceNameOnly
+            ? null : AdvancedWorkerPicker.SelectedItem as WorkerItem;
+        string name = AdvancedWorkerAlias.Text.Trim();
+        bool nameOnly = selectedWorker == null;
+        if (name.Length == 0)
         {
-            MessageBox.Show(this, "Select an existing worker from the list first.");
+            if (selectedWorker == null)
+            {
+                MessageBox.Show(this, "Type a historical champion name in the Name / Alias box. " +
+                    "Or choose an existing wrestler to use their actual worker record.");
+                return;
+            }
+            name = selectedWorker.Name;
+        }
+        if (nameOnly && AdvancedGenerationMode.SelectedIndex != 1)
+        {
+            MessageBox.Show(this,
+                "Name-only champions can be added in Build new full history mode. " +
+                "Choose that mode below first. It replaces this title's prior lineage " +
+                "only after generating a preview, making a backup, and confirming.");
             return;
         }
-        var alias = string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text)
-            ? worker.Name : AdvancedWorkerAlias.Text.Trim();
         var format = CurrentTitleFormat();
         var partner2 = format >= TitleCompetitorFormat.TagTeam
             ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
         var partner3 = format == TitleCompetitorFormat.Trios
             ? AdvancedPartner3Picker.SelectedItem as WorkerItem : null;
-        if (format >= TitleCompetitorFormat.TagTeam && partner2 == null ||
-            format == TitleCompetitorFormat.Trios && partner3 == null ||
-            new[] { worker.Id, partner2?.Id ?? -1, partner3?.Id ?? -1 }
-                .Take((int)format).Distinct().Count() != (int)format)
+        string npc2 = format >= TitleCompetitorFormat.TagTeam
+            ? AdvancedPartner2NpcName.Text.Trim() : "";
+        string npc3 = format == TitleCompetitorFormat.Trios
+            ? AdvancedPartner3NpcName.Text.Trim() : "";
+        if (format >= TitleCompetitorFormat.TagTeam &&
+                (partner2 == null) == (npc2.Length == 0) ||
+            format == TitleCompetitorFormat.Trios &&
+                (partner3 == null) == (npc3.Length == 0) ||
+            new[] { selectedWorker?.Id ?? -1, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+                .Take((int)format).Where(id => id > 0).Distinct().Count() !=
+                new[] { selectedWorker?.Id ?? -1, partner2?.Id ?? -1, partner3?.Id ?? -1 }
+                    .Take((int)format).Count(id => id > 0) ||
+            new[] { name, npc2, npc3 }.Any(n => n.Length > 30 || n.Any(char.IsControl)))
         {
             MessageBox.Show(this,
-                $"Choose {(int)format} different linked workers for this {format} title.");
+                "Select one existing worker OR enter one name-only NPC for each partner. " +
+                "Linked workers must be distinct; all historical names must be at most 30 characters.");
             return;
         }
-        if (_advancedParticipants.Any(x => x.WorkerId == worker.Id &&
-            x.Partner2Uid == (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "") &&
-            x.Partner3Uid == (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "")))
+        if ((npc2.Length > 0 || npc3.Length > 0) &&
+            AdvancedGenerationMode.SelectedIndex == 0)
         {
             MessageBox.Show(this,
-                "This superstar is already in the list. Edit their reigns and years in the table.");
+                "Named NPC partners require Build new full history. " +
+                "Existing-slot replacement requires a fully linked real-worker lineup.");
             return;
         }
-        // A one-year eligibility window already specifies the winning year;
-        // longer windows require the user's explicitly entered winning years.
+        int workerId = selectedWorker?.Id ?? -1;
+        string partner2Uid = format >= TitleCompetitorFormat.TagTeam
+            ? (partner2?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
+        string partner3Uid = format == TitleCompetitorFormat.Trios
+            ? (partner3?.Id.ToString(CultureInfo.InvariantCulture) ?? "-1") : "";
+        string partner2Name = format >= TitleCompetitorFormat.TagTeam
+            ? partner2?.Name ?? npc2 : "";
+        string partner3Name = format == TitleCompetitorFormat.Trios
+            ? partner3?.Name ?? npc3 : "";
+        string[] names = new[] { name, partner2Name, partner3Name }
+            .Take((int)format).ToArray();
+        if (names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length)
+        {
+            MessageBox.Show(this, "A historical team must have different names in each holder position.");
+            return;
+        }
+        if (_advancedParticipants.Any(x => x.WorkerId == workerId &&
+            x.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+            x.Partner2Uid == partner2Uid && x.Partner3Uid == partner3Uid &&
+            x.Partner2Name.Equals(partner2Name, StringComparison.OrdinalIgnoreCase) &&
+            x.Partner3Name.Equals(partner3Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show(this, "This champion or team is already in the list. " +
+                "Edit its reign count and winning years in the table.");
+            return;
+        }
         string winning = AdvancedStartYear.Text.Trim() == AdvancedEndYear.Text.Trim()
             ? AdvancedStartYear.Text.Trim() : "";
         _advancedParticipants.Add(new LineageParticipant {
-            DisplayName = alias, WorkerId = worker.Id,
+            DisplayName = name, WorkerId = workerId,
             FirstYear = AdvancedStartYear.Text.Trim(), LastYear = AdvancedEndYear.Text.Trim(),
             RequiredReigns = "1", WinYears = winning, ReignLengths = "",
-            Partner2Uid = format >= TitleCompetitorFormat.TagTeam
-                ? partner2!.Id.ToString(CultureInfo.InvariantCulture) : "",
-            Partner3Uid = format == TitleCompetitorFormat.Trios
-                ? partner3!.Id.ToString(CultureInfo.InvariantCulture) : "",
+            Partner2Uid = partner2Uid, Partner2Name = partner2Name,
+            Partner3Uid = partner3Uid, Partner3Name = partner3Name,
             FillGaps = false
         });
         ResetAdvancedDraft();
         AdvancedWorkerAlias.Clear();
         AdvancedPartner2Picker.SelectedItem = null;
         AdvancedPartner3Picker.SelectedItem = null;
+        AdvancedPartner2NpcName.Clear();
+        AdvancedPartner3NpcName.Clear();
         AdvancedCandidatesGrid.Items.Refresh();
-        AdvancedGenerationStatus.Text = winning.Length > 0
-            ? $"Added {alias} with a fixed win in {winning}. Generate when ready."
-            : $"Added {alias}. Enter the years they won in the Superstars table.";
+        AdvancedGenerationStatus.Text = nameOnly
+            ? $"Added name-only historical champion {name}. No tblWorker record created."
+            : $"Added linked worker {name}. Set known win years or durations before generating.";
     }
 
-    // NPCs are not manually added to the superstar table. Their historical
-    // names are read from tblGenerateWorker during generation, so no extra
-    // tblWorker records and no NPC reign-count input are needed.
+    // The list can contain both real workers (positive UIDs) and named
+    // historical people (-1). Only the generated history carries their names.
 
     private void AdvancedCandidatesGrid_PreviewKeyDown(object sender,
         System.Windows.Input.KeyEventArgs e)
@@ -1648,23 +1724,32 @@ public partial class MainWindow : Window
                 GenerateSelectivePreview(savedHistory);
                 return;
             }
-            if (CurrentTitleFormat() != TitleCompetitorFormat.Singles)
-                throw new InvalidOperationException(
-                    "The full-history generator creates singles reigns only. " +
-                    "For Tag Team or Trios titles use the safe mode to link existing " +
-                    "name-only history slots with complete two- or three-worker lineups. " +
-                    "No records were changed.");
+            var competitorFormat = CurrentTitleFormat();
+            int memberCount = (int)competitorFormat;
             _titleEmploymentCache.Clear();
             // Each row now describes a COUNT of wins inside its active
             // interval. Years and durations are independently optional by
             // ordinal position. Repeat years (2016, 2016) are legitimate.
             var requests = new List<SuperstarReignInputPlanner.Request>();
+            var teamLineups = new Dictionary<int, TeamHistoryPlanner.LinkedTeam>();
+            int nextSourceOrder = 0;
+            int nextNameOnlyPlannerId = -2;
             foreach (var participant in _advancedParticipants)
             {
-                if (participant.WorkerId <= 0 ||
+                if (participant.WorkerId == 0 || participant.WorkerId < -1 ||
+                    participant.WorkerId > 0 &&
                     !_allWorkers.Any(w => w.Id == participant.WorkerId))
                     throw new InvalidOperationException(
-                        $"Superstar '{participant.DisplayName}' must link to an existing worker.");
+                        $"Champion '{participant.DisplayName}' must be a linked worker " +
+                        "or a name-only person with Worker ID -1.");
+                if (participant.WorkerId == -1 && AdvancedGenerationMode.SelectedIndex != 1)
+                    throw new InvalidOperationException(
+                        "Named historical champions require Build new full history.");
+                // Unique temporary scheduling IDs keep different named NPCs
+                // distinct even when their real TEW holder UID is always -1.
+                // These temporary IDs NEVER reach the MDB or exported CSV.
+                int scheduledId = participant.WorkerId == -1
+                    ? nextNameOnlyPlannerId-- : participant.WorkerId;
                 if (!int.TryParse(participant.FirstYear, NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out int from)
                     || !int.TryParse(participant.LastYear, NumberStyles.Integer,
@@ -1678,8 +1763,43 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException(
                         $"Enter a reign count from 1 to 500 for '{participant.DisplayName}'.");
                 requests.Add(new SuperstarReignInputPlanner.Request(
-                    participant.DisplayName.Trim(), participant.WorkerId, from, to,
+                    participant.DisplayName.Trim(), scheduledId, from, to,
                     reigns, participant.WinYears, participant.ReignLengths));
+                if (memberCount > 1)
+                {
+                    int second = int.TryParse(participant.Partner2Uid,
+                        NumberStyles.Integer, CultureInfo.InvariantCulture,
+                        out int secondUid) ? secondUid : -1;
+                    int third = int.TryParse(participant.Partner3Uid,
+                        NumberStyles.Integer, CultureInfo.InvariantCulture,
+                        out int thirdUid) ? thirdUid : -1;
+                    int[] ids = memberCount == 2
+                        ? new[] { participant.WorkerId, second }
+                        : new[] { participant.WorkerId, second, third };
+                    if (ids.Any(id => id < -1 || id == 0 ||
+                            id > 0 && !_allWorkers.Any(w => w.Id == id)) ||
+                        ids.Where(id => id > 0).Distinct().Count() !=
+                            ids.Count(id => id > 0))
+                        throw new InvalidOperationException(
+                            $"Each lineup needs {memberCount} valid champion positions, " +
+                            "with distinct linked workers and -1 for a name-only NPC.");
+                    string[] names = ids.Select((id, index) => index switch {
+                        0 => participant.DisplayName.Trim(),
+                        1 => participant.Partner2Name.Trim().Length > 0
+                            ? participant.Partner2Name.Trim() :
+                            id > 0 ? _allWorkers.First(w => w.Id == id).Name : "",
+                        _ => participant.Partner3Name.Trim().Length > 0
+                            ? participant.Partner3Name.Trim() :
+                            id > 0 ? _allWorkers.First(w => w.Id == id).Name : ""
+                    }).ToArray();
+                    if (names.Any(n => n.Length is < 1 or > 30 || n.Any(char.IsControl)))
+                        throw new InvalidOperationException(
+                            "Every linked or name-only team member needs a name of 1–30 characters.");
+                    for (int i = 0; i < reigns; i++)
+                        teamLineups.Add(nextSourceOrder + i,
+                            new TeamHistoryPlanner.LinkedTeam(ids.ToArray(), names.ToArray()));
+                }
+                nextSourceOrder += reigns;
             }
             bool hasAutoYears = !annualTournament && requests.Any(r =>
             {
@@ -1737,6 +1857,18 @@ public partial class MainWindow : Window
                     var candidateHistory = AnchoredHistoryPlanner.GenerateFromYears(
                         candidate, seeds, firstYear, lastYear,
                         annualTournament, eventMonth, eventWeek, eventWeekday, startMonth);
+                    if (memberCount > 1)
+                        candidateHistory = TeamHistoryPlanner.Populate(
+                            candidateHistory, candidate, teamLineups, seeds, memberCount);
+                    else
+                        candidateHistory = candidateHistory.Select(r => r.Holder1 < -1
+                            ? r with { Holder1 = -1 } : r).ToList();
+                    // Assert: no temporary name-only scheduling identifier is
+                    // retained in the preview, CSV, or saved title lineage.
+                    if (candidateHistory.Any(r => r.Holder1 < -1 || r.Holder2 < -1 ||
+                            r.Holder3 < -1))
+                        throw new InvalidOperationException(
+                            "A temporary historical scheduling ID was not resolved.");
                     anchored = candidate;
                     chronologyNotes = candidateNotes;
                     proposal = candidateHistory;
@@ -1763,8 +1895,8 @@ public partial class MainWindow : Window
 
             var preview = new DataTable("Generated Championship History");
             preview.Columns.Add("Year", typeof(int));
-            preview.Columns.Add("Champion", typeof(string));
-            preview.Columns.Add("Worker UID", typeof(int));
+            preview.Columns.Add("Champion(s)", typeof(string));
+            preview.Columns.Add("Worker UID(s)", typeof(string));
             preview.Columns.Add("Previous winner", typeof(string));
             preview.Columns.Add("Next winner", typeof(string));
             preview.Columns.Add("Captured", typeof(DateTime));
@@ -1780,23 +1912,33 @@ public partial class MainWindow : Window
             // Preserve the intended per-reign requested duration even when
             // one superstar wins more than once in the same year.
             var requestedLengths = anchored
-                .GroupBy(w => (w.WorkerId, w.WinYear))
+                .GroupBy(w => (Id: w.WorkerId < -1 ? -1 : w.WorkerId,
+                    w.WinYear, w.Name))
                 .ToDictionary(g => g.Key,
                     g => new Queue<AnchoredHistoryPlanner.Anchor>(
                         g.OrderBy(w => w.SourceOrder)));
             for (int i = 0; i < proposal.Count; i++)
             {
                 var reign = proposal[i];
-                var predecessor = i > 0 ? proposal[i - 1].HolderName1 : "Inaugural";
+                static string HolderNames(GeneratedTitleReign r) =>
+                    string.Join(" / ", new[] { r.HolderName1, r.HolderName2, r.HolderName3 }
+                        .Where(n => !string.IsNullOrWhiteSpace(n)));
+                var predecessor = i > 0 ? HolderNames(proposal[i - 1]) : "Inaugural";
                 var successor = i + 1 < proposal.Count
-                    ? proposal[i + 1].HolderName1 : "End of history";
+                    ? HolderNames(proposal[i + 1]) : "End of history";
+                string names = HolderNames(reign);
+                string uids = string.Join(", ", new[] {
+                    reign.Holder1, reign.Holder2, reign.Holder3
+                }.Take(memberCount).Select(uid => uid == -1 ? "NPC" :
+                    uid.ToString(CultureInfo.InvariantCulture)));
                 if (annualTournament)
-                    preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                    preview.Rows.Add(reign.Captured.Year, names, uids,
                         predecessor, successor, reign.Captured, reign.Lost, reign.Defences);
                 else
                 {
                     AnchoredHistoryPlanner.Anchor? anchor = null;
-                    if (requestedLengths.TryGetValue((reign.Holder1, reign.Captured.Year),
+                    if (requestedLengths.TryGetValue(
+                            (reign.Holder1, reign.Captured.Year, reign.HolderName1),
                             out var pending) && pending.Count > 0)
                         anchor = pending.Dequeue();
                     string request = anchor?.ReignDays is int days
@@ -1808,11 +1950,11 @@ public partial class MainWindow : Window
                     chronologyNotes.TryGetValue((reign.Holder1, reign.Captured.Year),
                         out var source);
                     if (chronologyNotes.Count > 0)
-                        preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                        preview.Rows.Add(reign.Captured.Year, names, uids,
                             predecessor, successor, reign.Captured, reign.Lost, reign.Defences,
                             (reign.Lost - reign.Captured).Days + 1, request, source ?? "");
                     else
-                        preview.Rows.Add(reign.Captured.Year, reign.HolderName1, reign.Holder1,
+                        preview.Rows.Add(reign.Captured.Year, names, uids,
                             predecessor, successor, reign.Captured, reign.Lost, reign.Defences,
                             (reign.Lost - reign.Captured).Days + 1, request);
                 }
@@ -1821,14 +1963,10 @@ public partial class MainWindow : Window
             AdvancedPreviewGrid.ItemsSource = preview.DefaultView;
             AdvancedCandidatesGrid.Items.Refresh();
 
-            bool hasTeamReigns = history.Rows.Columns.Contains("Holder2") &&
-                history.Rows.Rows.Cast<DataRow>().Any(r =>
-                    r["Holder2"] != DBNull.Value &&
-                    Convert.ToInt32(r["Holder2"], CultureInfo.InvariantCulture) > 0);
             bool canApply = history.LinkField?.Equals("BeltUID",
                     StringComparison.OrdinalIgnoreCase) == true &&
                 history.OrderField?.Equals("BeltOrder",
-                    StringComparison.OrdinalIgnoreCase) == true && !hasTeamReigns;
+                    StringComparison.OrdinalIgnoreCase) == true;
             AdvancedApplyButton.IsEnabled = canApply;
             AdvancedExportButton.IsEnabled = true;
             int generated = proposal.Count(r => r.Holder1 == -1);
@@ -1871,6 +2009,7 @@ public partial class MainWindow : Window
                     : "";
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
+                $"{competitorFormat.ToString().ToUpperInvariant()} • " +
                 schedule + chronology + durationStatus +
                 (_advancedEmploymentWarnings > 0
                     ? $"WARNING: {_advancedEmploymentWarnings} reign(s) lack verified title-company employment coverage. "
@@ -1880,8 +2019,8 @@ public partial class MainWindow : Window
                 npcLimitNote + variety +
                 $"{_advancedExistingSlots} existing title-history row(s). " +
                 (canApply
-                    ? "Creating a backup is recommended but optional before importing this preview."
-                    : "Direct rebuilding is unavailable for this title's current schema or team history.");
+                    ? "Create Backup is REQUIRED before replacing this title's history."
+                    : "Direct rebuilding is unavailable for this title's current schema.");
             SetStatus($"Prepared {_advancedDraft.Count:N0} championship history entries.");
         }
         catch (Exception ex) { Error(ex); }
@@ -1899,6 +2038,7 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Save or discard the unsaved championship details first.");
             return;
         }
+        if (_advancedFullRebuild && !HasHistoricalWriteBackup()) return;
         string actionText = _advancedSlotMode
             ? $"LINK {_advancedSlotPatches.Count} NAME-ONLY REIGN(S) in {_selectedExisting.Name}?\n\n" +
               "Only holder UIDs and display names in the selected placeholder rows will change. " +
@@ -1920,7 +2060,9 @@ public partial class MainWindow : Window
                   "Review the flagged entries before importing."
                 : "") +
             "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
-            "without a backup. Creating one first is recommended but optional.\n\nContinue?",
+            (_advancedFullRebuild
+                ? "without a backup. A manual backup has been verified for this scenario.\n\nContinue?"
+                : "without a backup. Creating one first is recommended.\n\nContinue?"),
             _advancedSlotMode ? "Confirm Targeted Holder Substitution"
                 : "Confirm Championship History Rebuild",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
@@ -1935,7 +2077,8 @@ public partial class MainWindow : Window
                         .ToArray(), _advancedExistingSlots, (int)CurrentTitleFormat())
                 : _advancedFullRebuild
                     ? _session.RebuildTitleLineage(_selectedExisting.Id, _advancedDraft,
-                        _advancedExistingSlots, _advancedDraftIsAnnualTournament)
+                        _advancedExistingSlots, _advancedDraftIsAnnualTournament,
+                        (int)CurrentTitleFormat())
                     : _session.ReplaceExistingTitleLineage(_selectedExisting.Id, _advancedDraft);
             _lastSaved = DateTime.Now;
             bool selective = _advancedSlotMode;
@@ -1992,10 +2135,11 @@ public partial class MainWindow : Window
             }
             else
             {
-                lines.Add("BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,BeltCaptured,BeltLost,Defences");
+                lines.Add("BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,Holder3,Holder_Name3,BeltCaptured,BeltLost,Defences");
                 lines.AddRange(_advancedDraft.Select(r => string.Join(",",
                     Csv(_selectedExisting.Id), Csv(r.Order), Csv(r.Holder1),
                     Csv(r.HolderName1), Csv(r.Holder2), Csv(r.HolderName2),
+                    Csv(r.Holder3), Csv(r.HolderName3),
                     Csv(StudioDateFormat.Format(r.Captured)),
                     Csv(StudioDateFormat.Format(r.Lost)),
                     Csv(r.Defences))));
@@ -2052,9 +2196,15 @@ public partial class MainWindow : Window
                 LineageReignCount.Text = history.Rows.Rows.Count.ToString(CultureInfo.InvariantCulture);
                 if (history.Rows.Columns.Contains("Holder2"))
                 {
+                    string? secondNameField = history.Rows.Columns.Contains("Holder_Name2")
+                        ? "Holder_Name2"
+                        : history.Rows.Columns.Contains("HolderName2") ? "HolderName2" : null;
                     bool tag = history.Rows.Rows.Cast<DataRow>().Any(row =>
                         row["Holder2"] != DBNull.Value &&
-                        Convert.ToInt32(row["Holder2"], CultureInfo.InvariantCulture) > 0);
+                            Convert.ToInt32(row["Holder2"], CultureInfo.InvariantCulture) > 0 ||
+                        secondNameField != null && row[secondNameField] != DBNull.Value &&
+                            !string.IsNullOrWhiteSpace(
+                                Convert.ToString(row[secondNameField], CultureInfo.InvariantCulture)));
                     LineageTeamType.SelectedIndex = tag ? 1 : 0;
                 }
             }
@@ -2084,11 +2234,19 @@ public partial class MainWindow : Window
             TitleCompetitorCombo.SelectedIndex = (int)format - 1;
             AdvancedPartner2Picker.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner2NpcName.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner3Picker.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3NpcName.Visibility = format == TitleCompetitorFormat.Trios
                 ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner2Column.Visibility = format >= TitleCompetitorFormat.TagTeam
                 ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner2NameColumn.Visibility = format >= TitleCompetitorFormat.TagTeam
+                ? Visibility.Visible : Visibility.Collapsed;
             AdvancedPartner3Column.Visibility = format == TitleCompetitorFormat.Trios
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedPartner3NameColumn.Visibility = format == TitleCompetitorFormat.Trios
                 ? Visibility.Visible : Visibility.Collapsed;
             TitleClassificationHelp.Text = annual
                 ? "Annual tournament: one winner per edition, no title-loss date or defences."
