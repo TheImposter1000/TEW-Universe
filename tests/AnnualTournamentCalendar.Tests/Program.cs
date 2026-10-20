@@ -1032,6 +1032,111 @@ static void CheckCode(string table, string column, int code, string expected)
 
 
 
+// Full tag-team history: fixed real linked champions, NPC teams before and
+// after them, and dates/defenses preserved exactly from the singles scheduler.
+var tagDate1 = new DateTime(2012, 1, 1);
+var tagDate2 = new DateTime(2014, 4, 5);
+var tagDate3 = new DateTime(2016, 1, 1);
+var generatedTeamSingles = new[] {
+    new GeneratedTitleReign(1, -1, "NPC 1", -1, "", tagDate1,
+        new DateTime(2014, 4, 4), 4),
+    new GeneratedTitleReign(2, 101, "Carson", -1, "", tagDate2,
+        new DateTime(2015, 12, 31), 12),
+    new GeneratedTitleReign(3, -1, "NPC 2", -1, "", tagDate3,
+        new DateTime(2018, 1, 1), 7)
+};
+var fixedTagAnchors = new[] {
+    new AnchoredHistoryPlanner.Anchor("Carson", 101, 2014, 2010, 2020,
+        SourceOrder: 0)
+};
+var teamSeeds = Enumerable.Range(1, 12)
+    .Select(n => new NpcNameSeed($"Historical Wrestler {n}", null, null)).ToArray();
+var fixedTags = new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+    [0] = new(new[] { 101, 202 }, new[] { "Carson", "Tag Partner" })
+};
+var tagHistory = TeamHistoryPlanner.Populate(
+    generatedTeamSingles, fixedTagAnchors, fixedTags, teamSeeds, 2, new Random(123));
+if (tagHistory.Count != 3 || tagHistory[1].Holder1 != 101 ||
+    tagHistory[1].Holder2 != 202 || tagHistory[1].Holder3 != -1 ||
+    tagHistory[1].HolderName1 != "Carson" ||
+    tagHistory[1].HolderName2 != "Tag Partner" ||
+    tagHistory[1].HolderName3 != "" ||
+    tagHistory[0].Holder1 != -1 || tagHistory[0].Holder2 != -1 ||
+    tagHistory[0].HolderName1 == tagHistory[0].HolderName2 ||
+    tagHistory[2].HolderName1 == tagHistory[2].HolderName2 ||
+    tagHistory[1].Captured != tagDate2 || tagHistory[1].Defences != 12)
+    throw new Exception("Tag-team full-history mapping altered worker links, NPC partners or dates.");
+
+foreach (var reign in tagHistory)
+    HistoricalReignRules.ValidateHolders(
+        new[] { reign.Holder1, reign.Holder2, reign.Holder3 },
+        new[] { reign.HolderName1, reign.HolderName2, reign.HolderName3 },
+        2, new HashSet<int> { 101, 202 });
+
+// Two different trios with the same primary wrestler winning twice in 2014
+// must map to their distinct SourceOrder teams, not accidentally share partners.
+var triosAnchors = new[] {
+    new AnchoredHistoryPlanner.Anchor("Tavitia", 301, 2014, 2010, 2020,
+        SourceOrder: 0),
+    new AnchoredHistoryPlanner.Anchor("Tavitia", 301, 2014, 2010, 2020,
+        SourceOrder: 1)
+};
+var triosSingles = new[] {
+    new GeneratedTitleReign(1, 301, "Tavitia", -1, "",
+        new DateTime(2014, 2, 1), new DateTime(2014, 5, 31), 3),
+    new GeneratedTitleReign(2, 301, "Tavitia", -1, "",
+        new DateTime(2014, 8, 1), new DateTime(2014, 11, 30), 5),
+    new GeneratedTitleReign(3, -1, "Generated", -1, "",
+        new DateTime(2015, 1, 1), new DateTime(2015, 12, 31), 4)
+};
+var triosTeams = new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+    [0] = new(new[] { 301, 302, 303 }, new[] { "Tavitia", "Partner A", "Partner B" }),
+    [1] = new(new[] { 301, 304, 305 }, new[] { "Tavitia", "Partner C", "Partner D" })
+};
+var triosHistory = TeamHistoryPlanner.Populate(
+    triosSingles, triosAnchors, triosTeams, teamSeeds, 3, new Random(4321));
+if (triosHistory.Count != 3 ||
+    triosHistory[0].Holder3 != 303 || triosHistory[0].HolderName3 != "Partner B" ||
+    triosHistory[1].Holder2 != 304 || triosHistory[1].Holder3 != 305 ||
+    triosHistory[2].Holder1 != -1 || triosHistory[2].Holder2 != -1 ||
+    triosHistory[2].Holder3 != -1 ||
+    new[] { triosHistory[2].HolderName1, triosHistory[2].HolderName2,
+        triosHistory[2].HolderName3 }.Distinct().Count() != 3 ||
+    triosHistory[1].Captured != new DateTime(2014, 8, 1))
+    throw new Exception("Trios history lost third holders, repeat winning-year teams or NPC identities.");
+
+foreach (var reign in triosHistory)
+    HistoricalReignRules.ValidateHolders(
+        new[] { reign.Holder1, reign.Holder2, reign.Holder3 },
+        new[] { reign.HolderName1, reign.HolderName2, reign.HolderName3 },
+        3, new HashSet<int> { 301, 302, 303, 304, 305 });
+
+bool rejectsIncompleteTeam = false;
+try
+{
+    TeamHistoryPlanner.Populate(generatedTeamSingles, fixedTagAnchors,
+        new Dictionary<int, TeamHistoryPlanner.LinkedTeam> {
+            [0] = new(new[] { 101, 101 }, new[] { "Carson", "Carson" })
+        }, teamSeeds, 2);
+}
+catch (InvalidOperationException) { rejectsIncompleteTeam = true; }
+if (!rejectsIncompleteTeam)
+    throw new Exception("Generated team validation accepted a duplicate linked worker.");
+
+bool rejectsInsufficientNpcNames = false;
+try
+{
+    TeamHistoryPlanner.Populate(
+        new[] { generatedTeamSingles[0] }, Array.Empty<AnchoredHistoryPlanner.Anchor>(),
+        new Dictionary<int, TeamHistoryPlanner.LinkedTeam>(),
+        new[] { teamSeeds[0], teamSeeds[1] }, 3, new Random(10));
+}
+catch (InvalidOperationException) { rejectsInsufficientNpcNames = true; }
+if (!rejectsInsufficientNpcNames)
+    throw new Exception("Generated trios validation accepted too few name-only NPCs.");
+
+Console.WriteLine("Passed complete tag-team/trios title-history lineups, NPCs, multiple fixed teams and dates.");
+
 // The Carson story: a linked wrestler may win a tag title alongside his
 // deceased father, a name-only historical NPC not inserted into tblWorker.
 var knownWorkers = new HashSet<int> { 101, 202 };
