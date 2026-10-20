@@ -1032,6 +1032,45 @@ static void CheckCode(string table, string column, int code, string expected)
 
 
 
+// Dual-purpose partner text boxes: optional aliases for LINKED workers,
+ // required NPC names when no real worker is selected.
+var linkedAliased = HistoricalPartnerInput.Resolve(
+    4964, "Brooke Mercer", "Chelsea Morgan", 2, allowNameOnly: false);
+if (linkedAliased.WorkerId != 4964 ||
+    linkedAliased.DisplayName != "Chelsea Morgan" || linkedAliased.NameOnly)
+    throw new Exception("Partner 2 ring alias must preserve the linked worker UID.");
+var linkedBlank = HistoricalPartnerInput.Resolve(
+    4964, "Brooke Mercer", "", 2, allowNameOnly: false);
+if (linkedBlank.WorkerId != 4964 || linkedBlank.DisplayName != "Brooke Mercer")
+    throw new Exception("Blank optional linked-worker alias should use original name.");
+var linkedTriosAlias = HistoricalPartnerInput.Resolve(
+    503, "Partner Three", "Different Ring Name", 3, allowNameOnly: true);
+if (linkedTriosAlias.WorkerId != 503 ||
+    linkedTriosAlias.DisplayName != "Different Ring Name")
+    throw new Exception("Partner 3 linked alias did not override its display name.");
+var historicalNpc = HistoricalPartnerInput.Resolve(
+    null, null, "Grant Cade", 2, allowNameOnly: true);
+if (historicalNpc.WorkerId != -1 ||
+    historicalNpc.DisplayName != "Grant Cade" || !historicalNpc.NameOnly)
+    throw new Exception("Unlinked Partner 2 name was not mapped to NPC UID -1.");
+bool missingPartnerRejected = false;
+try { HistoricalPartnerInput.Resolve(null, null, "", 2, allowNameOnly: true); }
+catch (InvalidOperationException) { missingPartnerRejected = true; }
+if (!missingPartnerRejected)
+    throw new Exception("Unselected and unnamed partner incorrectly accepted.");
+bool safeNpcRejected = false;
+try { HistoricalPartnerInput.Resolve(null, null, "Grant Cade", 2, allowNameOnly: false); }
+catch (InvalidOperationException) { safeNpcRejected = true; }
+if (!safeNpcRejected)
+    throw new Exception("Safe existing-slot mode accepted an unlinked NPC partner.");
+bool longAliasRejected = false;
+try { HistoricalPartnerInput.Resolve(4964, "Brooke Mercer",
+    new string('X', 31), 2, allowNameOnly: true); }
+catch (InvalidOperationException) { longAliasRejected = true; }
+if (!longAliasRejected)
+    throw new Exception("Linked ring-name alias exceeded the 30-character limit.");
+Console.WriteLine("Passed dual-purpose partner names: linked aliases and unlinked NPC teammates.");
+
 // Historical name import must accept manually typed champion names without
 // linked tblWorker rows, including full lineups for tag team and trios titles.
 var singleNames = NameOnlyChampionImport.Parse(
