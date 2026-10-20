@@ -16,6 +16,12 @@ A new `Workers → Contracts → Create Contract From Template` action can inser
 
 **Pending, not mapped:** Body Shape was supplied as 1 Average, 2 Skinny, 3 Toned, 4 Muscular, 5 Ripped, 6 Flabby, 7 Bulky, 8 Obese. An earlier audit observed `tblWorker.BodyType` values 0–7, so those labels are intentionally **not** bound to `BodyType` until the offset is verified. The app must not mislabel code 1 as Average if its actual meaning is different.
 
+## Relationships editor (development preview)
+
+The Relationships sidebar now browses real tblRelation records with search by worker name or UID, category filters and controls to create, edit, or delete a relationship. Each worker pair has independent personal (P_Rel), romantic (R_Rel), family (F_Rel) and Yes/No Mentor settings; the numeric dropdown choices use the maintainer-verified zero-based labels. Worker1 and Worker2 links are preserved when editing. Reversed duplicate pairs are blocked when creating; unknown existing codes are shown as Code N and remain unchanged unless explicitly replaced.
+
+Every relationship write requires an explicit manual backup, confirmation, and a verified runtime MDB schema. Writes use a transaction and do not alter the worker records. This is under development in PR #18; it is not part of the published v0.1.82 installer. Before using new relationship writes on important data, verify against a copied TEW IX scenario and use the game's Data Check.
+
 ## Worker roster filters
 
 The **Workers** sidebar has a collapsible **Filters** panel alongside the existing name/UID search and Name A–Z / Z–A / Worker ID sorting. Filters combine with **AND** logic and update the matching count and worker list immediately. The available controls are: **Active / Inactive**, **Gender**, **Age minimum/maximum** (inclusive, calculated from the worker's `tblWorker.Birthday`), **Current Company** (from live `tblContract.WorkerUID → FedUID` links, including No current contract), **Worker Type / Role**, **Nationality**, **Based-in Region**, and **With pictures / No pictures**. **Reset** clears every filter and the name search to restore the full roster.
