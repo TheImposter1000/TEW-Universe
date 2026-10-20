@@ -17,6 +17,8 @@
     <Compile Include="..\TEWUniverse.Studio\DatabaseSession.cs" Link="Services\DatabaseSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\HistoricalLineageSession.cs" Link="Services\HistoricalLineageSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\HistoricalReignRules.cs" Link="Services\HistoricalReignRules.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\RelationshipRules.cs" Link="Services\RelationshipRules.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\RelationshipSession.cs" Link="Services\RelationshipSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerExtrasSession.cs" Link="Services\WorkerExtrasSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerContractSession.cs" Link="Services\WorkerContractSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerContractCreationSession.cs" Link="Services\WorkerContractCreationSession.cs"/>
