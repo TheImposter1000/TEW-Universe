@@ -20,6 +20,7 @@
     <Compile Include="../../src/TEWUniverse.Desktop/AnchoredHistoryPlanner.cs" Link="AnchoredHistoryPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/TeamHistoryPlanner.cs" Link="TeamHistoryPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/NameOnlyChampionImport.cs" Link="NameOnlyChampionImport.cs" />
+    <Compile Include="../../src/TEWUniverse.Desktop/HistoricalPartnerInput.cs" Link="HistoricalPartnerInput.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/ExistingTitleSlotPlanner.cs" Link="ExistingTitleSlotPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/TitleEmploymentValidator.cs" Link="TitleEmploymentValidator.cs" />
   </ItemGroup>
