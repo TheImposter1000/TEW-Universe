@@ -86,15 +86,18 @@ jobs:
         run: |
           $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
           $notes = @"
-          TEW Universe Studio preview update
+          TEW Universe Studio - Experimental Windows Update
 
-          New: 323 verified TEW IX numeric-to-label entries in worker and tag team editors, while preserving the original saved codes.
-          New: Create live worker contracts by reviewing and copying a real contract template from the selected company.
-          New: Edit individual historical championship reigns and insert name-only NPC holders (including a real wrestler paired with an NPC tag partner), without creating roster workers.
+          NEW: Relationships editor. Browse, filter, create, edit and remove worker relationships, using 23 newly verified zero-based TEW IX code labels: personal (P_Rel 0-8), romantic (R_Rel 0-6) and family (F_Rel 0-6). Mentor remains Yes/No. Total mappings: 346 verified codes across 13 categories.
 
-          Safety: New contract and historical lineage writes require a manual backup and explicit confirmation. Test these operations on a COPY of a TEW IX scenario and run TEW IX Data Check before using them on important databases. The new insertion flows have passed compilation and pure regression tests but have not been validated in-game.
-          Body Shape is not translated yet: supplied mapping 1-8 does not match the observed BodyType 0-7 storage values.
+          NEW: Advanced Championship History Generator now supports complete Tag Team and Trios histories (two or three individual holders per reign), including linked workers, name-only NPCs and combinations of both. Full-history previews, employment checks and CSV export cover every holder position.
 
-          This unsigned preview installer contains no game database files, passwords, or scenario data.
+          NEW: Add Name-Only and Import Name List in the Advanced Generator. Type historical champions directly or paste/load TXT/CSV name lists for Singles, Tag Team and Trios. These name-only holders use ID -1 and do not become roster workers.
+
+          PREVIOUSLY ADDED: Template-based contract creation and historical championship lineage editing, including name-only NPC champions.
+
+          IMPORTANT: This is an EXPERIMENTAL Windows update. GitHub Windows build and regression checks passed, but new relationship and full-lineage database write operations have NOT been verified by running TEW IX. Always use a disposable COPY of your TEW IX database, create a manual backup before making changes, and run TEW IX Data Check before trusting the results. A full-history rebuild deletes/replaces the selected title's previous lineage after explicit confirmation. Do not use the new write features on an irreplaceable live scenario until validated in-game.
+
+          Body Shape labels remain unmapped pending verification of stored 0-7 values vs supplied 1-8 descriptions. Installer is unsigned and contains no game database, scenario or password.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
