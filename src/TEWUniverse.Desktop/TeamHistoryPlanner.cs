@@ -37,7 +37,7 @@ internal static class TeamHistoryPlanner
                 team.WorkerIds.Any(id => id < -1 || id == 0) ||
                 team.WorkerIds.Where(id => id > 0).Distinct().Count() !=
                     team.WorkerIds.Count(id => id > 0) ||
-                team.WorkerIds[0] != anchor.WorkerId ||
+                team.WorkerIds[0] != (anchor.WorkerId < -1 ? -1 : anchor.WorkerId) ||
                 team.Names.Any(name => string.IsNullOrWhiteSpace(name) ||
                     name.Trim().Length > 30 || name.Any(char.IsControl)))
                 throw new InvalidOperationException(
