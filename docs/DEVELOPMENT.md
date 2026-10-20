@@ -12,6 +12,14 @@ The `HistoricalLineageSession` service updates a selected `tblBeltPreHistory` ho
 
 Pending verification: the user supplied an eight-item Body Shape enumeration numbered 1–8; the observed `tblWorker.BodyType` range includes 0 and lacks 8. The app does not bind these potential labels until this offset discrepancy is resolved.
 
+## Full-history generation for Tag Team and Trios (draft PR #18)
+
+The former singles-only full-history builder now supports all title competitor formats (Singles / Tag Team / Trios). The existing SuperstarReignInputPlanner and AnchoredHistoryPlanner remain authoritative for fixed winning years, protected reign lengths, NPC bridging, event calendars, and nonoverlapping dates. TeamHistoryPlanner.Populate maps each expanded Anchor.SourceOrder to a user-selected two- or three-holder lineup, even if one primary worker wins more than once in the same year. It replaces name-only filler reigns with randomly assembled complete NPC pairs/trios drawn from actual tblGenerateWorker names. Each member is a separate holder position; historical NPC holders use -1 plus an independent display name. Fixed lineups may also contain a named -1 NPC partner such as Carson's late father. No tblWorker or tblTeam record is created.
+
+GeneratedTitleReign now holds Holder3 and HolderName3. The WPF preview, employment verification (all three linked holders), and CSV export use complete lineups. RebuildTitleLineage takes the explicit competitorCount, validates exactly that many holder positions with HistoricalReignRules.ValidateHolders, checks dates and schema, and writes all Holder1/2/3 and their names inside its existing DELETE-and-INSERT transaction. The WPF full-history import now requires a manual backup before presenting the destructive confirmation; safe replacement of existing slots remains a separate operation. Cross-platform regression tests exercise real-worker tag teams, real/NPC mixed tag teams, 3-member NPC trios, repeated same-year real-worker trios with different partner lineups, preservation of dates/defenses, and rejection of invalid lineups.
+
+Important: the actual MDB write path needs Windows testing on an expendable scenario copy and verification with TEW IX's Data Check before shipping. The original uploaded TEW9.mdb is never modified during development. The feature remains in the draft pull request.
+
 ## Relationships expansion (draft PR #18)
 
 The WPF Relationships module is a separate workspace backed by RelationshipSession, not the generic allowlisted existing-record editor. The table is verified at runtime for UID, a text name field, Worker1, Worker2, P_Rel, R_Rel, F_Rel and Boolean Mentor. List views map both worker UIDs to existing names and keep missing-worker references visible as missing, rather than inventing a match. Browse supports name/UID search and filters for each nonzero relationship dimension and Mentor.
