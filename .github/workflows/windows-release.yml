@@ -88,18 +88,14 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
-          NEW: Verified worker attribute names for 57 actual TEW IX numeric codes: Personality (1-28), Alignment (310-315), Gimmick (320-339), and Other Performance (374-376). Five Personality codes (6, 13, 17, 20, 23) are Unassigned/reserved and cannot be newly assigned. The other 52 codes can be selected by name. Unknown existing attribute codes remain visible and unchanged; original numeric values are always stored. Total verified mappings: 403 across 14 database fields.
+          FIX: Existing worker contracts now recognize unsaved edits as soon as fields change. Workers > Contracts supports the main Save Changes button as well as Save Selected Contract, with a changed-field count. Yes/No terms use true/false dropdowns; dates and numeric terms are compared by value instead of text formatting. Successful updates keep the same worker and contract selected.
 
-          FIX: Worker Attributes can read and write numeric tblAttribute.Attribute columns instead of incorrectly requiring text. Hidden and Permanent flags remain independent. No worker attributes are migrated or removed by installation.
+          FIX: Saving worker profiles or contracts no longer clears roster search text, sort order, age ranges, or active, gender, company, role, nationality, region, and portrait filters. Filter selections are preserved by database key when the roster index refreshes. New contract creation updates the company-filter data without resetting the user's choices.
 
-          FIX: Advanced Championship History Generator partner 2 and partner 3 name boxes have two uses. When a real wrestler is selected, the name box is an optional ring-name alias while preserving their worker UID. With no wrestler selected, the box requires a name-only historical NPC in full-history mode. Explicit dynamic labels clarify each mode.
+          PREVIOUS FEATURES: 403 verified numeric mappings including 57 named worker attributes, optional backups for Relationships/Contract creation, full Singles/Tag Team/Trios championship histories, independent historical NPCs, TXT/CSV name import and dual-purpose ring-name alias fields.
 
-          CHANGE: Relationships and Create Contract From Template now offer optional backup choices (create backup / continue without backup / cancel) instead of requiring a backup. Destructive full-title-history replacement still requires one.
+          IMPORTANT: Experimental unsigned Windows installer. Windows build and regression tests passed, but live TEW IX MDB contract and lineage writes have not been verified by the game's Data Check. Work on a disposable COPY of your scenario, make backups before important operations and verify with TEW IX Data Check. Destructive full-history replacement requires a backup and confirmation.
 
-          PREVIOUS FEATURES: Relationships editor; full Singles, Tag Team and Trios championship history generation; name-only NPC champions; TXT/CSV historical name import; contract creation and title lineage edits.
-
-          IMPORTANT: Experimental unsigned Windows installer. Automated Windows builds and regression tests pass; actual Access MDB write compatibility has NOT yet been verified by TEW IX. Work on a disposable COPY of your scenario, consider creating a backup, and use TEW IX Data Check before trusting results. The full-history generator deletes and replaces the selected title's existing historical reigns after confirmation.
-
-          No TEW IX game database, save data or passwords are included. Body Shape code numbering is still awaiting verification.
+          No game database or saved data is included.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
