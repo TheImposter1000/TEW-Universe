@@ -6,10 +6,9 @@ using TEWUniverse.Studio;
 namespace TEWUniverse.Desktop;
 
 /// <summary>
-/// Active tblContract records. Existing contracts can be inspected and their
-/// supported scalar properties edited; historical employment remains tblCV.
-/// New contract insertion is intentionally disabled until every mandatory
-/// TEW IX contract field and its allowed values can be verified.
+/// Active tblContract records. Supported scalar fields can be edited and new
+/// rows can be created from verified same-company templates. The Contracts
+/// tab owns its own saving logic; historical employment remains tblCV.
 /// </summary>
 public partial class MainWindow
 {
@@ -20,7 +19,7 @@ public partial class MainWindow
     private bool _settingContractForm;
     private WorkerContractEntry? _selectedContract;
     private List<WorkerContractEntry> _contractRows = new();
-    private readonly Dictionary<string, TextBox> _contractInputs =
+    private readonly Dictionary<string, Control> _contractInputs =
         new(StringComparer.OrdinalIgnoreCase);
 
     private void InitializeWorkerContractsUI()
@@ -148,21 +147,37 @@ public partial class MainWindow
                 {
                     _contractDetails.Children.Add(ExtraLabel(
                         field.Name + (field.CanEdit ? "" : "  (read only)")));
-                    var input = ExtraTextBox();
-                    input.Text = field.Value;
-                    input.IsReadOnly = !field.CanEdit;
+                    Control input;
+                    if (field.CanEdit && field.Type == typeof(bool))
+                    {
+                        // A Boolean is not an arbitrary text box. Treat it as a
+                        // real Yes/No choice and track selection changes.
+                        var option = ExtraPicker();
+                        option.ItemsSource = new[] { "True", "False" };
+                        option.SelectedItem =
+                            field.Value.Equals("True", StringComparison.OrdinalIgnoreCase) ||
+                            field.Value == "1" ? "True" : "False";
+                        option.SelectionChanged += (_, _) => ContractInputChanged();
+                        input = option;
+                    }
+                    else
+                    {
+                        var textbox = ExtraTextBox();
+                        textbox.Text = field.Value;
+                        textbox.IsReadOnly = !field.CanEdit;
+                        if (field.Type == typeof(DateTime))
+                            textbox.ToolTip = "MM/DD/YYYY";
+                        if (field.CanEdit)
+                            textbox.TextChanged += (_, _) => ContractInputChanged();
+                        input = textbox;
+                    }
                     input.Opacity = field.CanEdit ? 1.0 : 0.72;
-                    if (field.Type == typeof(DateTime))
-                        input.ToolTip = "MM/DD/YYYY";
-                    if (field.Type == typeof(bool))
-                        input.ToolTip = "True or False";
                     if (field.CanEdit) _contractInputs.Add(field.Name, input);
                     _contractDetails.Children.Add(input);
                 }
             }
             _contractSave = ExtraButton("Save Selected Contract", true, SaveContract_Click);
-            _contractSave.IsEnabled = selected != null &&
-                selected.Fields.Any(f => f.CanEdit);
+            _contractSave.IsEnabled = false;
             _contractDetails.Children.Add(_contractSave);
             AppendCreateContractButton();
             _contractDetails.Children.Add(new TextBlock {
@@ -175,6 +190,7 @@ public partial class MainWindow
             });
         }
         finally { _settingContractForm = false; }
+        RefreshContractSaveState();
     }
 
     private void AppendCreateContractButton()
@@ -217,21 +233,52 @@ public partial class MainWindow
                 _worker.Id, template, dialog.Terms);
             _lastSaved = DateTime.Now;
             RefreshWorkerContracts(newId);
+            // Newly created company/worker links can affect the active roster
+            // filter INDEX, but must never reset the user's selected criteria.
+            ReloadWorkerFilterIndex(preserveSelections: true);
+            FilterWorkers(_worker.Id);
             SetStatus($"Created contract UID {newId} for {_worker.Name} with {companyName}.");
             RefreshDirty();
         }
         catch (Exception ex) { Error(ex); }
     }
 
+    private static string ContractInputValue(Control input) => input switch
+    {
+        ComboBox picker => picker.SelectedItem as string ?? "",
+        TextBox text => text.Text,
+        _ => ""
+    };
+
     private Dictionary<string, string> ChangedContractFields()
     {
         var changed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (_selectedContract == null) return changed;
         foreach (var field in _selectedContract.Fields.Where(f => f.CanEdit))
-            if (_contractInputs.TryGetValue(field.Name, out var input) &&
-                !string.Equals(input.Text, field.Value, StringComparison.Ordinal))
-                changed[field.Name] = input.Text;
+        {
+            if (!_contractInputs.TryGetValue(field.Name, out var input)) continue;
+            var next = ContractInputValue(input);
+            if (!WorkerContractChangeRules.Equivalent(field.Value, next, field.Type))
+                changed[field.Name] = next;
+        }
         return changed;
+    }
+
+    private void ContractInputChanged()
+    {
+        if (_settingContractForm) return;
+        RefreshContractSaveState();
+    }
+
+    private void RefreshContractSaveState()
+    {
+        if (_contractSave == null) return;
+        int changed = HasUnappliedContractEdits() ? ChangedContractFields().Count : 0;
+        _contractSave.IsEnabled = _session != null && changed > 0;
+        _contractSave.Content = changed > 0
+            ? $"Save Selected Contract ({changed} changed)"
+            : "Save Selected Contract";
+        RefreshDirty();
     }
 
     private bool HasUnappliedContractEdits() =>
@@ -260,6 +307,8 @@ public partial class MainWindow
                 _worker.Id, _selectedContract, fields);
             _lastSaved = DateTime.Now;
             RefreshWorkerContracts(identity);
+            ReloadWorkerFilterIndex(preserveSelections: true);
+            FilterWorkers(_worker.Id);
             SetStatus($"Saved {saved} contract field(s) for {_worker.Name}.");
             RefreshDirty();
         }
