@@ -100,7 +100,8 @@ public partial class MainWindow : Window
 
     private bool HasEdits() => _activeModule switch {
         "Workers" => _fields.Any(x => x.Dirty) ||
-            (_bioExists && BioEditor.Text != _originalBio),
+            (_bioExists && BioEditor.Text != _originalBio) ||
+            (_currentTab == "Contracts" && HasUnappliedContractEdits()),
         "Relationships" => HasPendingRelationshipEdits(),
         _ => _existingFields.Any(x => x.Dirty)
     };
@@ -128,8 +129,10 @@ public partial class MainWindow : Window
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null && _activeModule != "Relationships" &&
             (_activeModule == "Workers"
-            ? _worker != null && _currentTab is not ("Attributes" or "Contracts" or "Employment")
-            : _selectedExisting != null);
+                ? _worker != null && (_currentTab == "Contracts"
+                    ? HasUnappliedContractEdits()
+                    : _currentTab is not ("Attributes" or "Employment"))
+                : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
         WorkingText.Text = _session == null ? "No active database" :
@@ -656,6 +659,13 @@ public partial class MainWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        // Save Changes in the main toolbar must also recognize edits to
+        // EXISTING contracts. Their values live in tblContract, not tblWorker.
+        if (_activeModule == "Workers" && _currentTab == "Contracts")
+        {
+            SaveContract_Click(sender, e);
+            return;
+        }
         if (_activeModule != "Workers")
         {
             SaveExisting();
@@ -676,7 +686,7 @@ public partial class MainWindow : Window
             int savedId = _worker.Id;
             int count = _session.Save(savedId, edits);
             _allWorkers = _session.ListWorkers();
-            ReloadWorkerFilterIndex();
+            ReloadWorkerFilterIndex(preserveSelections: true);
             _lastSaved = DateTime.Now;
             var refreshed = _allWorkers.FirstOrDefault(x => x.Id == savedId);
             if (refreshed != null) LoadWorker(refreshed);

@@ -1150,6 +1150,40 @@ if (!rejectedNegativeNumeric)
     throw new Exception("Negative attribute codes were accepted.");
 Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
 
+// Contract form changes must be recognized by typed value rather than
+// spelling differences or a stale Save Changes toolbar state.
+foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {
+    ("False", "True", typeof(bool), false),
+    ("False", "0", typeof(bool), true),
+    ("True", "1", typeof(bool), true),
+    ("12", "13", typeof(int), false),
+    ("012", "12", typeof(int), true),
+    ("25.00", "25", typeof(decimal), true),
+    ("25.00", "26.00", typeof(decimal), false),
+    ("01/02/2022", "1/2/2022", typeof(DateTime), true),
+    ("01/02/2022", "01/03/2022", typeof(DateTime), false),
+    ("Name A", "Name B", typeof(string), false),
+    ("Name A", "Name A", typeof(string), true)
+})
+    if (WorkerContractChangeRules.Equivalent(before, after, type) != same)
+        throw new Exception("Contract change detection misclassified " + type.Name +
+            " values " + before + " -> " + after);
+
+var restoredFilterChoices = new[] {
+    new WorkerFilterChoice("", "All companies"),
+    new WorkerFilterChoice("100", "Company One"),
+    new WorkerFilterChoice("200", "Company Two")
+};
+var prior = new WorkerFilterState("active", "yes", "5", "200", "Wrestler",
+    "12", "24", "19", "42");
+if (WorkerFilterState.Choose(restoredFilterChoices, prior.Company)?.Key != "200" ||
+    WorkerFilterState.Choose(restoredFilterChoices, "999")?.Key != "" ||
+    WorkerFilterState.Choose(restoredFilterChoices, "")?.Key != "" ||
+    prior.MinimumAge != "19" || prior.MaximumAge != "42" ||
+    prior.Gender != "5" || prior.Active != "active" || prior.Picture != "yes")
+    throw new Exception("Roster filters did not preserve stored keys or age ranges after refresh.");
+Console.WriteLine("Passed contract typed-difference checks and persistent roster-filter selection.");
+
 // Dual-purpose partner text boxes: optional aliases for LINKED workers,
  // required NPC names when no real worker is selected.
 var linkedAliased = HistoricalPartnerInput.Resolve(

@@ -22,6 +22,7 @@
     <Compile Include="..\TEWUniverse.Studio\WorkerExtrasSession.cs" Link="Services\WorkerExtrasSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerAttributeValue.cs" Link="Services\WorkerAttributeValue.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerContractSession.cs" Link="Services\WorkerContractSession.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\WorkerContractChangeRules.cs" Link="Services\WorkerContractChangeRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerContractCreationSession.cs" Link="Services\WorkerContractCreationSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerRosterFilterEngine.cs" Link="Services\WorkerRosterFilterEngine.cs"/>
     <Compile Include="..\TEWUniverse.Studio\TewCodeLabels.cs" Link="Services\TewCodeLabels.cs"/>

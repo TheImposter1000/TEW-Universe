@@ -6,11 +6,6 @@ using TEWUniverse.Studio;
 
 namespace TEWUniverse.Desktop;
 
-internal sealed record WorkerFilterChoice(string Key, string Label)
-{
-    public override string ToString() => Label;
-}
-
 /// <summary>
 /// Read-only roster filtering, kept separate from worker editing and title
 /// generation. Every selected filter combines with all others (logical AND).
@@ -40,12 +35,16 @@ public partial class MainWindow
             .Select(v => Choice(v, display?.Invoke(v) ?? v)));
 
     private static void PopulateFilter(ComboBox combo,
-        IEnumerable<WorkerFilterChoice> options, bool enabled = true)
+        IEnumerable<WorkerFilterChoice> options, bool enabled = true,
+        string? previousKey = null)
     {
         combo.DisplayMemberPath = nameof(WorkerFilterChoice.Label);
         TextSearch.SetTextPath(combo, nameof(WorkerFilterChoice.Label));
-        combo.ItemsSource = options.ToList();
-        combo.SelectedIndex = 0;
+        var choices = options.ToList();
+        combo.ItemsSource = choices;
+        // Preserve the actual database filter KEY, never the display label or
+        // the ComboBox item reference (new index = new option instances).
+        combo.SelectedItem = WorkerFilterState.Choose(choices, previousKey);
         combo.IsEnabled = enabled;
     }
 
@@ -75,8 +74,20 @@ public partial class MainWindow
         finally { _loadingWorkerFilters = false; }
     }
 
-    private void ReloadWorkerFilterIndex()
+    private void ReloadWorkerFilterIndex(bool preserveSelections = false)
     {
+        var previous = preserveSelections && _workerFilterIndex != null
+            ? new WorkerFilterState(
+                FilterKey(WorkerActiveFilter),
+                FilterKey(WorkerPictureFilter),
+                FilterKey(WorkerGenderFilter),
+                FilterKey(WorkerCompanyFilter),
+                FilterKey(WorkerRoleFilter),
+                FilterKey(WorkerNationalityFilter),
+                FilterKey(WorkerRegionFilter),
+                WorkerMinAgeFilter.Text,
+                WorkerMaxAgeFilter.Text)
+            : null;
         _loadingWorkerFilters = true;
         try
         {
@@ -93,18 +104,18 @@ public partial class MainWindow
             PopulateFilter(WorkerGenderFilter,
                 Options("All genders", index.Workers.Select(w => w.Gender),
                     code => TewCodeLabels.Display("tblWorker", "Gender", code)),
-                index.HasGender);
+                index.HasGender, previous?.Gender);
             PopulateFilter(WorkerNationalityFilter,
                 Options("All nationalities", index.Workers.Select(w => w.Nationality),
                     code => TewCodeLabels.Display("tblWorker", "Nationality", code)),
-                index.HasNationality);
+                index.HasNationality, previous?.Nationality);
             PopulateFilter(WorkerRegionFilter,
                 Options("All regions", index.Workers.Select(w => w.Region),
                     code => TewCodeLabels.Display("tblWorker", "Based_In", code)),
-                index.HasRegion);
+                index.HasRegion, previous?.Region);
             PopulateFilter(WorkerRoleFilter,
                 Options("All worker types", index.Workers.SelectMany(w => w.Roles)),
-                index.HasWorkerRoles);
+                index.HasWorkerRoles, previous?.Role);
             PopulateFilter(WorkerCompanyFilter,
                 new[] {
                     Choice("", "All companies"),
@@ -112,11 +123,27 @@ public partial class MainWindow
                 }.Concat(index.Companies.OrderBy(c => c.Name,
                     StringComparer.OrdinalIgnoreCase).Select(c =>
                     Choice(c.Id.ToString(CultureInfo.InvariantCulture), c.Name))),
-                index.HasContractCompanyLinks);
+                index.HasContractCompanyLinks, previous?.Company);
             WorkerMinAgeFilter.IsEnabled = index.HasBirthday;
             WorkerMaxAgeFilter.IsEnabled = index.HasBirthday;
-            WorkerMinAgeFilter.Text = WorkerMaxAgeFilter.Text = "";
-            WorkerActiveFilter.SelectedIndex = WorkerPictureFilter.SelectedIndex = 0;
+            WorkerMinAgeFilter.Text = previous?.MinimumAge ?? "";
+            WorkerMaxAgeFilter.Text = previous?.MaximumAge ?? "";
+            if (previous == null)
+            {
+                WorkerActiveFilter.SelectedIndex = 0;
+                WorkerPictureFilter.SelectedIndex = 0;
+            }
+            else
+            {
+                WorkerActiveFilter.SelectedItem =
+                    WorkerFilterState.Choose(
+                        WorkerActiveFilter.Items.Cast<WorkerFilterChoice>(),
+                        previous.Active);
+                WorkerPictureFilter.SelectedItem =
+                    WorkerFilterState.Choose(
+                        WorkerPictureFilter.Items.Cast<WorkerFilterChoice>(),
+                        previous.Picture);
+            }
             WorkerAgeFilterHint.Text = "Minimum                    Maximum";
             WorkerAgeFilterHint.Foreground = ExtraColor("#819FBB");
             WorkerFilterNotes.Text = string.Join("  ", new[] {

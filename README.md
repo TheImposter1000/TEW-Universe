@@ -46,6 +46,14 @@ The Relationships sidebar now browses real tblRelation records with search by wo
 
 Every relationship write requires an explicit manual backup, confirmation, and a verified runtime MDB schema. Writes use a transaction and do not alter the worker records. This is under development in PR #18; it is not part of the published v0.1.82 installer. Before using new relationship writes on important data, verify against a copied TEW IX scenario and use the game's Data Check.
 
+## Contract-save recognition and persistent worker filters (development, PR #20)
+
+Workers → Contracts now participates in the main **Save Changes** toolbar action. Existing contract field edits are detected immediately in the form and unsaved-changes indicator; the local Save Selected Contract button shows how many fields differ. Yes/No contract fields use dropdown controls rather than free text; dates and numbers are compared by stored-value semantics rather than superficial string formatting. Saving reloads the **same selected contract** and keeps its worker selected. Contract creation also refreshes the live worker/company filter index after adding a new company link.
+
+The roster filter selections (active status, gender, company, worker role, nationality, based-in region, portrait presence, and minimum/maximum ages) now survive saving worker fields or contract changes. The search query and sort order also remain intact. Rebuilt combo choices are matched by stored key, not old UI object references. If a choice disappears because the underlying database no longer contains it, only that unavailable choice returns to All; other filters are preserved. Opening a completely different database still resets filters intentionally.
+
+This fix is in an unreleased development pull request. A passed Windows build checks code correctness, but contract MDB writing should still be verified against a copied TEW IX scenario using Data Check.
+
 ## Worker roster filters
 
 The **Workers** sidebar has a collapsible **Filters** panel alongside the existing name/UID search and Name A–Z / Z–A / Worker ID sorting. Filters combine with **AND** logic and update the matching count and worker list immediately. The available controls are: **Active / Inactive**, **Gender**, **Age minimum/maximum** (inclusive, calculated from the worker's `tblWorker.Birthday`), **Current Company** (from live `tblContract.WorkerUID → FedUID` links, including No current contract), **Worker Type / Role**, **Nationality**, **Based-in Region**, and **With pictures / No pictures**. **Reset** clears every filter and the name search to restore the full roster.
