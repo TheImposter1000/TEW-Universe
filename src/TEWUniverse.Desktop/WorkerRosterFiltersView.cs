@@ -6,11 +6,6 @@ using TEWUniverse.Studio;
 
 namespace TEWUniverse.Desktop;
 
-internal sealed record WorkerFilterChoice(string Key, string Label)
-{
-    public override string ToString() => Label;
-}
-
 /// <summary>
 /// Read-only roster filtering, kept separate from worker editing and title
 /// generation. Every selected filter combines with all others (logical AND).
