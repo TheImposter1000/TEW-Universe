@@ -105,7 +105,7 @@ internal static class CompanyCsvCodec
     }
 
     private static string Escape(string raw) =>
-        raw.ContainsAny(',', '"', '\n', '\r') ?
+        raw.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0 ?
             "\"" + raw.Replace("\"", "\"\"") + "\"" : raw;
 
     private static List<List<string>> Read(string csv)
