@@ -1020,6 +1020,7 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         ExistingFieldsDescription.Text = section switch {
             "Titles" => "Edit supported title fields, including annual settings and raw numeric codes. Protected identifiers remain read-only.",
+            "Companies" => "All company record fields and related popularity, products, hiring, touring and schedules are visible. Verified scalar fields are editable; relational IDs stay protected.",
             "Tag Teams" => "Edit actual tblTeam fields. Worker and company references use existing database records; team type codes remain untranslated.",
             _ => "Edit supported record fields. Identifiers and unverified relationships remain protected."
         };
@@ -1154,7 +1155,12 @@ public partial class MainWindow : Window
             if (_activeModule == "Titles") UpdateTitleKindUI();
 
             var row = record.Data.Rows[0];
-            foreach (var name in spec.EditableColumns)
+            _companyFieldRecordIds.Clear();
+            if (_activeModule == "Companies")
+            {
+                BuildCompanyEditor(record);
+            }
+            else foreach (var name in spec.EditableColumns)
             {
                 if (!record.Data.Columns.Contains(name)) continue;
                 var column = record.Data.Columns[name]!;
@@ -2830,7 +2836,12 @@ public partial class MainWindow : Window
         try
         {
             int id = _selectedExisting.Id;
-            int updated = _session.SaveExistingRecord(_activeModule, id, edits);
+            int updated = _activeModule == "Companies"
+                ? _session.SaveCompanyFields(id, _existingFields.Where(f => f.Dirty)
+                    .Select(f => new CompanyFieldChange(f.ToEdit(),
+                        _companyFieldRecordIds.TryGetValue(f, out int recordId)
+                            ? recordId : id)).ToArray())
+                : _session.SaveExistingRecord(_activeModule, id, edits);
             _lastSaved = DateTime.Now;
             _availableExistingRecords = _session.ListExistingRecords(_activeModule);
             var refreshed = _availableExistingRecords.FirstOrDefault(x => x.Id == id);
