@@ -88,6 +88,14 @@ This initial module must be tested in TEW IX's Data Check using a backed-up scen
 
 **Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
 
+## Awards: world and company year-end records (new)
+
+**Awards** replaces the inactive History sidebar placeholder. It browses the real `tblEOYAward` (world) and `tblEOYFedAward` (company) tables, with a switch between them, searchable year/UID/recipient information, and a full inspector showing every original MDB field. Known global award winner IDs display the matching real worker name; known company winners display the matching company name. All database columns are introspected at runtime rather than assuming the two tables share identical fields.
+
+This first Awards release allows **editing existing years and selected recognizable world-award worker/company winner references only**. Records with unrecognized field layouts stay read-only. Inputs use the actual MDB column type; updates enforce real positive worker/company IDs, compare the complete original row snapshot, reject duplicate world-award years, and save just the selected row in a transaction. Unknown winner categories, name-only special cases, and unverified company-award fields are protected. Creating new world/company award rows is not enabled until their complete schema and expected defaults are verified. This prevents corrupt or mislinked records and keeps existing awards unchanged during installation.
+
+This is separate from the existing Workers → Employment History and Titles → Title Lineage features, neither of which is removed. Verify any new edits on a **disposable copy** of the scenario and run TEW IX Data Check. This is mini-release 1 of 3; Tools Data Check and Studio-only Worker Accomplishments follow as separate features.
+
 ## Desktop application
 
 The published Windows app now uses **WPF and .NET 8**. Its source is in `src/TEWUniverse.Desktop`, sharing the existing Access data layer and settings from `src/TEWUniverse.Studio`.
@@ -96,7 +104,7 @@ The worker portrait feature looks for a **worker-name PNG first**, then WebP/JPE
 
 Gender, Sexuality, Pronouns, Race, Nationality, Based In, Wrestling Style, Competes Against and Outside Relationship use verified label dropdowns when their stored codes are recognized, preserving the original numeric values in the editor and MDB. Unknown values remain editable raw codes. Boolean flags such as Active remain Yes/No controls.
 
-The redesigned Workers screen includes a sidebar, searchable worker list, real MDB fields, biography editor and status bar. Companies, Titles (championships), Events, and Stables now have existing-record editors in the same dark workspace. These sections browse existing MDB entries and allow updates to a restricted set of fields. Relationships, History and Tools remain nonfunctional placeholders until relationship and title-lineage operations are validated.
+The redesigned Workers screen includes a sidebar, searchable worker list, real MDB fields, biography editor and status bar. Companies, Titles (championships), Events, and Stables now have existing-record editors in the same dark workspace. These sections browse existing MDB entries and allow updates to a restricted set of fields. Relationships is implemented; Awards replaces History with world/company year-end award records. Tools remains a placeholder pending a dedicated Data Check workspace.
 
 In Titles, open **Title Lineage** to view existing pre-game reigns from `tblBeltPreHistory`, filtered by the selected championship and sorted by Order Number where the MDB schema identifies it. A Generate Title Reigns panel lets you select a pool of existing workers, reign count, years and singles/tag-team mode, then generate a dated preview and export a draft CSV. You can replace holders and dates ONLY when the selected championship already has exactly the same number of prehistory rows; this updates only that belt's existing history UIDs in one transaction. Nothing is inserted or deleted. Always back up before replacing lineage; the exported draft CSV is not a verified TEW IX import file. If the belt-reference column cannot be recognized unambiguously, the app shows diagnostic columns rather than mixing reigns across belts.
 

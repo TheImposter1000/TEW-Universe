@@ -243,6 +243,8 @@ public partial class MainWindow
         WorkerDetailPanel.Visibility = Visibility.Collapsed;
         ExistingWorkspace.Visibility = Visibility.Collapsed;
         RelationshipsWorkspace.Visibility = Visibility.Visible;
+        AwardsWorkspace.Visibility = Visibility.Collapsed;
+        AwardsNav.Style = (Style)FindResource("NavigationButton");
         WorkersNav.Style = (Style)FindResource("NavigationButton");
         RelationshipsNav.Style = (Style)FindResource("BlueButton");
         foreach (var button in new[] { CompaniesNav, TitlesNav, TagTeamsNav, EventsNav, StablesNav })
