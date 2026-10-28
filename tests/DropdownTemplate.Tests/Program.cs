@@ -70,6 +70,8 @@ if (!setupScroll.Ancestors().Contains(advancedPanel) ||
     (string?)setupScroll.Attribute("VerticalScrollBarVisibility") != "Auto" ||
     !int.TryParse((string?)candidatesGrid.Attribute("Height"), out int candidateHeight) ||
     candidateHeight < 200 ||
+    (string?)candidatesGrid.Attribute("FrozenColumnCount") != "1" ||
+    (string?)previewGrid.Attribute("FrozenColumnCount") != "2" ||
     new[] { builderButton, previewButton, generateButton, applyButton }
         .Any(x => x.Ancestors(wpf + "ScrollViewer").Any()) ||
     advancedPanel.Descendants(wpf + "ScrollViewer").Any(x =>
