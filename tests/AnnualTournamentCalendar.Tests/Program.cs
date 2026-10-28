@@ -30,7 +30,7 @@ var attractionSample = Enumerable.Range(1, 250)
         TitleDefenceFrequency.SpecialAttraction, new Random(seed))).ToArray();
 if (tvSample.Any(x => x < 40 || x > 200) ||
     tvSample.Distinct().Count() < 15 ||
-    touringSample.Average(x => x) <= tvSample.Average(x => x) ||
+    touringSample.Average(x => x) <= regularSample.Average(x => x) ||
     tvSample.Average(x => x) <= regularSample.Average(x => x) ||
     regularSample.Average(x => x) <= attractionSample.Average(x => x) ||
     TitleDefencePlanner.Estimate(4, "Television Championship",
