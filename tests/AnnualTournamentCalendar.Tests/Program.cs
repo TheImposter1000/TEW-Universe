@@ -76,6 +76,53 @@ if (ChampionshipCsvImport.Parse(cupCsv, 975, 1, true,
     throw new Exception("Annual tournament CSV sentinel was rejected.");
 Console.WriteLine("Passed championship CSV round trips and invalid input protections.");
 
+// Selected-company CSV round trip, including quotes and dangerous edits.
+var companyCells = new[] {
+    new CompanyCsvCell(403, "Heartland Championship Wrestling",
+        "tblFed", "UID", 403, "Name", "String",
+        "Heartland Championship Wrestling", "Heartland Championship Wrestling", true),
+    new CompanyCsvCell(403, "Heartland Championship Wrestling",
+        "tblFed", "UID", 403, "UID", "Int32", "403", "403", false),
+    new CompanyCsvCell(403, "Heartland Championship Wrestling",
+        "tblFed", "UID", 403, "Profile", "String",
+        "Hardcore, \"heartland\"", "Hardcore, \"heartland\"", true),
+    new CompanyCsvCell(403, "Heartland Championship Wrestling",
+        "tblFedStyle", "UID", 11, "StyleRating", "Int32", "60", "60", true)
+};
+var exportCompany = CompanyCsvCodec.Export(companyCells);
+var companyUnchanged = CompanyCsvCodec.Preview(exportCompany, companyCells, 403);
+if (companyUnchanged.Changes.Count != 0 || companyUnchanged.VerifiedRows != 4)
+    throw new Exception("Company CSV no-op round trip changed data.");
+var companyChanged = exportCompany.Replace("Hardcore, \"\"heartland\"\"\r\n",
+    "Hardcore, \"\"heartland\"\"\r\n");
+// Modify only Value for one editable linked company record.
+var modifiedCompany = CompanyCsvCodec.Export(companyCells.Select(c =>
+    c.Field == "StyleRating" ? c with { Value = "75" } : c).ToArray());
+var companyPreview = CompanyCsvCodec.Preview(modifiedCompany, companyCells, 403);
+if (companyPreview.Changes.Count != 1 ||
+    companyPreview.Changes[0].RecordId != 11 ||
+    companyPreview.Changes[0].Edit.NewText != "75")
+    throw new Exception("Company CSV change did not preserve the linked record identity.");
+
+void ExpectCompanyCsvRejected(string input, int uid = 403)
+{
+    bool rejected = false;
+    try { CompanyCsvCodec.Preview(input, companyCells, uid); }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected)
+        throw new Exception("Wrong or unsafe company CSV was accepted.");
+}
+ExpectCompanyCsvRejected(modifiedCompany, 404);
+ExpectCompanyCsvRejected(CompanyCsvCodec.Export(companyCells.Select(c =>
+    c.Field == "UID" ? c with { Value = "999" } : c).ToArray()));
+ExpectCompanyCsvRejected(CompanyCsvCodec.Export(companyCells.Select(c =>
+    c.Field == "StyleRating" ? c with { OriginalValue = "55", Value = "75" } : c).ToArray()));
+ExpectCompanyCsvRejected(CompanyCsvCodec.Export(companyCells.Select(c =>
+    c.Field == "StyleRating" ? c with { Editable = false, Value = "75" } : c).ToArray()));
+ExpectCompanyCsvRejected(CompanyCsvCodec.Export(companyCells.Concat(
+    new[] { companyCells[0] }).ToArray()));
+Console.WriteLine("Passed selected-company CSV round-trip, linked records and protected edits.");
+
 // The Companies editor exposes all company scalar fields but does not
 // permit identity, linked worker, product, or other unresolved references.
 var companySchema = new System.Data.DataTable("tblFed");
