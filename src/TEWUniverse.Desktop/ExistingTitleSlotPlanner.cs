@@ -156,7 +156,7 @@ internal static class ExistingTitleSlotPlanner
         foreach (var slot in slots)
         {
             int linked = slot.LinkedWorkers.Length;
-            if (linked > (int)format)
+            if (linked > (int)format || linked > 0 && new[] { slot.Name1, slot.Name2, slot.Name3 }.Take((int)format).Any(string.IsNullOrWhiteSpace))
                 throw new InvalidOperationException(
                     $"Existing reign #{slot.Order} has more real worker holders than the {format} format permits. " +
                     "Choose the correct format before generating.");
