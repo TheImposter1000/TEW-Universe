@@ -16,6 +16,12 @@ A new `Workers → Contracts → Create Contract From Template` action can inser
 
 **Pending, not mapped:** Body Shape was supplied as 1 Average, 2 Skinny, 3 Toned, 4 Muscular, 5 Ripped, 6 Flabby, 7 Bulky, 8 Obese. An earlier audit observed `tblWorker.BodyType` values 0–7, so those labels are intentionally **not** bound to `BodyType` until the offset is verified. The app must not mislabel code 1 as Average if its actual meaning is different.
 
+## Comprehensive company editor
+
+**Companies** now loads **every available tblFed column** from the active MDB, rather than silently showing only a few preselected fields. The interface groups identity, operating dates, business/finances, presentation/product, personnel/policies, geographic settings, and remaining TEW IX fields into expandable sections. Supported scalar settings are editable. Primary and internal record identities, unknown relationship references, and non-scalar database values are visible but read-only; codes are never assigned speculative descriptions.
+
+The screen also discovers verified **FedUID-linked** company records in `tblFedOver` (regional popularity), `tblFedStyle`, `tblFedHiring`, `tblFedBackstage`, `tblFedBio`, `tblFedPower`, `tblFedTour`, `tblFedSchedule`, `tblFedBrand`, and `tblFedDept`. Linked single-record tables expose supported scalar edits; multi-record tables use read-only grids because assuming a unique row would risk corruption. Changes across the primary company and verified related records are validated before writing and committed in one transaction. Any missing table or unverified relationship is reported in the interface, not treated as an empty writable record. This adds full visibility and safe editing to currently known company records; it is not a promise that every TEW IX relational subsystem can be reconstructed or edited.
+
 ## Scenario start and company-aware championship dates
 
 Studio now reads the scenario start from **tblInfo.StartYear / StartMonth** rather than estimating the start from the computer clock. Use the new toolbar action **Scenario Start...** to view or edit the game-wide month/year; changes go to the selected scenario MDB after explicit confirmation and an optional backup prompt. TEW IX supplies no day-of-month here, so the game start is treated as the **first day** of the chosen month. Generated pre-game reigns cannot extend beyond the **previous day's** date. This does not automatically change any existing title history.
