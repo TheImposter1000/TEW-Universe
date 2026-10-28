@@ -19,6 +19,7 @@ public partial class MainWindow
     private TextBox _toolsSearch = null!;
     private ComboBox _toolsSeverity = null!;
     private List<StudioDataIssue> _toolsResults = new();
+    private bool _toolsHasRun;
 
     private void InitializeToolsUI()
     {
@@ -149,8 +150,10 @@ public partial class MainWindow
         {
             SetStatus("Reading linked title, team, award, and worker records...");
             _toolsResults = new List<StudioDataIssue>();
+            _toolsHasRun = false;
             FilterToolsResults();
             _toolsResults = _session.RunStudioDataCheck();
+            _toolsHasRun = true;
             FilterToolsResults();
             SetStatus($"Data Check finished: {_toolsResults.Count} findings (read-only).");
         }
@@ -219,7 +222,9 @@ public partial class MainWindow
         int errors = _toolsResults.Count(x => x.Severity == "Error");
         int reviews = _toolsResults.Count(x => x.Severity == "Review");
         int unavailable = _toolsResults.Count(x => x.Severity == "Unavailable");
-        _toolsSummary.Text = _toolsResults.Count == 0 ?
+        _toolsSummary.Text = !_toolsHasRun ?
+            "Not yet checked. Run Data Check to examine the active database." :
+            _toolsResults.Count == 0 ?
             "No reported inconsistencies in the checked records. This is not " +
             "a substitute for TEW IX's own Data Check." :
             $"Showing {visible.Count} of {_toolsResults.Count} findings: " +
