@@ -100,6 +100,10 @@
               <TextBlock Text="Keep active MDB selected" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource ActionButton}" Click="EditScenarioStart_Click" Margin="0,0,9,0"
+                  ToolTip="Edit the scenario starting month/year stored in tblInfo">
+            <TextBlock Text="Scenario Start..." FontWeight="SemiBold"/>
+          </Button>
           <Button Style="{StaticResource ActionButton}" Click="Settings_Click" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="18" Margin="0,0,8,0"/><TextBlock Text="Settings" VerticalAlignment="Center"/></StackPanel>
           </Button>
@@ -676,10 +680,11 @@
                <StackPanel Margin="0,0,13,5">
                 <TextBlock Text="Final date (optional)" FontSize="11" Foreground="#B9D4ED"/>
                 <TextBox x:Name="LineageFinalDate" Style="{StaticResource FormTextBox}"
-                         Width="125" ToolTip="MM/DD/YYYY; blank uses year-end or company/scenario cutoff."/>
+                         TextChanged="LineageTimelineChanged" Width="125" ToolTip="MM/DD/YYYY; blank uses year-end or company/scenario cutoff."/>
                </StackPanel>
                <StackPanel Margin="0,17,13,5">
                 <CheckBox x:Name="LineageUseCompanyDates" Content="Respect company dates"
+                          Checked="LineageTimelineChanged" Unchecked="LineageTimelineChanged"
                           IsChecked="True" Foreground="#DCEBFA"/>
                </StackPanel>
                <StackPanel Margin="0,0,13,5">
