@@ -1152,7 +1152,11 @@ public partial class MainWindow : Window
                 $"Record ID {selected.Id}  •  {spec.Table}  •  Existing record only";
             ExistingFieldsTitle.Text = _activeModule == "Titles"
                 ? "Championship Information" : _activeModule + " Information";
-            if (_activeModule == "Titles") UpdateTitleKindUI();
+            if (_activeModule == "Titles")
+            {
+                UpdateTitleKindUI();
+                ConfigureLineageCompanyPicker();
+            }
 
             var row = record.Data.Rows[0];
             _companyFieldRecordIds.Clear();
@@ -1312,7 +1316,8 @@ public partial class MainWindow : Window
                           "Choose at least one existing worker for singles reigns.");
 
             var bounds = ResolveTitleTimeline(startYear, endYear, 1,
-                LineageUseCompanyDates.IsChecked == true, LineageFinalDate.Text.Trim());
+                LineageUseCompanyDates.IsChecked == true, LineageFinalDate.Text.Trim(),
+                advanced: false);
             var start = bounds.From;
             var end = bounds.Through;
             LineageDateLimits.Text = bounds.Explanation;
