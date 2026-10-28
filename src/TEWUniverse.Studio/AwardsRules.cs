@@ -110,6 +110,20 @@ internal static class AwardsRules
          IsWorkerField(table, name, type) ||
          IsCompanyField(table, name, type));
 
+    // TEW IX uses zero for award categories that do not yet have a winner.
+    // The promotion owning a company-award record is not optional.
+    internal static bool CanBeUnassigned(string table, string name, Type type) =>
+        IsWorkerField(table, name, type) ||
+        (table.Equals(GlobalTable, StringComparison.OrdinalIgnoreCase) &&
+         name.Equals("Fed", StringComparison.OrdinalIgnoreCase) &&
+         IsCompanyField(table, name, type));
+
+    internal static int ValidateWinnerId(string raw, string name)
+    {
+        if (raw == "0") return 0;
+        return ValidateLinkedId(raw, name);
+    }
+
     internal static int ValidateYear(string raw)
     {
         if (!int.TryParse(raw, System.Globalization.NumberStyles.None,
