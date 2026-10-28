@@ -156,10 +156,9 @@ internal static class ExistingTitleSlotPlanner
         foreach (var slot in slots)
         {
             int linked = slot.LinkedWorkers.Length;
-            if (linked > 0 && linked != (int)format)
+            if (linked > (int)format)
                 throw new InvalidOperationException(
-                    $"Existing reign #{slot.Order} has {linked} linked holder(s), " +
-                    $"but the title is classified as {format}. " +
+                    $"Existing reign #{slot.Order} has more real worker holders than the {format} format permits. " +
                     "Choose the correct format before generating.");
         }
         var groups = requests
