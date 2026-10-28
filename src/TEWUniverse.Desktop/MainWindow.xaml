@@ -759,7 +759,7 @@
              <StackPanel>
               <TextBlock Text="SUPERSTARS  ·  EXISTING WORKERS"
                          Foreground="#E8F5FF" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="Choose an existing worker and optional ring-name alias, OR type a name and click Add Name-Only to import that historical person without creating a worker. Import Name List accepts pasted names or TXT/CSV files. For each teammate: choose a wrestler and optionally type their ring-name alias, OR leave that wrestler dropdown empty and type a required NPC name. Set total reigns and known winning years, then generate."
+              <TextBlock Text="Champion 1 has a worker selector followed immediately by their own optional ring-name alias. Each partner has a separate worker selector and historical-name field. To pair Carson Cade with historical Grant Cade, select Carson as Champion 1, leave Partner 2 unselected and type Grant Cade into Partner 2 historical name. Mixed teams can be inserted into unused history slots without rebuilding the entire title."
                          Foreground="#ACC6E6" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,10"/>
               <WrapPanel Margin="0,0,0,9" Orientation="Horizontal">
