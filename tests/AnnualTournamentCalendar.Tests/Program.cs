@@ -1150,6 +1150,25 @@ if (!rejectedNegativeNumeric)
     throw new Exception("Negative attribute codes were accepted.");
 Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
 
+// Cross-record Data Check: structured references are certain, but natural
+// language is a manual-review hint only (never an automatic "correction").
+var knownWorkerIds = new HashSet<int> { 101, 202 };
+if (DataCheckRules.MissingLinkedId(101, knownWorkerIds) ||
+    !DataCheckRules.MissingLinkedId(999, knownWorkerIds) ||
+    DataCheckRules.MissingLinkedId(-1, knownWorkerIds) ||
+    !DataCheckRules.IsNameOnlyHolder(-1) ||
+    DataCheckRules.IsNameOnlyHolder(0) ||
+    DataCheckRules.ClaimedReigns("3-time BCW Championship champion",
+        "BCW Championship") != 3 ||
+    DataCheckRules.ClaimedReigns("BCW Championship winner", "BCW Championship") != null ||
+    DataCheckRules.ClaimedReigns("2-time Other Title champion", "BCW Championship") != null ||
+    !DataCheckRules.MentionsTeam("Former member of The Apex Alliance.",
+        "The Apex Alliance") ||
+    DataCheckRules.MentionsTeam("The Apex Alliance", "Team") ||
+    DataCheckRules.Csv("A, \"B\"\nC") != "\"A, \"\"B\"\" C\"")
+    throw new Exception("Cross-record validation, bio claim handling, or CSV escaping failed.");
+Console.WriteLine("Passed read-only cross-record link checks and cautious biography parsing.");
+
 // Awards live in two distinct Access tables; never accept a guessed
 // numeric winner column, table, or record creation operation.
 if (!AwardsRules.IsAwardTable("tblEOYAward") ||

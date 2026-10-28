@@ -123,6 +123,8 @@ public partial class MainWindow
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
         AwardsWorkspace.Visibility = Visibility.Visible;
         WorkersNav.Style = (Style)FindResource("NavigationButton");
+        ToolsWorkspace.Visibility = Visibility.Collapsed;
+        ToolsNav.Style = (Style)FindResource("NavigationButton");
         RelationshipsNav.Style = (Style)FindResource("NavigationButton");
         AwardsNav.Style = (Style)FindResource("BlueButton");
         foreach (var button in new[] {

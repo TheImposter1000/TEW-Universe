@@ -88,14 +88,14 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
-          NEW: Awards replaces the unused History navigation item. Browse world year-end awards (tblEOYAward) and company-specific awards (tblEOYFedAward) in two searchable views. Read actual MDB values and resolve known winner IDs to worker/company names.
+          NEW: Tools workspace is now functional. Run a read-only cross-record Data Check comparing team memberships, linked title history, year-end award winner references and worker biographies. Broken structured IDs are reported as Errors; biography or possible historical discrepancies are Needs Review. Unavailable tables are reported instead of silently ignored.
 
-          NEW: Limited editing of existing award records. Year fields and recognizable world year-end award worker/company winner IDs can be updated after confirmation. Unverified award fields, company-specific winner codes, and new award-year INSERTs are intentionally read-only until their complete schemas are verified. Writes validate referenced IDs, preserve the rest of the record, and are transactional.
+          NEW: Search and filter Data Check findings by severity, export CSV reports, and jump to Workers, Titles/Record Name Repairs or Awards. No automatic repairs and no MDB writes are performed by the Tools checker.
 
-          PREVIOUS: Contracts recognize all pending changes, and saving workers/contracts preserves roster search, sorting and selected filters. Earlier updates added 403 verified numeric mappings, championship/tag-team/trios history generation, name-only NPCs and Relationships.
+          PREVIOUS: Awards workspace browses real world and company year-end award records, with conservative existing-row editing. Contracts recognize edits and preserve worker filters after saving. Existing championship history and relationship editors remain unchanged.
 
-          IMPORTANT: This is an experimental unsigned Windows installer. CI build and regression tests passed; TEW IX has not validated new Awards write operations. Use a COPY of your .mdb, create a backup before important edits, and run TEW IX Data Check before trusting any change. There is no automatic data migration.
+          IMPORTANT: Experimental unsigned installer. The Studio Data Check is supplementary and does not replace TEW IX's own Data Check. Any active MDB editing should be tested on a COPY with a backup before production use. New award/contract writes have not been validated by TEW IX itself.
 
-          No game database or scenario data is distributed.
+          No game database or scenario files are shipped.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest

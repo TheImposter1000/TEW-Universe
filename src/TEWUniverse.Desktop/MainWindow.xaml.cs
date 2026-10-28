@@ -89,6 +89,7 @@ public partial class MainWindow : Window
         InitializeWorkerFiltersUI();
         InitializeRelationshipsUI();
         InitializeAwardsUI();
+        InitializeToolsUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
@@ -130,7 +131,7 @@ public partial class MainWindow : Window
     {
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null &&
-            _activeModule is not ("Relationships" or "Awards") &&
+            _activeModule is not ("Relationships" or "Awards" or "Tools") &&
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
@@ -870,6 +871,11 @@ public partial class MainWindow : Window
                 ReloadRelationships();
             }
             else if (_activeModule == "Awards") ReloadAwards();
+            else if (_activeModule == "Tools")
+            {
+                _toolsResults.Clear();
+                FilterToolsResults();
+            }
             else if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
             SetStatus($"Loaded {list.Count:N0} existing workers");
@@ -951,6 +957,11 @@ public partial class MainWindow : Window
             SelectAwardsModule();
             return;
         }
+        if (section == "Tools")
+        {
+            SelectToolsModule();
+            return;
+        }
         if (ExistingEditors.TryGet(section, out _))
         {
             SelectModule(section);
@@ -978,8 +989,10 @@ public partial class MainWindow : Window
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
         AwardsWorkspace.Visibility = Visibility.Collapsed;
+        ToolsWorkspace.Visibility = Visibility.Collapsed;
         RelationshipsNav.Style = (Style)FindResource("NavigationButton");
         AwardsNav.Style = (Style)FindResource("NavigationButton");
+        ToolsNav.Style = (Style)FindResource("NavigationButton");
         TitleClassificationOptions.Visibility = section == "Titles"
             ? Visibility.Visible : Visibility.Collapsed;
         ClearGeneratedLineage();
