@@ -32,7 +32,7 @@ internal static class AnchoredHistoryPlanner
         int startMonth = 1,
         string championshipName = "",
         TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic,
-        DateTime? historyEnd = null)
+        DateTime? historyEnd = null, DateTime? historyStart = null)
     {
         if (firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
             throw new InvalidOperationException(
@@ -120,6 +120,11 @@ internal static class AnchoredHistoryPlanner
                 i + 1, e.UID, e.Name, -1, "", e.Date,
                 new DateTime(1666, 1, 1), -1));
         }
+        if (historyStart is DateTime opening &&
+            reigns.Any(r => r.Captured < opening))
+            throw new InvalidOperationException(
+                "An annual event is scheduled before this company opened. " +
+                "Select a later event date or shorten the year range.");
         if (historyEnd is DateTime cutoff &&
             reigns.Any(r => r.Captured > cutoff))
             throw new InvalidOperationException(
