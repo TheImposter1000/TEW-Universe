@@ -94,6 +94,10 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Championship History imports, including destructive full rebuilds and individual historical reign edits, no longer require a preexisting manual backup. Yes / No / Cancel offers a backup before the confirmed write, with No continuing without a backup. No database backup is created silently.
+
+          FIX: Both title-history generators now estimate successful defenses from the actual days held and title-specific booking frequency, including Television, Touring, Regular, Occasional, and Special Attraction presets. Automatic detects Television/TV and World/Heavyweight/Universal titles. Preview data reflects varied defense rates instead of assigning 3-15 defenses to year-long reigns; annual Cup defenses are still -1.
+
           FIX: World and company year-end awards now recognize the actual winner fields (MaleOverall, FemaleOverall, MaleTag1, FemaleTag2, etc.) as searchable worker selections. The Create New Award Year action has a dedicated recipient dialog, clears old winners by default, and never changes the source record. Non-recipient database metadata remains protected.
 
           FIX: Workers > Accomplishments now groups title reigns by company, shows concise title counts with optional capture dates, and lists readable global and company award achievements in an Awards & Other Accomplishments section.
