@@ -171,11 +171,18 @@ public partial class MainWindow
                 ? participant.DisplayName.Trim()
                 : index == 1 ? participant.Partner2Name.Trim() :
                     participant.Partner3Name.Trim()).ToArray();
-            if (members.Any(id => !_allWorkers.Any(w => w.Id == id)) ||
-                members.Distinct().Count() != members.Length)
+            if (members.Any(id => id < -1 || id == 0 ||
+                    id > 0 && !_allWorkers.Any(w => w.Id == id)) ||
+                !members.Any(id => id > 0) ||
+                members.Where(id => id > 0).Distinct().Count() !=
+                    members.Count(id => id > 0) ||
+                names.Any(n => string.IsNullOrWhiteSpace(n) ||
+                    n.Length > 30 || n.Any(char.IsControl)) ||
+                names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length)
                 throw new InvalidOperationException(
-                    $"Select {(int)format} different existing workers for {participant.DisplayName}. " +
-                    "For tag teams/trios enter valid Partner 2 / Partner 3 worker UIDs.");
+                    $"Provide at least one real wrestler for {participant.DisplayName}; " +
+                    "other team members may use UID -1 and their historical names. " +
+                    "All real worker IDs and displayed names must be distinct.");
             requests.Add(new TitleSlotRequest(
                 participant.DisplayName.Trim(), members, names,
                 from, through, total, participant.WinYears, participant.ReignLengths));
