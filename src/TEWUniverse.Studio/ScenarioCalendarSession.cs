@@ -62,9 +62,9 @@ internal sealed partial class DatabaseSession
                 "Company opening and closure dates conflict in tblFed. " +
                 "Correct them in Companies before generating.");
 
-        string name = company.Data.Columns.Contains("Name")
+        string companyName = company.Data.Columns.Contains("Name")
             ? Display(row["Name"]) : "Company UID " + companyId;
-        return new ScenarioChronology(scenarioStart, companyId, name, opened, closed);
+        return new ScenarioChronology(scenarioStart, companyId, companyName, opened, closed);
     }
 
     public void UpdateScenarioStart(int year, int month)
