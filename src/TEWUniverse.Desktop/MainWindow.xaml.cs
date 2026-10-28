@@ -842,6 +842,10 @@ public partial class MainWindow : Window
             copy.Save();
             _session?.Dispose();
             _session = opened;
+            // Results are tied to a specific scenario and must never survive
+            // switching the active MDB, even when Tools is not the visible tab.
+            _toolsResults.Clear();
+            FilterToolsResults();
             _sessionPassword = password;
             _settings = copy;
             _allWorkers = list;
