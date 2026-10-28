@@ -5,7 +5,7 @@ using System.Globalization;
 namespace TEWUniverse.Studio;
 
 internal sealed record CompanyRosterMember(
-    int WorkerUid, string WorkerName, bool Active, int ContractCount);
+    int WorkerUid, string WorkerName, bool? Active, int ContractCount);
 
 internal sealed partial class DatabaseSession
 {
