@@ -98,6 +98,8 @@ public partial class MainWindow
     {
         if (ApplyGeneratedLineageButton == null) return;
         ClearGeneratedLineage();
+        if (_activeModule == "Titles" && _selectedExisting != null)
+            UpdateTitleTimelineGuidance();
     }
 
     private void EditScenarioStart_Click(object sender, RoutedEventArgs e)
