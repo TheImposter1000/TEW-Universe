@@ -1,6 +1,43 @@
 using TEWUniverse.Desktop;
 using TEWUniverse.Studio;
 
+// Championship defense totals scale with days held and booking cadence,
+// not fixed counts assigned to broad duration brackets.
+if (TitleDefencePlanner.Resolve("USPW Television Championship",
+        TitleDefenceFrequency.Automatic) != TitleDefenceFrequency.Television ||
+    TitleDefencePlanner.Resolve("DNA TV Title",
+        TitleDefenceFrequency.Automatic) != TitleDefenceFrequency.Television ||
+    TitleDefencePlanner.Resolve("World Heavyweight Championship",
+        TitleDefenceFrequency.Automatic) != TitleDefenceFrequency.Touring ||
+    TitleDefencePlanner.Resolve("Women's Championship",
+        TitleDefenceFrequency.Automatic) != TitleDefenceFrequency.Regular ||
+    TitleDefencePlanner.Resolve("Television Championship",
+        TitleDefenceFrequency.Occasional) != TitleDefenceFrequency.Occasional ||
+    TitleDefencePlanner.Estimate(1, "TV Championship") != 0)
+    throw new Exception("Championship defense cadence auto-detection failed.");
+
+var tvSample = Enumerable.Range(1, 250)
+    .Select(seed => TitleDefencePlanner.Estimate(438, "Television Championship",
+        TitleDefenceFrequency.Automatic, new Random(seed))).ToArray();
+var touringSample = Enumerable.Range(1, 250)
+    .Select(seed => TitleDefencePlanner.Estimate(434, "WWE Championship",
+        TitleDefenceFrequency.Touring, new Random(seed))).ToArray();
+var regularSample = Enumerable.Range(1, 250)
+    .Select(seed => TitleDefencePlanner.Estimate(438, "Regular Championship",
+        TitleDefenceFrequency.Regular, new Random(seed))).ToArray();
+var attractionSample = Enumerable.Range(1, 250)
+    .Select(seed => TitleDefencePlanner.Estimate(438, "Special Championship",
+        TitleDefenceFrequency.SpecialAttraction, new Random(seed))).ToArray();
+if (tvSample.Any(x => x < 40 || x > 200) ||
+    tvSample.Distinct().Count() < 15 ||
+    touringSample.Average(x => x) <= tvSample.Average(x => x) ||
+    tvSample.Average(x => x) <= regularSample.Average(x => x) ||
+    regularSample.Average(x => x) <= attractionSample.Average(x => x) ||
+    TitleDefencePlanner.Estimate(4, "Television Championship",
+        TitleDefenceFrequency.Television, new Random(5)) > 3)
+    throw new Exception("History defense totals are implausible, uniform, or not paced by championship type.");
+Console.WriteLine("Passed title-specific defense cadence and 438-day television reign checks.");
+
 // Regression checks: a weekday-based annual tournament must not reuse a
 // fixed numbered day between years.
 Check(1994, 3, 1, DayOfWeek.Sunday, new DateTime(1994, 3, 6));
