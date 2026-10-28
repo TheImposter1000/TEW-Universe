@@ -49,9 +49,16 @@ internal static class CompanyFieldRules
         }.Contains(name, StringComparer.OrdinalIgnoreCase);
     }
 
+    internal static bool IsScalar(Type type) =>
+        type == typeof(string) || type == typeof(bool) ||
+        type == typeof(short) || type == typeof(int) ||
+        type == typeof(long) || type == typeof(byte) ||
+        type == typeof(decimal) || type == typeof(double) ||
+        type == typeof(float) || type == typeof(DateTime);
+
     internal static bool CanEdit(DataColumn column) =>
         !IsProtected(column.ColumnName) &&
-        DatabaseSession.IsEditable(column.DataType) &&
+        IsScalar(column.DataType) &&
         !column.ReadOnly && !column.AutoIncrement &&
         string.IsNullOrEmpty(column.Expression);
 
