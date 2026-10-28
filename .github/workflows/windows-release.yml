@@ -86,16 +86,16 @@ jobs:
         run: |
           $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
           $notes = @"
-          TEW Universe Studio - Experimental Windows Update
+          TEW Universe Studio - Windows Update
 
-          NEW: Tools workspace is now functional. Run a read-only cross-record Data Check comparing team memberships, linked title history, year-end award winner references and worker biographies. Broken structured IDs are reported as Errors; biography or possible historical discrepancies are Needs Review. Unavailable tables are reported instead of silently ignored.
+          NEW: Workers > Accomplishments tab. Independently curate championship achievements, award wins, tournaments, Hall of Fame inductions, milestones, and other career achievements with optional years and detailed notes. Add, edit and remove entries by worker.
 
-          NEW: Search and filter Data Check findings by severity, export CSV reports, and jump to Workers, Titles/Record Name Repairs or Awards. No automatic repairs and no MDB writes are performed by the Tools checker.
+          IMPORTANT: Accomplishments are saved only in separate Studio-managed JSON files under your local application data directory, keyed by the selected scenario path and worker UID. This feature does NOT write to the TEW IX MDB, invent championship reigns or update official awards. Back up the companion JSON folder independently; moving a database to a different path does not automatically move its local achievements.
 
-          PREVIOUS: Awards workspace browses real world and company year-end award records, with conservative existing-row editing. Contracts recognize edits and preserve worker filters after saving. Existing championship history and relationship editors remain unchanged.
+          PREVIOUS: Read-only Tools Data Check scans award, tag-team, title-lineage and biography links, filters findings by severity and exports CSV. Awards now browses actual world/company year-end records. Contract saves retain worker filters.
 
-          IMPORTANT: Experimental unsigned installer. The Studio Data Check is supplementary and does not replace TEW IX's own Data Check. Any active MDB editing should be tested on a COPY with a backup before production use. New award/contract writes have not been validated by TEW IX itself.
+          This Windows installer is unsigned. Automated builds and regression checks pass; for any TEW IX MDB-editing features, work on a COPY and use the game's Data Check. The Accomplishments feature itself leaves MDB bytes untouched.
 
-          No game database or scenario files are shipped.
+          No TEW IX game database or scenario data is included.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
