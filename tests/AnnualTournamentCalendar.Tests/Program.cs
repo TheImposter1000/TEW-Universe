@@ -1,6 +1,81 @@
 using TEWUniverse.Desktop;
 using TEWUniverse.Studio;
 
+// CSV round-trip: both Studio draft exports and targeted historical holder
+// changes must validate before anyone can write to an MDB.
+const string basicCsv =
+    "BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,BeltCaptured,BeltLost,Defences\\n" +
+    "903,1,4966,Carson Cade,0,,01/01/2019,04/30/2019,28\\n" +
+    "903,2,-1,Historical Champion,-1,,05/01/2019,12/31/2019,49";
+var knownCsvWorkers = new HashSet<int> { 4966, 4981 };
+var basicImported = ChampionshipCsvImport.Parse(basicCsv.Replace("\\n", "\n"),
+    903, 1, false, knownCsvWorkers, Array.Empty<ExistingTitleSlot>());
+if (basicImported.Targeted || basicImported.Reigns.Count != 2 ||
+    basicImported.Reigns[0].Holder2 != -1 ||
+    basicImported.Reigns[0].Defences != 28 ||
+    basicImported.Reigns[1].HolderName1 != "Historical Champion")
+    throw new Exception("Original Studio championship CSV did not round trip.");
+
+const string advancedHeader =
+    "BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,Holder3,Holder_Name3,BeltCaptured,BeltLost,Defences";
+var tagCsv = advancedHeader + "\n" +
+    "975,1,4966,\"Carson, Cade\",-1,Grant Cade,-1,,01/01/2019,12/31/2019,75";
+var tagImported = ChampionshipCsvImport.Parse(tagCsv, 975, 2, false,
+    knownCsvWorkers, Array.Empty<ExistingTitleSlot>());
+if (tagImported.Targeted || tagImported.Reigns.Count != 1 ||
+    tagImported.Reigns[0].HolderName1 != "Carson, Cade" ||
+    tagImported.Reigns[0].HolderName2 != "Grant Cade" ||
+    tagImported.Reigns[0].Holder2 != -1)
+    throw new Exception("Studio advanced tag CSV failed quoted-name or NPC round trip.");
+
+var existingForCsv = new[] {
+    new ExistingTitleSlot(614, 1, new DateTime(2019, 1, 1),
+        new DateTime(2019, 12, 31), 75, -1, "Historic One",
+        -1, "Historic Two", -1, "")
+};
+const string targetedHeader =
+    "UID,BeltUID,BeltOrder,Holder1,Holder_Name1,Holder2,Holder_Name2,Holder3,Holder_Name3,BeltCaptured,BeltLost,Defences";
+var targetedCsv = targetedHeader + "\n" +
+    "614,975,1,4966,Carson Cade,-1,Grant Cade,-1,,01/01/2019,12/31/2019,75";
+var targetedImported = ChampionshipCsvImport.Parse(targetedCsv, 975, 2,
+    false, knownCsvWorkers, existingForCsv);
+if (!targetedImported.Targeted || targetedImported.Changes.Count != 1 ||
+    targetedImported.Changes[0].Uid != 614 ||
+    targetedImported.Changes[0].Name2 != "Grant Cade")
+    throw new Exception("Studio targeted CSV did not preserve historical UID and NPC partner.");
+
+void ExpectCsvRejected(string sample, int title, int format, bool annual,
+    IReadOnlyList<ExistingTitleSlot> current)
+{
+    bool rejected = false;
+    try {
+        ChampionshipCsvImport.Parse(sample, title, format, annual,
+            knownCsvWorkers, current);
+    }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected)
+        throw new Exception("Unsafe championship CSV was incorrectly accepted.");
+}
+ExpectCsvRejected(tagCsv, 904, 2, false, Array.Empty<ExistingTitleSlot>());
+ExpectCsvRejected(tagCsv.Replace("4966", "999999"), 975, 2,
+    false, Array.Empty<ExistingTitleSlot>());
+ExpectCsvRejected(tagCsv.Replace("12/31/2019", "12/31/2018"), 975, 2,
+    false, Array.Empty<ExistingTitleSlot>());
+ExpectCsvRejected(targetedCsv.Replace("75", "74"), 975, 2, false, existingForCsv);
+ExpectCsvRejected(targetedCsv.Replace("614,", "615,"), 975, 2, false, existingForCsv);
+ExpectCsvRejected(targetedCsv, 975, 3, false, existingForCsv);
+var populatedSlot = existingForCsv.Select(x => x with { Holder1 = 4966 }).ToArray();
+ExpectCsvRejected(targetedCsv, 975, 2, false, populatedSlot);
+ExpectCsvRejected(advancedHeader + "\n" +
+    "975,1,-1,Winner,-1,,-1,,01/01/2019,01/01/1666,-1",
+    975, 1, false, Array.Empty<ExistingTitleSlot>());
+var cupCsv = advancedHeader + "\n" +
+    "975,1,4966,Carson Cade,-1,,-1,,05/20/2019,01/01/1666,-1";
+if (ChampionshipCsvImport.Parse(cupCsv, 975, 1, true,
+    knownCsvWorkers, Array.Empty<ExistingTitleSlot>()).Reigns.Count != 1)
+    throw new Exception("Annual tournament CSV sentinel was rejected.");
+Console.WriteLine("Passed championship CSV round trips and invalid input protections.");
+
 // Championship defense totals scale with days held and booking cadence,
 // not fixed counts assigned to broad duration brackets.
 if (TitleDefencePlanner.Resolve("USPW Television Championship",
