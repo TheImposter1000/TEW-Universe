@@ -13,6 +13,8 @@ internal static class DataCheckRules
         if (string.IsNullOrWhiteSpace(biography) ||
             string.IsNullOrWhiteSpace(titleName) || titleName.Trim().Length < 6)
             return null;
+        if (biography.IndexOf(titleName.Trim(), StringComparison.OrdinalIgnoreCase) < 0)
+            return null;
 
         // A nearby "3-time" belonging to a different title must not become
         // a claim for this title. Demand direct adjacency between the count
@@ -41,6 +43,8 @@ internal static class DataCheckRules
     {
         if (string.IsNullOrWhiteSpace(biography) ||
             string.IsNullOrWhiteSpace(teamName) || teamName.Length < 6) return false;
+            if (biography.IndexOf(teamName.Trim(), StringComparison.OrdinalIgnoreCase) < 0)
+            return false;
         string name = Regex.Escape(teamName.Trim());
         const string introduction =
             @"(?:\b(?:tag\s+team|stable|faction)\s+(?:called\s+|named\s+|known\s+as\s+)?" +
