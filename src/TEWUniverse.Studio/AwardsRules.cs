@@ -24,7 +24,11 @@ internal static class AwardsRules
             "MaleAnnouncer", "FemaleAnnouncer",
             "MaleColour", "FemaleColour",
             "MaleReferee", "FemaleReferee",
-            "MaleIndy", "FemaleIndy", "Improved"
+            "MaleIndy", "FemaleIndy", "Improved",
+            // Preserve legacy verified winner aliases used by older editors.
+            "Worker", "Young", "Veteran", "Female",
+            "Tag1", "Tag2", "Manager", "Announcer", "Colour",
+            "Referee", "Indy"
         };
 
     private static readonly Dictionary<string, string> WinnerLabels =
