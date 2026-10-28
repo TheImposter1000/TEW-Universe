@@ -26,14 +26,25 @@ internal static class AwardsRules
         name.Equals("Year", StringComparison.OrdinalIgnoreCase) &&
         (type == typeof(short) || type == typeof(int) || type == typeof(long));
 
+    // Company awards can link a worker through an explicitly named recipient
+    // field. Other numeric award-category codes remain unverified and protected.
+    private static readonly HashSet<string> CompanyRecipientColumns =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "Worker", "WorkerUID", "Winner", "WinnerUID", "Recipient", "RecipientUID" };
+
     internal static bool IsWorkerField(string table, string name, Type type) =>
-        table.Equals(GlobalTable, StringComparison.OrdinalIgnoreCase) &&
-        WorkerWinnerColumns.Contains(name) &&
-        (type == typeof(int) || type == typeof(short) || type == typeof(long));
+        (type == typeof(int) || type == typeof(short) || type == typeof(long)) &&
+        ((table.Equals(GlobalTable, StringComparison.OrdinalIgnoreCase) &&
+          WorkerWinnerColumns.Contains(name)) ||
+         (table.Equals(CompanyTable, StringComparison.OrdinalIgnoreCase) &&
+          CompanyRecipientColumns.Contains(name)));
 
     internal static bool IsCompanyField(string table, string name, Type type) =>
-        table.Equals(GlobalTable, StringComparison.OrdinalIgnoreCase) &&
-        name.Equals("Fed", StringComparison.OrdinalIgnoreCase) &&
+        ((table.Equals(GlobalTable, StringComparison.OrdinalIgnoreCase) &&
+          name.Equals("Fed", StringComparison.OrdinalIgnoreCase)) ||
+         (table.Equals(CompanyTable, StringComparison.OrdinalIgnoreCase) &&
+          (name.Equals("Fed", StringComparison.OrdinalIgnoreCase) ||
+           name.Equals("FedUID", StringComparison.OrdinalIgnoreCase)))) &&
         (type == typeof(int) || type == typeof(short) || type == typeof(long));
 
     internal static bool CanEdit(string table, string name, Type type) =>
