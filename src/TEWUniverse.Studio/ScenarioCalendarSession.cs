@@ -41,27 +41,15 @@ internal sealed partial class DatabaseSession
                 "The championship's company UID " + companyId +
                 " does not exist in tblFed.");
         DataRow row = company.Data.Rows[0];
-        foreach (string name in new[] { "OpenYear", "OpenMonth", "ClosedYear", "ClosedMonth" })
-            if (!company.Data.Columns.Contains(name))
-                throw new InvalidOperationException(
-                    "The company has no verified " + name +
-                    " column; automatic historical limits are unavailable.");
-
-        static int Value(DataRow record, string name) =>
-            record[name] is DBNull ? 0 :
-            Convert.ToInt32(record[name], CultureInfo.InvariantCulture);
-
-        int openYear = Value(row, "OpenYear"), openMonth = Value(row, "OpenMonth");
-        int closeYear = Value(row, "ClosedYear"), closeMonth = Value(row, "ClosedMonth");
-        DateTime? opened = openYear > 0
-            ? ScenarioDateBounds.MonthStart(openYear, openMonth) : null;
-        DateTime? closed = closeYear > 0
-            ? ScenarioDateBounds.MonthEnd(closeYear, closeMonth) : null;
-        if (opened.HasValue && closed.HasValue && closed.Value < opened.Value)
+        var (opened, closed) = ScenarioDateBounds.ReadCompanyDates(row);
+        if (!row.Table.Columns.Contains("CompanyOpening") &&
+            !row.Table.Columns.Contains("OpenYear"))
             throw new InvalidOperationException(
-                "Company opening and closure dates conflict in tblFed. " +
-                "Correct them in Companies before generating.");
-
+                "This company has no recognized opening-date field.");
+        if (!row.Table.Columns.Contains("CompanyClosing") &&
+            !row.Table.Columns.Contains("ClosedYear"))
+            throw new InvalidOperationException(
+                "This company has no recognized closing-date field.");
         string companyName = company.Data.Columns.Contains("Name")
             ? Display(row["Name"]) : "Company UID " + companyId;
         return new ScenarioChronology(scenarioStart, companyId, companyName, opened, closed);
