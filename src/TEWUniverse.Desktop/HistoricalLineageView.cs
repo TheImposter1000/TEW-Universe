@@ -8,21 +8,6 @@ namespace TEWUniverse.Desktop;
 
 public partial class MainWindow
 {
-    private bool HasHistoricalWriteBackup()
-    {
-        if (!string.IsNullOrWhiteSpace(_lastManualBackup) &&
-            File.Exists(_lastManualBackup) &&
-            _session != null &&
-            AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk))
-            return true;
-        MessageBox.Show(this,
-            "Choose CREATE BACKUP before changing historical title lineage. " +
-            "Only a backed-up scenario should be edited, and the result should " +
-            "be checked using TEW IX Data Check.",
-            "Back up the scenario first", MessageBoxButton.OK, MessageBoxImage.Warning);
-        return false;
-    }
-
     private HistoricalReignDraft DraftFromSelected(DataRow row)
     {
         var table = row.Table;
@@ -59,7 +44,7 @@ public partial class MainWindow
                 "modifying title lineage.");
             return false;
         }
-        return HasHistoricalWriteBackup();
+        return true;
     }
 
     private void EditHistoricalReign_Click(object sender, RoutedEventArgs e)
@@ -90,6 +75,7 @@ public partial class MainWindow
                 "Name-only NPCs have no tblWorker record. This writes to the active MDB.",
                 "Confirm Historical Champions", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (!OfferOptionalBackupBeforeWrite("editing historical champions")) return;
             _session!.EditHistoricalReign(_selectedExisting.Id, uid, order,
                 proposed, (int)CurrentTitleFormat(), IsAnnualTournament());
             _lastSaved = DateTime.Now;
@@ -127,6 +113,7 @@ public partial class MainWindow
                 "added to the worker or tag-team database tables.\n\nProceed?",
                 "Confirm Insert Historical Reign", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (!OfferOptionalBackupBeforeWrite("inserting a historical reign")) return;
             int uid = _session.InsertHistoricalReign(_selectedExisting.Id, draft,
                 (int)CurrentTitleFormat(), IsAnnualTournament(), history.Rows.Rows.Count);
             _lastSaved = DateTime.Now;
