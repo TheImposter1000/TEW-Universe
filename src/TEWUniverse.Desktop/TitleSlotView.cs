@@ -265,6 +265,7 @@ public partial class MainWindow
                 ? $"WARNING: {_advancedEmploymentWarnings} displayed reign(s) lack verified employment coverage. "
                 : "All displayed linked workers have matching historical employment. ") +
             "Only the highlighted replacements will be written; backup recommended but optional.";
+        ShowAdvancedWorkspace(true);
         SetStatus($"Prepared {matches.Count} targeted championship-history substitutions.");
     }
 }
