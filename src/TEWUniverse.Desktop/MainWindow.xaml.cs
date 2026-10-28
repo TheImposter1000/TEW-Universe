@@ -1469,6 +1469,37 @@ public partial class MainWindow : Window
         ConfigureAdvancedTitle();
     }
 
+    private void AdvancedBuilderView_Click(object sender, RoutedEventArgs e) =>
+        ShowAdvancedWorkspace(false);
+
+    private void AdvancedPreviewView_Click(object sender, RoutedEventArgs e) =>
+        ShowAdvancedWorkspace(true);
+
+    // Only the setup form or the generated result occupies the main workspace
+    // at any one time. The editing/confirmation toolbar is always visible.
+    private void ShowAdvancedWorkspace(bool preview)
+    {
+        if (AdvancedSetupScrollViewer == null ||
+            AdvancedPreviewGrid == null ||
+            AdvancedBuilderViewButton == null ||
+            AdvancedPreviewViewButton == null)
+            return;
+        bool ready = _selectedExisting != null &&
+            _advancedDraftTitleId == _selectedExisting.Id &&
+            (_advancedSlotMode ? _advancedSlotPatches.Count > 0 :
+                                 _advancedDraft.Count > 0);
+        bool showPreview = preview && ready;
+        AdvancedSetupScrollViewer.Visibility = showPreview
+            ? Visibility.Collapsed : Visibility.Visible;
+        AdvancedPreviewGrid.Visibility = showPreview
+            ? Visibility.Visible : Visibility.Collapsed;
+        AdvancedBuilderViewButton.Style = (Style)FindResource(
+            showPreview ? "ActionButton" : "BlueButton");
+        AdvancedPreviewViewButton.Style = (Style)FindResource(
+            showPreview ? "BlueButton" : "ActionButton");
+        AdvancedPreviewViewButton.IsEnabled = ready;
+    }
+
     private void ResetAdvancedDraft()
     {
         _advancedDraft.Clear();
@@ -1482,6 +1513,7 @@ public partial class MainWindow : Window
         if (AdvancedApplyButton != null) AdvancedApplyButton.IsEnabled = false;
         if (AdvancedExportButton != null) AdvancedExportButton.IsEnabled = false;
         if (AdvancedPreviewGrid != null) AdvancedPreviewGrid.ItemsSource = null;
+        ShowAdvancedWorkspace(false);
     }
 
     private void ResetAdvancedTitle()
@@ -1489,6 +1521,7 @@ public partial class MainWindow : Window
         ResetAdvancedDraft();
         _advancedConfiguredTitleId = null;
         _advancedParticipants.Clear();
+        AdvancedSetupScrollViewer?.ScrollToTop();
         if (AdvancedGenerationStatus != null)
             AdvancedGenerationStatus.Text = "Select a championship to plan its historical reigns.";
     }
@@ -2140,6 +2173,7 @@ public partial class MainWindow : Window
                 (canApply
                     ? "Backups are optional. Confirm import to replace this title's history."
                     : "Direct rebuilding is unavailable for this title's current schema.");
+            ShowAdvancedWorkspace(true);
             SetStatus($"Prepared {_advancedDraft.Count:N0} championship history entries.");
         }
         catch (Exception ex) { Error(ex); }
