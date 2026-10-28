@@ -23,9 +23,12 @@ internal sealed partial class DatabaseSession
     }
 
     public ScenarioChronology ReadTitleScenarioChronology(int beltId,
-        int? selectedCompany = null)
+        int? selectedCompany = null, bool includeCompany = true)
     {
         DateTime scenarioStart = ReadScenarioStart();
+        if (!includeCompany)
+            return new ScenarioChronology(scenarioStart, null,
+                "Company date override", null, null);
         int? companyId = selectedCompany is > 0
             ? selectedCompany : ReadTitleOriginalCompany(beltId);
         if (!companyId.HasValue)
