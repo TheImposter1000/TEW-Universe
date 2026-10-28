@@ -38,8 +38,8 @@ internal static class TitleDefencePlanner
     internal static string Description(TitleDefenceFrequency frequency) =>
         frequency switch
         {
-            TitleDefenceFrequency.Touring => "Touring: defended on most events (roughly 2–5 days apart)",
-            TitleDefenceFrequency.Television => "Television: very frequent defenses (roughly 3–7 days apart)",
+            TitleDefenceFrequency.Touring => "Touring: defended on most events (roughly 3–6 days apart)",
+            TitleDefenceFrequency.Television => "Television: very frequent defenses (roughly 2–5 days apart)",
             TitleDefenceFrequency.Regular => "Regular: typically weekly or biweekly (roughly 7–15 days apart)",
             TitleDefenceFrequency.Occasional => "Occasional: roughly every 2–5 weeks",
             TitleDefenceFrequency.SpecialAttraction => "Special attraction: roughly every 1–2 months",
@@ -57,8 +57,8 @@ internal static class TitleDefencePlanner
         var frequency = Resolve(titleName, requested);
         (double min, double max) = frequency switch
         {
-            TitleDefenceFrequency.Touring => (2.5, 5.0),
-            TitleDefenceFrequency.Television => (3.0, 7.0),
+            TitleDefenceFrequency.Touring => (2.5, 5.5),
+            TitleDefenceFrequency.Television => (2.5, 5.0),
             TitleDefenceFrequency.Regular => (7.0, 15.0),
             TitleDefenceFrequency.Occasional => (14.0, 35.0),
             TitleDefenceFrequency.SpecialAttraction => (28.0, 65.0),
