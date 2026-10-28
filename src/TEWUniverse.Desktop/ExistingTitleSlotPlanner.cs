@@ -161,9 +161,10 @@ internal static class ExistingTitleSlotPlanner
                     $"Existing reign #{slot.Order} has more real worker holders than the {format} format permits. " +
                     "Choose the correct format before generating.");
         }
-        var groups = requests
-            .Select(r => string.Join(",", r.WorkerIds.OrderBy(x => x)))
-            .ToArray();
+        var groups = requests.Select(r => string.Join(",", r.WorkerIds
+            .Select((id, i) => id > 0 ? "W" + id :
+                "N" + r.Names[i].Trim().ToUpperInvariant())
+            .OrderBy(x => x, StringComparer.Ordinal))).ToArray();
         if (groups.Distinct(StringComparer.Ordinal).Count() != groups.Length)
             throw new InvalidOperationException(
                 "The same wrestler/team lineup was added twice. Edit its total reign count instead.");
