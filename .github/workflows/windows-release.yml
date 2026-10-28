@@ -88,11 +88,11 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
-          FIX: Awards now supports creating new world and company year-end award records from a selected, verified existing award as a template. Choose the new award year, select recognized winner workers and companies via searchable dropdowns, and confirm the insert. Required unverified values are copied unchanged from the existing row; the template is preserved. Unknown fields remain read-only. Optional backup prompt before writes.
+          FIX: World and company year-end awards now recognize the actual winner fields (MaleOverall, FemaleOverall, MaleTag1, FemaleTag2, etc.) as searchable worker selections. The Create New Award Year action has a dedicated recipient dialog, clears old winners by default, and never changes the source record. Non-recipient database metadata remains protected.
 
-          FIX: Workers > Accomplishments is now an automatic, biography-style read-only summary populated directly from linked championship prehistory and recorded global/company year-end award winner references. It no longer requires manual entry or creates external JSON records. Existing legacy Studio JSON data is left untouched but not shown as game achievements.
+          FIX: Workers > Accomplishments now groups title reigns by company, shows concise title counts with optional capture dates, and lists readable global and company award achievements in an Awards & Other Accomplishments section.
 
-          FIX: The worker's nine tabs now fit in two rows without clipped labels. Tools Data Check biography/team matching requires explicit team affiliation; references to the Elite Division or a family mask no longer trigger misleading reports for similarly named tag teams. Select a finding to read its full description.
+          FIX: Previous worker tab spacing and cautious biography/team Data Check parsing remain in place.
 
           IMPORTANT: Experimental unsigned installer. Windows compilation and regression checks pass. New award creation and editing must be tested on a disposable TEW IX scenario COPY with the game's Data Check, as actual in-game MDB write compatibility has not yet been verified. Do not edit the same MDB concurrently in TEW IX.
 
