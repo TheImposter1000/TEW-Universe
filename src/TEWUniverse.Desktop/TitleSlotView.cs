@@ -29,6 +29,38 @@ public partial class MainWindow
         };
     }
 
+    private void ConfigureLineageCompanyPicker()
+    {
+        if (_session == null || _selectedExisting == null) return;
+        int? originalId = _session.ReadTitleOriginalCompany(_selectedExisting.Id);
+        var options = new List<ExistingRecordItem> {
+            new(0, originalId.HasValue ? "Automatic: title OriginalFed" :
+                "Select historical company (OriginalFed is missing)")
+        };
+        options.AddRange(_session.ListExistingRecords("Companies"));
+        LineageCompany.DisplayMemberPath = nameof(ExistingRecordItem.Name);
+        LineageCompany.ItemsSource = options;
+        LineageCompany.SelectedIndex = 0;
+    }
+
+    private void LineageCompanyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ApplyGeneratedLineageButton == null) return;
+        ClearGeneratedLineage();
+        if (_activeModule == "Titles" &&
+            _selectedExisting != null && _session != null)
+            UpdateTitleTimelineGuidance();
+    }
+
+    private void AdvancedCompanyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (AdvancedApplyButton == null) return;
+        ResetAdvancedDraft();
+        if (_activeModule == "Titles" &&
+            _selectedExisting != null && _session != null)
+            UpdateTitleTimelineGuidance();
+    }
+
     private void ConfigureEmploymentCompanyPicker()
     {
         if (_session == null || _selectedExisting == null) return;
