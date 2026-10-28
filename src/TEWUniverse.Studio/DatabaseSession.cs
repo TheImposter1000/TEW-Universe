@@ -35,7 +35,8 @@ internal static class ExistingEditors
         {
             ["Companies"] = new("Companies", "tblFed",
                 new[] { "Name", "Initials", "URL", "Logo", "Backdrop", "Banner", "Prestige",
-                    "Influence", "Money", "Momentum" }),
+                    "Influence", "Money", "Momentum",
+                    "OpenYear", "OpenMonth", "ClosedYear", "ClosedMonth" }),
             ["Titles"] = new("Titles", "tblBelt",
                 new[] { "Name", "Picture", "Profile", "Prestige", "Active",
                     // Presentation and descriptive fields only; foreign keys,
@@ -563,6 +564,41 @@ internal sealed partial class DatabaseSession : IDisposable
         }
     }
 
+    private static void ValidateCompanyDates(DataRow original,
+        IReadOnlyCollection<FieldEdit> edits)
+    {
+        int Value(string name)
+        {
+            var change = edits.LastOrDefault(e =>
+                e.Field.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (change != null)
+            {
+                if (!int.TryParse(change.NewText, NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int value))
+                    throw new InvalidOperationException(
+                        name + " must be a numeric month or year.");
+                return value;
+            }
+            if (!original.Table.Columns.Contains(name) || original[name] is DBNull)
+                throw new InvalidOperationException(
+                    "The company is missing its " + name + " date field.");
+            return Convert.ToInt32(original[name], CultureInfo.InvariantCulture);
+        }
+
+        int openedYear = Value("OpenYear"), openedMonth = Value("OpenMonth");
+        int closedYear = Value("ClosedYear"), closedMonth = Value("ClosedMonth");
+        DateTime? opened = null, closed = null;
+        if (openedYear == 0 && openedMonth == 0)
+            opened = null;
+        else opened = ScenarioDateBounds.MonthStart(openedYear, openedMonth);
+        if (closedYear == 0 && closedMonth == 0)
+            closed = null;
+        else closed = ScenarioDateBounds.MonthEnd(closedYear, closedMonth);
+        if (closed.HasValue && opened.HasValue && closed < opened)
+            throw new InvalidOperationException(
+                "Company closure cannot precede its opening month.");
+    }
+
     public int SaveExistingRecord(string section, int id, IReadOnlyCollection<FieldEdit> edits)
     {
         if (!ExistingEditors.TryGet(section, out var spec))
@@ -594,6 +630,8 @@ internal sealed partial class DatabaseSession : IDisposable
             if (section == "Titles")
                 ValidateTitleReference(edit);
         }
+        if (section == "Companies")
+            ValidateCompanyDates(sectionData.Data.Rows[0], edits);
         if (section == "Tag Teams")
             ValidateTagTeamEdits(sectionData.Data.Rows[0], edits);
 
