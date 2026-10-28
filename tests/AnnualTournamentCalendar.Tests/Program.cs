@@ -604,6 +604,30 @@ if (carsonChanges.Count != 4 ||
         p.Defences != existingReigns.Single(s => s.Uid == p.Uid).Defences))
     throw new Exception("Targeted Carson assignment overwrote a linked reign or changed history dates.");
 
+// A mixed historical team must work in safe replacement mode without
+// altering any existing linked reign or changing capture/loss dates.
+var mixedCarsonGrant = new TitleSlotRequest("Carson Cade",
+    new[] { 4966, -1 }, new[] { "Carson Cade", "Grant Cade" },
+    2010, 2020, 2, "", "");
+var mixedSlots = existingReigns.ToArray();
+var mixedPatches = ExistingTitleSlotPlanner.Plan(mixedSlots,
+    new[] { mixedCarsonGrant }, TitleCompetitorFormat.TagTeam);
+if (mixedPatches.Count != 2 ||
+    mixedPatches.Any(p => p.Holder1 != 4966 || p.Holder2 != -1 ||
+        p.Name2 != "Grant Cade" || p.Uid == mixedSlots[5].Uid ||
+        p.Defences != mixedSlots.Single(s => s.Uid == p.Uid).Defences ||
+        p.Captured != mixedSlots.Single(s => s.Uid == p.Uid).Captured ||
+        p.Lost != mixedSlots.Single(s => s.Uid == p.Uid).Lost))
+    throw new Exception("Mixed real-worker and historical NPC tag team safe replacement failed.");
+var mixedExisting = mixedSlots.ToArray();
+mixedExisting[1] = mixedExisting[1] with {
+    Holder1 = 4966, Name1 = "Carson Cade", Holder2 = -1, Name2 = "Grant Cade"
+};
+var mixedRemaining = ExistingTitleSlotPlanner.Plan(mixedExisting,
+    new[] { mixedCarsonGrant }, TitleCompetitorFormat.TagTeam);
+if (mixedRemaining.Count != 1 || mixedRemaining[0].Uid == mixedExisting[1].Uid)
+    throw new Exception("Existing mixed team reign was duplicated or overwritten.");
+
 // If a previous historical author already wrote "Carson Cade" as a
 // name-only champion, link that existing name before replacing strangers.
 var namedCarson = existingReigns.ToArray();
