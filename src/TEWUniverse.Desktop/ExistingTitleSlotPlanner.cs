@@ -28,11 +28,18 @@ internal static class ExistingTitleSlotPlanner
         int? Days, int? Months, int? Years, int ReignIndex,
         int EarliestYear, int LatestYear);
 
-    private static bool SameMembers(ExistingTitleSlot slot, TitleSlotRequest request) =>
-        TeamMemberKeys(new[] { slot.Holder1, slot.Holder2, slot.Holder3 },
-            new[] { slot.Name1, slot.Name2, slot.Name3 },
-            request.WorkerIds.Count).SequenceEqual(
-            TeamMemberKeys(request.WorkerIds, request.Names, request.WorkerIds.Count));
+    private static bool SameMembers(ExistingTitleSlot slot, TitleSlotRequest request)
+    {
+        var savedIds = new[] { slot.Holder1, slot.Holder2, slot.Holder3 };
+        var savedNames = new[] { slot.Name1, slot.Name2, slot.Name3 };
+        var stored = savedIds.Take(request.WorkerIds.Count)
+            .Select((id, i) => id > 0 ? "W" + id : "N" + savedNames[i].ToUpperInvariant())
+            .OrderBy(x => x).ToArray();
+        var wanted = request.WorkerIds
+            .Select((id, i) => id > 0 ? "W" + id : "N" + request.Names[i].ToUpperInvariant())
+            .OrderBy(x => x).ToArray();
+        return stored.SequenceEqual(wanted);
+    }
 
     private static DateTime? MinimumEnd(ExistingTitleSlot slot, Wanted wanted) =>
         wanted.Years.HasValue ? slot.Captured.AddYears(wanted.Years.Value) :
