@@ -14,6 +14,7 @@
     <Compile Include="../../src/TEWUniverse.Studio/WorkerAttributeValue.cs" Link="WorkerAttributeValue.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/AwardsRules.cs" Link="AwardsRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/DataCheckRules.cs" Link="DataCheckRules.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/WorkerAccomplishmentStore.cs" Link="WorkerAccomplishmentStore.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RelationshipRules.cs" Link="RelationshipRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/StudioRecordNames.cs" Link="StudioRecordNames.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RecordNameRepairPlanner.cs" Link="RecordNameRepairPlanner.cs" />
