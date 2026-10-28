@@ -16,7 +16,8 @@ internal static class ConstrainedLineagePlanner
 
     internal static List<GeneratedTitleReign> Generate(
         IReadOnlyList<Candidate> candidates, int firstYear, int lastYear,
-        int slotCount, bool fillUnassigned)
+        int slotCount, bool fillUnassigned, string championshipName = "",
+        TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic)
     {
         if (firstYear is < 1800 or > 2100 || lastYear is < 1800 or > 2100 ||
             firstYear > lastYear)
@@ -150,8 +151,8 @@ internal static class ConstrainedLineagePlanner
             {
                 var candidate = candidates[occupants[i]];
                 var (captured, lost) = intervals[i];
-                short defenses = (short)Math.Min(short.MaxValue,
-                    Math.Max(0, (lost - captured).Days / 45));
+                short defenses = TitleDefencePlanner.Estimate(
+                    (lost - captured).Days + 1, championshipName, defenceFrequency);
                 results.Add(new GeneratedTitleReign(
                     i + 1, candidate.WorkerId, candidate.DisplayName,
                     -1, "", captured, lost, defenses));
