@@ -1225,6 +1225,25 @@ if (DataCheckRules.MissingLinkedId(101, knownWorkerIds) ||
         "The Family") ||
     DataCheckRules.Csv("A, \"B\"\nC") != "\"A, \"\"B\"\" C\"")
     throw new Exception("Cross-record validation, bio claim handling, or CSV escaping failed.");
+// Avoid false-positive championship and team history findings.
+if (DataCheckRules.ClaimedReigns(
+        "A 2-time Other Championship holder who later won the BCW Championship.",
+        "BCW Championship") != null ||
+    DataCheckRules.ClaimedReigns(
+        "Won the BCW Championship (3 times).",
+        "BCW Championship") != 3 ||
+    DataCheckRules.ClaimedReigns(
+        "3-time BCW Championship winner; 4-time BCW Championship winner.",
+        "BCW Championship") != null ||
+    DataCheckRules.InvalidNegativeId(-1) ||
+    !DataCheckRules.InvalidNegativeId(-2) ||
+    DataCheckRules.DuplicateTagWinners(17, 22) ||
+    DataCheckRules.DuplicateTagWinners(0, 0) ||
+    !DataCheckRules.DuplicateTagWinners(17, 17) ||
+    !DataCheckRules.ValidAwardYear(2022) ||
+    DataCheckRules.ValidAwardYear(0) ||
+    DataCheckRules.ValidAwardYear(2200))
+    throw new Exception("Data Check produced false positive or missed an award integrity issue.");
 Console.WriteLine("Passed read-only cross-record link checks and cautious biography parsing.");
 
 // Awards live in two distinct Access tables; never accept a guessed
