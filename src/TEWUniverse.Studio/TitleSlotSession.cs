@@ -90,15 +90,12 @@ internal sealed partial class DatabaseSession
 
             int[] ids = { patch.Holder1, patch.Holder2, patch.Holder3 };
             string[] names = { patch.Name1, patch.Name2, patch.Name3 };
-            if (ids.Take(expectedMembers).Any(id => !availableWorkers.Contains(id)) ||
-                ids.Take(expectedMembers).Distinct().Count() != expectedMembers ||
-                ids.Skip(expectedMembers).Any(id => id > 0) ||
-                names.Take(expectedMembers).Any(n => string.IsNullOrWhiteSpace(n) ||
-                    n.Length > 30 || n.Any(char.IsControl)) ||
-                names.Skip(expectedMembers).Any(n => !string.IsNullOrEmpty(n)))
+            HistoricalReignRules.ValidateHolders(
+                ids, names, expectedMembers, availableWorkers);
+            if (!ids.Take(expectedMembers).Any(id => id > 0))
                 throw new InvalidOperationException(
-                    $"History slot #{patch.Order} must have exactly {expectedMembers} distinct " +
-                    "linked real workers and valid historical names.");
+                    $"History slot #{patch.Order} needs at least one linked worker " +
+                    "for selective replacement. Named historical partners can use UID -1.");
         }
 
         EnsureUnchanged();
