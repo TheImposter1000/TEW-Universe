@@ -29,7 +29,9 @@ internal static class AnchoredHistoryPlanner
         int firstYear, int lastYear, bool annualTournament = false,
         int eventMonth = 0, int eventWeek = 0,
         DayOfWeek eventWeekday = DayOfWeek.Sunday,
-        int startMonth = 1)
+        int startMonth = 1,
+        string championshipName = "",
+        TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic)
     {
         if (firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
             throw new InvalidOperationException(
@@ -78,7 +80,7 @@ internal static class AnchoredHistoryPlanner
         // Only annual cups use the fixed one-winner-per-year model below.
         if (!annualTournament)
             return GenerateVariedChampionshipReigns(fixedWins, npcNames,
-                firstYear, lastYear, startMonth);
+                firstYear, lastYear, startMonth, championshipName, defenceFrequency);
 
         int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
             .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
@@ -166,14 +168,10 @@ internal static class AnchoredHistoryPlanner
         return result;
     }
 
-    internal static short EstimateReignDefences(int heldDays) => heldDays switch
-    {
-        < 28 => (short)Random.Shared.Next(0, 2),
-        < 90 => (short)Random.Shared.Next(0, 5),
-        < 240 => (short)Random.Shared.Next(1, 9),
-        < 450 => (short)Random.Shared.Next(3, 16),
-        _ => (short)Random.Shared.Next(7, 25)
-    };
+    internal static short EstimateReignDefences(int heldDays,
+        string championshipName = "",
+        TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic) =>
+        TitleDefencePlanner.Estimate(heldDays, championshipName, defenceFrequency);
 
     /// <summary>
     /// Regular titles are held continuously: an outgoing holder loses the belt
@@ -184,7 +182,8 @@ internal static class AnchoredHistoryPlanner
     /// </summary>
     private static List<GeneratedTitleReign> GenerateVariedChampionshipReigns(
         IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
-        int firstYear, int lastYear, int startMonth)
+        int firstYear, int lastYear, int startMonth,
+        string championshipName, TitleDefenceFrequency defenceFrequency)
     {
         const int maxReigns = 500;
         const int minimumTransitionDays = 7;
@@ -364,7 +363,8 @@ internal static class AnchoredHistoryPlanner
                     "Move the fixed winning year or adjust its reign duration.");
             // Defence counts vary independently of lengths. Long reigns are
             // generally defended more often but not at a fixed 1-per-N-days.
-            short defenses = EstimateReignDefences(held);
+            short defenses = EstimateReignDefences(
+                held, championshipName, defenceFrequency);
             results.Add(new GeneratedTitleReign(
                 i + 1, curr.UID, curr.Name, -1, "", curr.Date, lost, defenses));
         }
@@ -386,7 +386,9 @@ internal static class AnchoredHistoryPlanner
     internal static List<GeneratedTitleReign> Generate(
         IReadOnlyList<Anchor> fixedWins,
         IReadOnlyList<NpcNameSeed> npcNames,
-        int startYear, int endYear, int requestedReigns)
+        int startYear, int endYear, int requestedReigns,
+        string championshipName = "",
+        TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic)
     {
         if (startYear is < 1800 or > 2100 || endYear is < 1800 or > 2100 ||
             startYear > endYear)
@@ -517,8 +519,8 @@ internal static class AnchoredHistoryPlanner
                 events[i + 1].Won.AddDays(-1) : lastDay;
             if (ev.Won > lost)
                 throw new InvalidOperationException("Generated title transition dates overlap.");
-            short defenses = (short)Math.Min(short.MaxValue,
-                Math.Max(0, (lost - ev.Won).Days / 48));
+            short defenses = TitleDefencePlanner.Estimate(
+                (lost - ev.Won).Days + 1, championshipName, defenceFrequency);
             output.Add(new GeneratedTitleReign(
                 i + 1, uid, champion, -1, "", ev.Won, lost, defenses));
             previous = champion;
