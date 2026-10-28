@@ -630,7 +630,8 @@ internal sealed partial class DatabaseSession : IDisposable
             if (section == "Titles")
                 ValidateTitleReference(edit);
         }
-        if (section == "Companies")
+        if (section == "Companies" && edits.Any(e =>
+            e.Field is "OpenYear" or "OpenMonth" or "ClosedYear" or "ClosedMonth"))
             ValidateCompanyDates(sectionData.Data.Rows[0], edits);
         if (section == "Tag Teams")
             ValidateTagTeamEdits(sectionData.Data.Rows[0], edits);
