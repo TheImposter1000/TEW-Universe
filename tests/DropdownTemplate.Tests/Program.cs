@@ -43,3 +43,37 @@ if (!HasSetter(editableTrigger, wpf, "SelectedContent", "Visibility", "Collapsed
     throw new Exception("Editable ComboBox state is not exposing the text field and arrow correctly.");
 
 Console.WriteLine("Passed editable and non-editable ComboBox template regression checks.");
+
+
+var window = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "MainWindow.xaml"));
+XElement Named(string element, string name) =>
+    window.Descendants(wpf + element).Single(x =>
+        (string?)x.Attribute(xaml + "Name") == name);
+var advancedPanel = Named("Border", "AdvancedLineagePanel");
+var setupScroll = Named("ScrollViewer", "AdvancedSetupScrollViewer");
+var previewGrid = Named("DataGrid", "AdvancedPreviewGrid");
+var candidatesGrid = Named("DataGrid", "AdvancedCandidatesGrid");
+var previewButton = Named("Button", "AdvancedPreviewViewButton");
+var builderButton = Named("Button", "AdvancedBuilderViewButton");
+var applyButton = Named("Button", "AdvancedApplyButton");
+var generateButton = window.Descendants(wpf + "Button").Single(x =>
+    (string?)x.Attribute("Click") == "AdvancedGenerate_Click");
+if (!setupScroll.Ancestors().Contains(advancedPanel) ||
+    !previewGrid.Ancestors().Contains(advancedPanel) ||
+    setupScroll.Ancestors(wpf + "ScrollViewer").Any() ||
+    previewGrid.Ancestors(wpf + "ScrollViewer").Any() ||
+    previewGrid.Ancestors().Contains(setupScroll) ||
+    !candidatesGrid.Ancestors().Contains(setupScroll) ||
+    (string?)previewGrid.Attribute("Grid.Row") != "1" ||
+    (string?)previewGrid.Attribute("Visibility") != "Collapsed" ||
+    (string?)previewButton.Attribute("IsEnabled") != "False" ||
+    (string?)setupScroll.Attribute("VerticalScrollBarVisibility") != "Auto" ||
+    !int.TryParse((string?)candidatesGrid.Attribute("Height"), out int candidateHeight) ||
+    candidateHeight < 200 ||
+    new[] { builderButton, previewButton, generateButton, applyButton }
+        .Any(x => x.Ancestors(wpf + "ScrollViewer").Any()) ||
+    advancedPanel.Descendants(wpf + "ScrollViewer").Any(x =>
+        (string?)x.Attribute("MaxHeight") == "437"))
+    throw new Exception("Championship Advanced Generator regressed into clipped/nested scrolling or hidden actions.");
+
+Console.WriteLine("Passed championship Builder/Preview layout, reachable actions and full-height preview checks.");
