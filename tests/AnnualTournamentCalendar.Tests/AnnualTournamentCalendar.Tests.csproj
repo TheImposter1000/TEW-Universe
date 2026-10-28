@@ -22,6 +22,7 @@
     <Compile Include="../../src/TEWUniverse.Desktop/ChampionshipWinScheduler.cs" Link="ChampionshipWinScheduler.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/SuperstarReignInputPlanner.cs" Link="SuperstarReignInputPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/AnchoredHistoryPlanner.cs" Link="AnchoredHistoryPlanner.cs" />
+    <Compile Include="../../src/TEWUniverse.Desktop/TitleDefencePlanner.cs" Link="TitleDefencePlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/TeamHistoryPlanner.cs" Link="TeamHistoryPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/NameOnlyChampionImport.cs" Link="NameOnlyChampionImport.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/HistoricalPartnerInput.cs" Link="HistoricalPartnerInput.cs" />
