@@ -60,6 +60,29 @@ public partial class MainWindow
                 " (opened " + opened + ", closed " + closed + "). " +
                 "Automatic dates never extend into the scenario's first month. " +
                 "Company constraints are optional; the scenario boundary always applies.";
+            if (company.CompanyUid == null)
+                note += " No verified title company link. Select the historical " +
+                        "company above before generating with company-date limits.";
+            else if (AdvancedLineagePanel.Visibility == Visibility.Visible &&
+                int.TryParse(AdvancedStartYear.Text, out int first) &&
+                int.TryParse(AdvancedEndYear.Text, out int last) &&
+                AdvancedUseCompanyDates.IsChecked == true)
+            {
+                try
+                {
+                    int firstMonth = AdvancedStartMonth.SelectedIndex > 0
+                        ? AdvancedStartMonth.SelectedIndex : 1;
+                    var effective = ResolveTitleTimeline(first, last, firstMonth, true,
+                        AdvancedFinalDate.Text.Trim());
+                    note += " EFFECTIVE GENERATION WINDOW: " +
+                        StudioDateFormat.Format(effective.From) + " to " +
+                        StudioDateFormat.Format(effective.Through) + ".";
+                }
+                catch (Exception ex)
+                {
+                    note += " Date range needs correction: " + ex.Message;
+                }
+            }
             if (AdvancedDateLimits != null) AdvancedDateLimits.Text = note;
             if (LineageDateLimits != null) LineageDateLimits.Text = note;
         }
