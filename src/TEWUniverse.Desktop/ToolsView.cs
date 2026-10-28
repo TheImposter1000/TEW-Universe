@@ -47,6 +47,10 @@ public partial class MainWindow
             (_, _) => SelectModule("Titles")));
         controls.Children.Add(ExtraButton("Open Awards", false,
             (_, _) => SelectAwardsModule()));
+        controls.Children.Add(ExtraButton("Open Selected Worker", false,
+            (_, _) => OpenDataCheckWorker()));
+        controls.Children.Add(ExtraButton("Copy Selected Finding", false,
+            (_, _) => CopyDataCheckFinding()));
         _toolsSummary = ExtraLabel("Run the read-only check to inspect the active MDB.");
         _toolsSummary.TextWrapping = TextWrapping.Wrap;
         top.Children.Add(_toolsSummary);
@@ -91,6 +95,10 @@ public partial class MainWindow
         _toolsSelectedDetail.MaxHeight = 95;
         Grid.SetRow(_toolsSelectedDetail, 1);
         body.Children.Add(_toolsSelectedDetail);
+        _toolsIssues.MouseDoubleClick += (_, _) => {
+            if (_toolsIssues.SelectedItem is StudioDataIssue { WorkerUid: > 0 })
+                OpenDataCheckWorker();
+        };
         _toolsIssues.SelectionChanged += (_, _) => {
             if (_toolsSelectedDetail == null) return;
             _toolsSelectedDetail.Text = _toolsIssues.SelectedItem is StudioDataIssue item
@@ -98,10 +106,11 @@ public partial class MainWindow
                     item.Record + "\n" + item.Description
                 : "Select a finding to read its complete description here.";
         };
-        var info = ExtraLabel("Error = a missing structured record link. " +
-            "Review = an ambiguous or possibly historical mismatch. " +
-            "Unavailable = a table could not be checked. " +
-            "Existing record-name repairs remain under Titles → Title Lineage.");
+        var info = ExtraLabel("Error = broken structured link or conflicting world award year. " +
+            "Review = possible duplicate, incomplete award, or ambiguous biography claim. " +
+            "Unavailable = the table or a required column could not be validated. " +
+            "Double-click a finding with a valid worker UID to open that worker. " +
+            "This Studio scan does not replace TEW IX's built-in Data Check.");
         info.TextWrapping = TextWrapping.Wrap;
         info.Margin = new Thickness(2, 12, 2, 2);
         Grid.SetRow(info, 2);
@@ -139,11 +148,57 @@ public partial class MainWindow
         try
         {
             SetStatus("Reading linked title, team, award, and worker records...");
+            _toolsResults = new List<StudioDataIssue>();
+            FilterToolsResults();
             _toolsResults = _session.RunStudioDataCheck();
             FilterToolsResults();
             SetStatus($"Data Check finished: {_toolsResults.Count} findings (read-only).");
         }
         catch (Exception ex) { Error(ex); }
+    }
+
+    private void CopyDataCheckFinding()
+    {
+        if (_toolsIssues.SelectedItem is not StudioDataIssue item)
+        {
+            MessageBox.Show(this, "Select a finding first.");
+            return;
+        }
+        try
+        {
+            Clipboard.SetText(item.Severity + " | " + item.Area +
+                " | " + item.Record + Environment.NewLine + item.Description);
+            SetStatus("Copied selected Data Check finding.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void OpenDataCheckWorker()
+    {
+        if (_toolsIssues.SelectedItem is not StudioDataIssue { WorkerUid: > 0 } issue)
+        {
+            MessageBox.Show(this,
+                "Select a finding associated with a specific worker UID. " +
+                "Company and title findings can be opened using the navigation above.");
+            return;
+        }
+        var worker = _allWorkers.FirstOrDefault(x => x.Id == issue.WorkerUid);
+        if (worker == null)
+        {
+            MessageBox.Show(this,
+                "Worker UID " + issue.WorkerUid +
+                " is missing from the database. This is precisely the problem " +
+                "being reported, so no worker profile can be opened.");
+            return;
+        }
+        SelectModule("Workers");
+        if (_activeModule != "Workers") return;
+        // Clear filters only when navigating directly to a finding. A worker
+        // outside the current company filter would otherwise appear missing.
+        ResetWorkerFilters_Click(this, new RoutedEventArgs());
+        SearchBox.Text = worker.Name;
+        FilterWorkers(worker.Id);
+        LoadWorker(worker);
     }
 
     private void FilterToolsResults()
