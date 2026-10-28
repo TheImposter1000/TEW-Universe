@@ -1672,7 +1672,7 @@ public partial class MainWindow : Window
             bool linked = picker.SelectedItem is WorkerItem;
             label.Text = linked
                 ? $"Partner {index}: ring-name alias (optional)"
-                : $"Partner {index}: NPC name (if no worker selected)";
+                : $"Partner {index}: HISTORICAL NAME (required)";
             nameBox.ToolTip = linked
                 ? $"Optional alternative ring name for the selected Partner {index} wrestler. " +
                   "Leave blank to use their existing worker name. Their real UID is preserved."
