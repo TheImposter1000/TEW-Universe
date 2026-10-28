@@ -88,6 +88,16 @@ This initial module must be tested in TEW IX's Data Check using a backed-up scen
 
 **Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
 
+## Tools: Studio Data Check (mini-update 2 of 3)
+
+**Tools** is now a working read-only diagnostics workspace, with **Run Data Check**, searchable and severity-filtered findings, a CSV report exporter, and shortcuts to Workers, Titles / existing record-name repairs, and Awards.
+
+The checker compares actual `tblWorker` records with `tblTeam.Worker1/Worker2`, linked holders in `tblBeltPreHistory`, `tblBelt` championship references, and positively recognized worker winner IDs in `tblEOYAward`. Missing positive links and self-partnerships are marked **Error**. Duplicate same-company tag-team pairs are marked **Review** because an inactive alternate team could be legitimate.
+
+It also reads workers' `tblWorkerBio.Profile` and flags carefully detected claims such as "3-time [actual title name] champion" when the recorded pregame title lineage has another number of linked reigns. Mentions of a known tag team not linked to the biography's worker also become **Review**, not errors. A biography can refer to another promotion, a former partnership, a non-pregame period, or in-game history. There are **no automatic fixes** and no MDB writes. Missing/unreadable tables are surfaced as **Unavailable** rather than silently treated as clean.
+
+The Tools results are an additional consistency check, not a replacement for the TEW IX Data Check or a complete interpretation of arbitrary natural-language biographies.
+
 ## Awards: world and company year-end records (new)
 
 **Awards** replaces the inactive History sidebar placeholder. It browses the real `tblEOYAward` (world) and `tblEOYFedAward` (company) tables, with a switch between them, searchable year/UID/recipient information, and a full inspector showing every original MDB field. Known global award winner IDs display the matching real worker name; known company winners display the matching company name. All database columns are introspected at runtime rather than assuming the two tables share identical fields.
