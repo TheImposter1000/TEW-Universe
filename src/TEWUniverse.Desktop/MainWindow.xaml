@@ -349,7 +349,7 @@
          </Grid>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="3" Rows="3" Margin="0,0,0,9">
+        <UniformGrid Grid.Row="1" Columns="5" Rows="2" Margin="0,0,0,9">
           <Button x:Name="ProfileTab" Style="{StaticResource BlueButton}" Content="▣   Profile" Tag="Profile" Click="Tab_Click" Margin="0,0,5,0"/>
           <Button x:Name="SkillsTab" Style="{StaticResource ActionButton}" Content="▥   Skills" Tag="Skills" Click="Tab_Click" Margin="0,0,5,0"/>
           <Button x:Name="PopularityTab" Style="{StaticResource ActionButton}" Content="★   Popularity" Tag="Popularity" Click="Tab_Click" Margin="0,0,5,0"/>

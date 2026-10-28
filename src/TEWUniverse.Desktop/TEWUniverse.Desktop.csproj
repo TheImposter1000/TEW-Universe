@@ -24,6 +24,8 @@
     <Compile Include="..\TEWUniverse.Studio\WorkerContractSession.cs" Link="Services\WorkerContractSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\AwardsRules.cs" Link="Services\AwardsRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\AwardsSession.cs" Link="Services\AwardsSession.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\AwardCreationSession.cs" Link="Services\AwardCreationSession.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\WorkerCareerSummarySession.cs" Link="Services\WorkerCareerSummarySession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\DataCheckRules.cs" Link="Services\DataCheckRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\DataCheckSession.cs" Link="Services\DataCheckSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerAccomplishmentStore.cs" Link="Services\WorkerAccomplishmentStore.cs"/>

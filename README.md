@@ -88,13 +88,21 @@ This initial module must be tested in TEW IX's Data Check using a backed-up scen
 
 **Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
 
-## Workers → Accomplishments (mini-update 3 of 3)
+## Corrected Awards, Accomplishments and Data Check
 
-Workers now has a **ninth tab: Accomplishments**. Create, edit, and remove manually curated achievements: Championship, Award, Tournament, Hall of Fame, Milestone, or Other, with a title, optional year, and rich notes. Each entry belongs to the selected worker and a specific scenario. Existing worker/contract/title MDB records are never changed by the Accomplishments tab.
+**Awards:** World and company awards now support creating a NEW year/award row by using an existing record from the same actual MDB award table as a template. All unverified mandatory fields are copied from the template rather than invented, with a new UID and unique Recordname where present. You can adjust recognized winner-worker/company references using **searchable name dropdowns**, choose an explicit new award year, confirm the write and optionally create a backup. The original template row remains unchanged. World award years cannot duplicate an existing year's consolidated record; company award records may have multiple categories per year. Unknown fields remain protected. All new writes need verification through TEW IX Data Check on a disposable scenario copy.
 
-Accomplishments are stored **outside TEW IX** as independent JSON under the Windows user's `LocalApplicationData/TEWUniverse/Accomplishments` directory. The JSON file is keyed by the absolute scenario database path; each item is tied to a worker UID and given a stable unique ID. Writes are atomic via temporary-file replacement. A malformed existing JSON file is never overwritten automatically. Moving or copying a scenario to a different path creates a separate accomplishments catalog unless the companion data is explicitly migrated; users should back up the companion directory separately from the MDB.
+**Workers → Accomplishments:** The manual add/edit/delete form is replaced by a biography-style **read-only career summary** generated from the selected worker's actual `tblBeltPreHistory` linked championship reigns and recognized winner fields in `tblEOYAward` and `tblEOYFedAward`. It refreshes on worker selection/tab open and never writes to either the MDB or the old companion JSON file. Pre-game history does not imply in-game reigns. Previously entered Studio-only accomplishment JSON remains on disk and is not deleted, but it is no longer displayed as official achievement data.
 
-This is an editorial ledger and is intentionally **not** auto-synced with actual world/company award tables, championship title lineages or worker biographies. For discrepancies with the real TEW database, use Tools → Data Check. Adding a custom "championship" here neither creates a title reign in TEW IX nor affects its gameplay.
+**Workers tab layout and Tools:** All nine worker tabs now use two readable rows rather than clipping text in a three-row space sized for two. Biography/team comparisons in Tools require explicit team-affiliation phrasing, so incidental phrases such as `the Elite Division` and `the family mask` no longer trigger reports for teams named `The Elite` or `The Family`. Selecting a Data Check finding shows its full explanation without horizontal truncation. This is deliberately a conservative text heuristic, not a claim to understand every biography.
+
+## Workers → Accomplishments (read-only automatic career record)
+
+The ninth Workers tab now looks like the Biography editor but is **read-only**. It automatically displays the worker's linked pre-game championship reigns and world/company year-end award wins recorded in the active TEW IX scenario MDB. It refreshes from actual title/award data when a worker is selected or the tab is opened. There is no manual entry, no custom achievement creation, and no extra user maintenance required.
+
+The former Studio-only JSON editor has been retired from the screen. Existing JSON files under `LocalApplicationData/TEWUniverse/Accomplishments` are preserved on disk rather than deleted, but are no longer displayed as if they were official game history. The summary never writes to the MDB or old JSON.
+
+This is a factual summary of *linked recorded pre-game* award/title data, not a text guess from biographies or an extraction of in-game saves. Unverified award fields and historical name-only champions without linked worker IDs are not attributed to a worker.
 
 ## Tools: Studio Data Check (mini-update 2 of 3)
 

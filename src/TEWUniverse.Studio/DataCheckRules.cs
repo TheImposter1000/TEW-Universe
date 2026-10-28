@@ -33,7 +33,19 @@ internal static class DataCheckRules
     {
         if (string.IsNullOrWhiteSpace(biography) ||
             string.IsNullOrWhiteSpace(teamName) || teamName.Length < 6) return false;
-        return biography.Contains(teamName, StringComparison.OrdinalIgnoreCase);
+        // A common noun inside prose is not evidence of team membership:
+        // "the Elite Division" and "the family mask" must NOT match
+        // tblTeam entries named "The Elite" or "The Family".
+        // Require an explicit, immediately adjacent partnership/affiliation
+        // phrase and a complete team name with a true word boundary.
+        string name = Regex.Escape(teamName.Trim());
+        const string introduction =
+            @"(?:\b(?:tag\s+team|stable|faction)\s+(?:called\s+|named\s+|known\s+as\s+)?" +
+            @"|\b(?:member\s+of|part\s+of|teamed\s+with|formed\s+(?:a\s+)?team\s+(?:called\s+)?|joined\s+)\s+)";
+        return Regex.IsMatch(biography,
+            introduction + @"(?<!\w)" + name +
+            @"(?!\w)(?!\s+(?:division|mask|legacy|title|championship))",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     internal static bool MissingLinkedId(int uid, ISet<int> valid) =>
