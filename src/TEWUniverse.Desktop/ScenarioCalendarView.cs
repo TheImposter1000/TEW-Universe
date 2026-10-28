@@ -13,7 +13,8 @@ public partial class MainWindow
     {
         if (_session == null || _selectedExisting == null)
             throw new InvalidOperationException("Select a championship and database first.");
-        var company = _session.ReadTitleScenarioChronology(_selectedExisting.Id);
+        var company = _session.ReadTitleScenarioChronology(
+            _selectedExisting.Id, includeCompany: respectCompany);
         DateTime? overrideDate = string.IsNullOrWhiteSpace(manualEnd)
             ? null : StudioDateFormat.Parse(manualEnd);
         var range = ScenarioDateBounds.Resolve(
