@@ -9,20 +9,28 @@ public partial class MainWindow
 {
     private HistoricalDateWindow ResolveTitleTimeline(
         int fromYear, int throughYear, int startingMonth,
-        bool respectCompany, string manualEnd)
+        bool respectCompany, string manualEnd, bool advanced = true)
     {
         if (_session == null || _selectedExisting == null)
             throw new InvalidOperationException("Select a championship and database first.");
+        int? selectedId = advanced ? EmploymentCompanyUid() :
+            LineageCompany.SelectedItem is ExistingRecordItem selected && selected.Id > 0
+                ? selected.Id : _session.ReadTitleOriginalCompany(_selectedExisting.Id);
+        if (respectCompany && !selectedId.HasValue)
+            throw new InvalidOperationException(
+                "This championship has no OriginalFed company link. Choose its historical " +
+                "company from the company selector above, or uncheck Respect company dates " +
+                "to use a manual final date. No unrestricted history will be generated silently.");
         var company = _session.ReadTitleScenarioChronology(
-            _selectedExisting.Id, includeCompany: respectCompany);
+            _selectedExisting.Id, selectedId, includeCompany: respectCompany);
         DateTime? overrideDate = string.IsNullOrWhiteSpace(manualEnd)
             ? null : StudioDateFormat.Parse(manualEnd);
         var range = ScenarioDateBounds.Resolve(
             ScenarioDateBounds.MonthStart(fromYear, startingMonth),
             ScenarioDateBounds.MonthEnd(throughYear, 12),
             company, respectCompany, overrideDate);
-        string origin = company.CompanyUid.HasValue
-            ? company.CompanyName + ": " : "No title company: ";
+        string origin = respectCompany
+            ? company.CompanyName + ": " : "Manual company-date override: ";
         return range with { Explanation = origin + range.Explanation +
             " Effective period " + StudioDateFormat.Format(range.From) +
             " through " + StudioDateFormat.Format(range.Through) + "." };
@@ -33,16 +41,22 @@ public partial class MainWindow
         if (_selectedExisting == null || _session == null) return;
         try
         {
-            var company = _session.ReadTitleScenarioChronology(_selectedExisting.Id);
+            int? selectedId = _activeModule == "Titles" &&
+                AdvancedLineagePanel.Visibility == Visibility.Visible
+                ? EmploymentCompanyUid()
+                : LineageCompany.SelectedItem is ExistingRecordItem choice && choice.Id > 0
+                    ? choice.Id : _session.ReadTitleOriginalCompany(_selectedExisting.Id);
+            var company = _session.ReadTitleScenarioChronology(
+                _selectedExisting.Id, selectedId);
             string opened = company.CompanyOpened.HasValue
-                ? company.CompanyOpened.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+                ? StudioDateFormat.Format(company.CompanyOpened.Value)
                 : "unknown";
             string closed = company.CompanyClosed.HasValue
-                ? company.CompanyClosed.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+                ? StudioDateFormat.Format(company.CompanyClosed.Value)
                 : "not recorded";
             string note = "Scenario begins " +
                 company.ScenarioStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture) +
-                ". Title original company: " + company.CompanyName +
+                ". Date-limit company: " + company.CompanyName +
                 " (opened " + opened + ", closed " + closed + "). " +
                 "Automatic dates never extend into the scenario's first month. " +
                 "Company constraints are optional; the scenario boundary always applies.";
