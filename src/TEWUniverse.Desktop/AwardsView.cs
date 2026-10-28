@@ -198,44 +198,72 @@ public partial class MainWindow
             _awardInputs.Clear();
             _awardForm.Children.Clear();
             _awardForm.Children.Add(ExtraLabel(
-                selected == null ? "Award details" : selected.Label, true));
+                selected == null ? "Select an award year" : selected.Label, true));
             _awardForm.Children.Add(new TextBlock {
-                Text = "Worker and company winner fields use searchable selectors. " +
-                    "Unverified database fields remain read-only. New award records " +
-                    "copy all required values from the selected source record.",
+                Text = selected == null
+                    ? "Choose a year on the left to edit its winners or create a new record."
+                    : "Choose actual workers for each award category. The current year's " +
+                      "winners and the new year's winners are saved separately.",
                 Foreground = ExtraColor("#B2CBE3"),
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 13)
+                Margin = new Thickness(0, 4, 0, 13)
             });
+
+            // Keep both actions above the long category list. The prior layout
+            // buried creation after dozens of uneditable raw database fields.
+            _awardSave = ExtraButton("Save Winners for Selected Year", true,
+                SaveAward_Click);
+            _awardForm.Children.Add(_awardSave);
+            _awardForm.Children.Add(ExtraLabel("Create a New Award Year", true));
+            _awardNewYear = ExtraTextBox();
+            _awardNewYear.ToolTip = "Enter the new calendar year (1800–2100)";
+            _awardNewYear.TextChanged += (_, _) => UpdateAwardSaveState();
+            _awardForm.Children.Add(_awardNewYear);
+            _awardCreate = ExtraButton("+ Create New Award Year", true,
+                CreateAward_Click);
+            _awardForm.Children.Add(_awardCreate);
+            _awardForm.Children.Add(new TextBlock {
+                Text = "Creates a separate record using this year as its template. " +
+                    "Choose winners below before creating; unselected winner categories " +
+                    "start unassigned, and the original record is not changed.",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = ExtraColor("#A9C6E3"),
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
             if (selected != null)
-                foreach (var field in selected.Fields)
+            {
+                _awardForm.Children.Add(ExtraLabel("Award Year, Promotion and Winners", true));
+                foreach (var field in selected.Fields.Where(x => x.Editable))
                 {
-                    _awardForm.Children.Add(ExtraLabel(field.Name +
-                        (field.Editable ? " (verified editable)" : " (read only)")));
+                    var label = ExtraLabel(AwardsRules.FriendlyName(field.Name));
+                    label.ToolTip = "TEW IX column: " + field.Name;
+                    _awardForm.Children.Add(label);
                     Control input;
+                    string table = _awardCompanySpecific
+                        ? AwardsRules.CompanyTable : AwardsRules.GlobalTable;
                     bool recipient = _session != null &&
-                        AwardsRules.IsWorkerField(
-                            _awardCompanySpecific ? AwardsRules.CompanyTable :
-                            AwardsRules.GlobalTable, field.Name, field.Type);
+                        AwardsRules.IsWorkerField(table, field.Name, field.Type);
                     bool company = _session != null &&
-                        AwardsRules.IsCompanyField(
-                            _awardCompanySpecific ? AwardsRules.CompanyTable :
-                            AwardsRules.GlobalTable, field.Name, field.Type);
-                    if (field.Editable && (recipient || company))
+                        AwardsRules.IsCompanyField(table, field.Name, field.Type);
+                    if (recipient || company)
                     {
-                        var picker = ExtraPicker();
+                        // Editable ComboBox offers type-a-name search even for
+                        // large universes with thousands of workers.
+                        var picker = ExtraPicker(editable: true);
                         int.TryParse(field.StoredValue, out int current);
-                        var known = recipient
+                        var options = (recipient
                             ? _allWorkers.Select(w => new ExistingRecordItem(w.Id, w.Name))
-                            : _session!.ListExistingRecords("Companies");
-                        var options = known.OrderBy(x => x.Name,
-                            StringComparer.OrdinalIgnoreCase).ToList();
+                            : _session!.ListExistingRecords("Companies"))
+                            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                        if (recipient)
+                            options.Insert(0, new ExistingRecordItem(0, "(No winner recorded)"));
                         if (!options.Any(x => x.Id == current))
                             options.Insert(0, new ExistingRecordItem(current,
-                                "Existing value " + field.StoredValue +
-                                " (preserve unchanged or select a real record)"));
+                                "Unresolved stored ID " + field.StoredValue));
                         picker.ItemsSource = options;
                         picker.DisplayMemberPath = nameof(ExistingRecordItem.Name);
+                        TextSearch.SetTextPath(picker, nameof(ExistingRecordItem.Name));
                         picker.SelectedItem = options.FirstOrDefault(x => x.Id == current);
                         picker.SelectionChanged += (_, _) => UpdateAwardSaveState();
                         input = picker;
@@ -244,40 +272,28 @@ public partial class MainWindow
                     {
                         var text = ExtraTextBox();
                         text.Text = field.StoredValue;
-                        text.ToolTip = field.DisplayValue;
-                        text.IsReadOnly = !field.Editable;
-                        if (field.Editable)
-                            text.TextChanged += (_, _) => UpdateAwardSaveState();
+                        text.TextChanged += (_, _) => UpdateAwardSaveState();
                         input = text;
                     }
-                    input.Opacity = field.Editable ? 1 : 0.65;
-                    if (field.Editable) _awardInputs[field.Name] = input;
+                    _awardInputs[field.Name] = input;
                     _awardForm.Children.Add(input);
-                    if (field.DisplayValue != field.StoredValue)
-                    {
-                        var detail = ExtraLabel(field.DisplayValue);
-                        detail.Margin = new Thickness(0, -8, 0, 10);
-                        _awardForm.Children.Add(detail);
-                    }
                 }
-            _awardSave = ExtraButton("Save Selected Award", true,
-                SaveAward_Click);
-            _awardForm.Children.Add(_awardSave);
-            _awardForm.Children.Add(ExtraLabel("New award year (copy selected record as template)"));
-            _awardNewYear = ExtraTextBox();
-            _awardNewYear.ToolTip = "New year for a NEW award record (1800–2100)";
-            _awardNewYear.TextChanged += (_, _) => UpdateAwardSaveState();
-            _awardForm.Children.Add(_awardNewYear);
-            _awardCreate = ExtraButton("+ Create Award From Selected Record", true,
-                CreateAward_Click);
-            _awardForm.Children.Add(_awardCreate);
-            _awardForm.Children.Add(new TextBlock {
-                Text = "Creation copies the selected award's remaining TEW IX " +
-                    "fields; adjust supported recipients using the dropdowns " +
-                    "above before creating. The original award stays unchanged.",
-                TextWrapping = TextWrapping.Wrap, Foreground = ExtraColor("#A9C6E3"),
-                Margin = new Thickness(0, 4, 0, 11)
-            });
+
+                var details = new Expander {
+                    Header = "Technical database details (read only)",
+                    IsExpanded = false,
+                    Foreground = ExtraColor("#B2CBE3"),
+                    Margin = new Thickness(0, 14, 0, 10)
+                };
+                var readOnly = new StackPanel();
+                foreach (var field in selected.Fields.Where(x => !x.Editable))
+                {
+                    readOnly.Children.Add(ExtraLabel(
+                        AwardsRules.FriendlyName(field.Name) + ": " + field.DisplayValue));
+                }
+                details.Content = readOnly;
+                _awardForm.Children.Add(details);
+            }
         }
         finally { _loadingAwards = false; }
         UpdateAwardSaveState();
@@ -340,7 +356,8 @@ public partial class MainWindow
             if (!ConfirmExtraWrite(
                 $"CREATE a new {(_awardCompanySpecific ? "company" : "world")} award " +
                 $"for {year} using award UID {_selectedAward.Uid} as the template? " +
-                "All other values are copied from that actual MDB record. " +
+                "Unselected winner categories start empty. Other verified context " +
+                "and required database values come from the template. " +
                 "The template will remain unchanged.",
                 "Create Year-End Award")) return;
             if (!OfferOptionalBackupBeforeWrite("creating this award")) return;
