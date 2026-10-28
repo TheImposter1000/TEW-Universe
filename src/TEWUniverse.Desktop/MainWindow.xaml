@@ -678,6 +678,12 @@
                          Text="2020" Width="90"/>
                </StackPanel>
                <StackPanel Margin="0,0,13,5">
+                <TextBlock Text="Historical company" FontSize="11" Foreground="#B9D4ED"/>
+                <ComboBox x:Name="LineageCompany" Style="{StaticResource DarkComboBox}"
+                          Width="255" SelectionChanged="LineageCompanyChanged"
+                          ToolTip="Select a company to enforce its opening and closing dates. Use this if the title OriginalFed is not set."/>
+               </StackPanel>
+               <StackPanel Margin="0,0,13,5">
                 <TextBlock Text="Final date (optional)" FontSize="11" Foreground="#B9D4ED"/>
                 <TextBox x:Name="LineageFinalDate" Style="{StaticResource FormTextBox}"
                          TextChanged="LineageTimelineChanged" Width="125" ToolTip="MM/DD/YYYY; blank uses year-end or company/scenario cutoff."/>
@@ -988,10 +994,10 @@
                          Margin="0,4,0,10"/>
               <WrapPanel>
                <StackPanel Margin="0,0,12,6">
-                <TextBlock Text="Employment-check company" Foreground="#ADC9E8" FontSize="11"/>
+                <TextBlock Text="Company for dates and employment" Foreground="#ADC9E8" FontSize="11"/>
                 <ComboBox x:Name="AdvancedEmploymentCompany" Style="{StaticResource DarkComboBox}"
-                          Width="245" SelectionChanged="AdvancedCalendarChanged"
-                          ToolTip="Select the company used to verify whether champions were employed during their entire reign."/>
+                          Width="245" SelectionChanged="AdvancedCompanyChanged"
+                          ToolTip="Selected company controls employment checks and opening/closing dates if enabled."/>
                </StackPanel>
                <StackPanel Margin="0,0,12,6">
                 <TextBlock Text="From year" Foreground="#ADC9E8" FontSize="11"/>
