@@ -136,6 +136,23 @@ internal sealed partial class DatabaseSession
                     values[col.ColumnName] =
                         Convert.ChangeType(0, col.DataType, CultureInfo.InvariantCulture);
                 }
+                else if (col.ColumnName is "Match" or "Match_At" or
+                         "Match_Rating" or "Card" or "Card_Rating")
+                {
+                    // Match/show-of-year details are year-specific too. A
+                    // newly-created year must not inherit last year's match,
+                    // show, or score. Use neutral values only for known types.
+                    values[col.ColumnName] = col.DataType == typeof(string)
+                        ? ""
+                        : col.DataType == typeof(int) ||
+                          col.DataType == typeof(short) ||
+                          col.DataType == typeof(long) ||
+                          col.DataType == typeof(double) ||
+                          col.DataType == typeof(float) ||
+                          col.DataType == typeof(decimal)
+                          ? Convert.ChangeType(0, col.DataType, CultureInfo.InvariantCulture)
+                          : row[col.ColumnName];
+                }
                 else values[col.ColumnName] = row[col.ColumnName];
 
                 if (values[col.ColumnName] is DBNull && !col.AllowDBNull)
