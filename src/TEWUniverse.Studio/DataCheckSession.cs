@@ -12,7 +12,8 @@ internal sealed record StudioDataIssue(
 
 internal sealed partial class DatabaseSession
 {
-    private DataTable ReadCheckTable(string table, List<StudioDataIssue> issues)
+    private DataTable ReadCheckTable(string table, List<StudioDataIssue> issues,
+        params string[] requiredColumns)
     {
         var result = new DataTable(table);
         try
@@ -21,6 +22,15 @@ internal sealed partial class DatabaseSession
                 "SELECT * FROM [" + table + "]", _connection);
             using var adapter = new OleDbDataAdapter(command);
             adapter.Fill(result);
+            var missing = requiredColumns.Where(column =>
+                !result.Columns.Contains(column)).ToArray();
+            if (missing.Length > 0)
+            {
+                issues.Add(new StudioDataIssue("Unavailable", table, "Schema",
+                    "Required column(s) missing: " + string.Join(", ", missing) +
+                    ". This table was skipped rather than incorrectly passing validation."));
+                result.Clear();
+            }
         }
         catch (Exception ex) when (ex is OleDbException or InvalidOperationException)
         {
@@ -55,8 +65,11 @@ internal sealed partial class DatabaseSession
         var workerUids = workerNames.Keys.ToHashSet();
         var titles = ListExistingRecords("Titles").ToDictionary(x => x.Id, x => x.Name);
         var titleUids = titles.Keys.ToHashSet();
+        var companies = ListExistingRecords("Companies")
+            .ToDictionary(x => x.Id, x => x.Name);
+        var companyUids = companies.Keys.ToHashSet();
 
-        var teamTable = ReadCheckTable("tblTeam", issues);
+        var teamTable = ReadCheckTable("tblTeam", issues, "UID", "Worker1", "Worker2");
         var teamRecords = new List<(int Uid, string Name, int Worker1, int Worker2)>();
         var memberships = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
         var pairIndex = new HashSet<string>(StringComparer.Ordinal);
@@ -68,6 +81,10 @@ internal sealed partial class DatabaseSession
                 int a = ReadCheckId(row, "Worker1");
                 int b = ReadCheckId(row, "Worker2");
                 int fed = ReadCheckId(row, "Fed");
+                if (DataCheckRules.MissingLinkedId(fed, companyUids))
+                    issues.Add(new StudioDataIssue("Error", "Tag Teams",
+                        "Team UID " + uid, "Company UID " + fed +
+                        " does not exist in tblFed."));
                 string name = ReadCheckString(row, "Name");
                 string record = name.Length == 0 ? "UID " + uid : name + " (UID " + uid + ")";
                 teamRecords.Add((uid, name, a, b));
@@ -95,14 +112,14 @@ internal sealed partial class DatabaseSession
                 }
             }
 
-        var reigns = ReadCheckTable("tblBeltPreHistory", issues);
+        var reigns = ReadCheckTable("tblBeltPreHistory", issues, "UID", "BeltUID");
         var byTitleWorker = new Dictionary<(int Belt, int Worker), int>();
         if (reigns.Columns.Contains("BeltUID"))
             foreach (DataRow row in reigns.Rows)
             {
                 int belt = ReadCheckId(row, "BeltUID");
                 int uid = ReadCheckId(row, "UID");
-                if (DataCheckRules.MissingLinkedId(belt, titleUids))
+                if (belt <= 0 || DataCheckRules.MissingLinkedId(belt, titleUids))
                     issues.Add(new StudioDataIssue("Error", "Championships",
                         "Historical reign UID " + uid,
                         "BeltUID " + belt + " has no matching championship in tblBelt."));
@@ -129,26 +146,98 @@ internal sealed partial class DatabaseSession
                 }
             }
 
-        // End-of-year global award fields have a limited, positively identified
-        // set of worker reference columns. Do not guess company-award field codes.
-        var awards = ReadCheckTable(AwardsRules.GlobalTable, issues);
-        foreach (DataRow row in awards.Rows)
+        // Check BOTH the world and company year-end award tables. Only
+        // verified worker-winner columns count as worker links. Match, card
+        // and numerical category codes are never guessed as worker UIDs.
+        foreach (bool companySpecific in new[] { false, true })
         {
-            int uid = ReadCheckId(row, "UID");
-            foreach (DataColumn col in awards.Columns)
+            string table = companySpecific
+                ? AwardsRules.CompanyTable : AwardsRules.GlobalTable;
+            string area = companySpecific ? "Company Awards" : "World Awards";
+            var awards = ReadCheckTable(table, issues, "UID", "Year");
+            string? companyField = awards.Columns.Contains("FedUID") ? "FedUID" :
+                awards.Columns.Contains("Fed") ? "Fed" : null;
+            if (companySpecific && awards.Columns.Count > 0 && companyField == null)
+                issues.Add(new StudioDataIssue("Unavailable", area, "Schema",
+                    "Company awards have no recognized Fed or FedUID link. " +
+                    "Winner IDs were checked, but promotion attribution was skipped."));
+            var seenYears = new Dictionary<(int Company, int Year), int>();
+
+            foreach (DataRow row in awards.Rows)
             {
-                if (!AwardsRules.IsWorkerField(AwardsRules.GlobalTable,
-                    col.ColumnName, col.DataType)) continue;
-                int recipient = ReadCheckId(row, col.ColumnName);
-                if (DataCheckRules.MissingLinkedId(recipient, workerUids))
-                    issues.Add(new StudioDataIssue("Error", "Awards",
-                        "World award UID " + uid,
-                        col.ColumnName + " references missing worker UID " + recipient,
-                        recipient));
+                int uid = ReadCheckId(row, "UID");
+                int year = ReadCheckId(row, "Year");
+                int fed = companyField == null ? 0 : ReadCheckId(row, companyField);
+                string record = (companySpecific ? "Company" : "World") +
+                    " award UID " + uid + " (" + year + ")";
+                if (companySpecific && companies.TryGetValue(fed, out var fedName))
+                    record = fedName + " " + year + " (UID " + uid + ")";
+
+                if (!DataCheckRules.ValidAwardYear(year))
+                    issues.Add(new StudioDataIssue("Review", area, record,
+                        "The award year is empty or outside the supported 1800–2100 range."));
+
+                if (companySpecific && companyField != null && fed <= 0)
+                    issues.Add(new StudioDataIssue("Review", area, record,
+                        "This company award is not assigned to an existing promotion."));
+                if (companyField != null &&
+                    DataCheckRules.MissingLinkedId(fed, companyUids))
+                    issues.Add(new StudioDataIssue("Error", area, record,
+                        companyField + " references missing company UID " + fed + "."));
+
+                if (DataCheckRules.ValidAwardYear(year))
+                {
+                    var key = (companySpecific ? fed : 0, year);
+                    if (seenYears.TryGetValue(key, out int previousUid))
+                        issues.Add(new StudioDataIssue(
+                            companySpecific ? "Review" : "Error", area, record,
+                            "Multiple award records share " +
+                            (companySpecific ? "this promotion and year" : "the same world year") +
+                            " (other UID " + previousUid + "). " +
+                            (companySpecific ? "This may be intentional if awards are split " +
+                                "by category; verify before editing." :
+                                "World awards should contain one consolidated record per year.")));
+                    else seenYears[key] = uid;
+                }
+
+                foreach (DataColumn col in awards.Columns)
+                {
+                    if (!AwardsRules.IsWorkerField(table, col.ColumnName, col.DataType))
+                        continue;
+                    int recipient = ReadCheckId(row, col.ColumnName);
+                    if (DataCheckRules.MissingLinkedId(recipient, workerUids))
+                        issues.Add(new StudioDataIssue("Error", area, record,
+                            AwardsRules.FriendlyName(col.ColumnName) +
+                            " references missing worker UID " + recipient + ".", recipient));
+                    else if (DataCheckRules.InvalidNegativeId(recipient))
+                        issues.Add(new StudioDataIssue("Review", area, record,
+                            AwardsRules.FriendlyName(col.ColumnName) +
+                            " contains unexpected negative winner ID " + recipient + "."));
+                }
+
+                foreach (string prefix in new[] { "MaleTag", "FemaleTag", "Tag" })
+                {
+                    string firstField = prefix + "1";
+                    string secondField = prefix + "2";
+                    if (!awards.Columns.Contains(firstField) ||
+                        !awards.Columns.Contains(secondField) ||
+                        !AwardsRules.IsWorkerField(table, firstField,
+                            awards.Columns[firstField]!.DataType) ||
+                        !AwardsRules.IsWorkerField(table, secondField,
+                            awards.Columns[secondField]!.DataType))
+                        continue;
+                    int first = ReadCheckId(row, firstField);
+                    int second = ReadCheckId(row, secondField);
+                    if (DataCheckRules.DuplicateTagWinners(first, second))
+                        issues.Add(new StudioDataIssue("Review", area, record,
+                            AwardsRules.CareerName(firstField) +
+                            " lists worker UID " + first +
+                            " as BOTH partners. Confirm the winning team.", first));
+                }
             }
         }
 
-        var bios = ReadCheckTable("tblWorkerBio", issues);
+        var bios = ReadCheckTable("tblWorkerBio", issues, "UID", "Profile");
         foreach (DataRow row in bios.Rows)
         {
             int uid = ReadCheckId(row, "UID");
