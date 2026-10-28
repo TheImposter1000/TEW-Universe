@@ -1032,7 +1032,7 @@
                <StackPanel Margin="0,17,12,6">
                 <CheckBox x:Name="AdvancedUseCompanyDates" Content="Respect company dates"
                           IsChecked="True" Foreground="#DCEBFA"
-                          Checked="AdvancedCalendarChanged" Unchecked="AdvancedCalendarChanged"/>
+                          Checked="AdvancedChronologyChanged" Unchecked="AdvancedChronologyChanged"/>
                </StackPanel>
                <StackPanel x:Name="AdvancedDefenceFrequencyFields" Margin="0,0,12,6">
                 <TextBlock Text="Defense frequency" Foreground="#ADC9E8" FontSize="11"/>
