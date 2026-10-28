@@ -152,7 +152,8 @@ public partial class MainWindow
         var requests = new List<TitleSlotRequest>();
         foreach (var participant in _advancedParticipants)
         {
-            if (!_allWorkers.Any(w => w.Id == participant.WorkerId) ||
+            if ((participant.WorkerId != -1 &&
+                    !_allWorkers.Any(w => w.Id == participant.WorkerId)) ||
                 !int.TryParse(participant.FirstYear, out int from) ||
                 !int.TryParse(participant.LastYear, out int through) ||
                 !int.TryParse(participant.RequiredReigns, out int total))
