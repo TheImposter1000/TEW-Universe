@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Titles > Advanced Generator now separates the editable Builder from a full-height Generated History Preview. The 437-pixel nested-scroll layout has been removed, the champion candidates grid has more vertical space, and Generate, Import, and Export controls remain visible. Previews automatically open in the dedicated review view; edits invalidate outdated previews and switching championships resets the builder scroll position.
+
           FIX: Safe historical title-team replacements support linked workers paired with named historical NPCs. Partner name fields now sit beside the correct wrestler selectors. Previously linked reigns remain untouched.
 
           FIX: Championship History imports, including destructive full rebuilds and individual historical reign edits, no longer require a preexisting manual backup. Yes / No / Cancel offers a backup before the confirmed write, with No continuing without a backup. No database backup is created silently.
