@@ -60,8 +60,9 @@ internal static class ExistingTitleSlotPlanner
     {
         if (request.WorkerIds.Count != (int)format ||
             request.Names.Count != (int)format ||
-            request.WorkerIds.Any(uid => uid <= 0) ||
-            request.WorkerIds.Distinct().Count() != request.WorkerIds.Count ||
+            request.WorkerIds.Any(uid => uid < -1 || uid == 0) ||
+            request.WorkerIds.Count(uid => uid > 0) == 0 ||
+            request.WorkerIds.Where(uid => uid > 0).Distinct().Count() != request.WorkerIds.Count(uid => uid > 0) ||
             request.Names.Any(name => string.IsNullOrWhiteSpace(name) || name.Length > 30 ||
                 name.Any(char.IsControl)) ||
             request.FirstYear > request.LastYear || request.Reigns is < 1 or > 500)
