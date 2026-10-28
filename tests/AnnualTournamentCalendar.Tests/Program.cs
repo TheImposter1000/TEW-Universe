@@ -76,6 +76,43 @@ if (ChampionshipCsvImport.Parse(cupCsv, 975, 1, true,
     throw new Exception("Annual tournament CSV sentinel was rejected.");
 Console.WriteLine("Passed championship CSV round trips and invalid input protections.");
 
+// Game-wide tblInfo and company tblFed month/year constraints must cut
+// history at the true last active month, not an invented December 31.
+var companyCalendar = new ScenarioChronology(
+    new DateTime(2022, 6, 1), 391, "UWE",
+    new DateTime(1975, 1, 1), new DateTime(2021, 11, 30));
+var uweWindow = ScenarioDateBounds.Resolve(
+    new DateTime(1975, 1, 1), new DateTime(2021, 12, 31), companyCalendar, true);
+if (uweWindow.From != new DateTime(1975, 1, 1) ||
+    uweWindow.Through != new DateTime(2021, 11, 30))
+    throw new Exception("Closed UWE generated into December after November closure.");
+
+var scenarioOnly = ScenarioDateBounds.Resolve(
+    new DateTime(1975, 1, 1), new DateTime(2022, 12, 31),
+    companyCalendar, false);
+if (scenarioOnly.Through != new DateTime(2022, 5, 31))
+    throw new Exception("Scenario pregame history continued beyond May 2022.");
+var companyOverride = ScenarioDateBounds.Resolve(
+    new DateTime(1975, 1, 1), new DateTime(2021, 12, 31),
+    companyCalendar, false, new DateTime(2021, 12, 11));
+if (companyOverride.Through != new DateTime(2021, 12, 11))
+    throw new Exception("Company-date override did not preserve explicit final day.");
+var laterStart = ScenarioDateBounds.Resolve(
+    new DateTime(1975, 1, 1), new DateTime(2020, 12, 31),
+    companyCalendar with { CompanyOpened = new DateTime(1984, 9, 1) }, true);
+if (laterStart.From != new DateTime(1984, 9, 1))
+    throw new Exception("Company opening did not constrain championship's start.");
+bool emptyPeriodRejected = false;
+try {
+    ScenarioDateBounds.Resolve(new DateTime(2021, 12, 1),
+        new DateTime(2021, 12, 31), companyCalendar, true);
+} catch (InvalidOperationException) { emptyPeriodRejected = true; }
+if (!emptyPeriodRejected)
+    throw new Exception("A title was generated after its company was closed.");
+if (ScenarioDateBounds.MonthEnd(2020, 2) != new DateTime(2020, 2, 29))
+    throw new Exception("February leap-year final day is incorrect.");
+Console.WriteLine("Passed scenario and company championship timeline constraints.");
+
 // Championship defense totals scale with days held and booking cadence,
 // not fixed counts assigned to broad duration brackets.
 if (TitleDefencePlanner.Resolve("USPW Television Championship",
