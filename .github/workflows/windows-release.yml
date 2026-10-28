@@ -86,16 +86,16 @@ jobs:
         run: |
           $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
           $notes = @"
-          TEW Universe Studio - Windows Update
+          TEW Universe Studio - Experimental Windows Update
 
-          NEW: Workers > Accomplishments tab. Independently curate championship achievements, award wins, tournaments, Hall of Fame inductions, milestones, and other career achievements with optional years and detailed notes. Add, edit and remove entries by worker.
+          FIX: Awards now supports creating new world and company year-end award records from a selected, verified existing award as a template. Choose the new award year, select recognized winner workers and companies via searchable dropdowns, and confirm the insert. Required unverified values are copied unchanged from the existing row; the template is preserved. Unknown fields remain read-only. Optional backup prompt before writes.
 
-          IMPORTANT: Accomplishments are saved only in separate Studio-managed JSON files under your local application data directory, keyed by the selected scenario path and worker UID. This feature does NOT write to the TEW IX MDB, invent championship reigns or update official awards. Back up the companion JSON folder independently; moving a database to a different path does not automatically move its local achievements.
+          FIX: Workers > Accomplishments is now an automatic, biography-style read-only summary populated directly from linked championship prehistory and recorded global/company year-end award winner references. It no longer requires manual entry or creates external JSON records. Existing legacy Studio JSON data is left untouched but not shown as game achievements.
 
-          PREVIOUS: Read-only Tools Data Check scans award, tag-team, title-lineage and biography links, filters findings by severity and exports CSV. Awards now browses actual world/company year-end records. Contract saves retain worker filters.
+          FIX: The worker's nine tabs now fit in two rows without clipped labels. Tools Data Check biography/team matching requires explicit team affiliation; references to the Elite Division or a family mask no longer trigger misleading reports for similarly named tag teams. Select a finding to read its full description.
 
-          This Windows installer is unsigned. Automated builds and regression checks pass; for any TEW IX MDB-editing features, work on a COPY and use the game's Data Check. The Accomplishments feature itself leaves MDB bytes untouched.
+          IMPORTANT: Experimental unsigned installer. Windows compilation and regression checks pass. New award creation and editing must be tested on a disposable TEW IX scenario COPY with the game's Data Check, as actual in-game MDB write compatibility has not yet been verified. Do not edit the same MDB concurrently in TEW IX.
 
-          No TEW IX game database or scenario data is included.
+          No game database, saves or private files are included in the installer.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
