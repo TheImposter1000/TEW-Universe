@@ -169,7 +169,8 @@ public partial class MainWindow
             }.Take((int)format).ToArray();
             var names = members.Select((id, index) => index == 0
                 ? participant.DisplayName.Trim()
-                : _allWorkers.FirstOrDefault(w => w.Id == id)?.Name ?? "").ToArray();
+                : index == 1 ? participant.Partner2Name.Trim() :
+                    participant.Partner3Name.Trim()).ToArray();
             if (members.Any(id => !_allWorkers.Any(w => w.Id == id)) ||
                 members.Distinct().Count() != members.Length)
                 throw new InvalidOperationException(
