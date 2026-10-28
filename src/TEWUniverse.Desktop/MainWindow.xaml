@@ -684,8 +684,8 @@
                          SelectionChanged="LineageDefenceFrequencyChanged"
                          ToolTip="Select how frequently the championship should be defended. Automatic recognizes TV and World titles.">
                 <ComboBoxItem Content="Automatic (detect TV / World title)" IsSelected="True"/>
-                <ComboBoxItem Content="Touring / defended on most shows (2–5 days)"/>
-                <ComboBoxItem Content="Television / very frequent (3–7 days)"/>
+                <ComboBoxItem Content="Touring / defended on most shows (3–6 days)"/>
+                <ComboBoxItem Content="Television / very frequent (2–5 days)"/>
                 <ComboBoxItem Content="Regular / weekly to biweekly (7–15 days)"/>
                 <ComboBoxItem Content="Occasional / 2–5 weeks"/>
                 <ComboBoxItem Content="Special attraction / 1–2 months"/>
@@ -952,8 +952,8 @@
                           Width="325" SelectionChanged="AdvancedCalendarChanged"
                           ToolTip="Frequency for all generated reigns. Annual Cups never generate defenses.">
                  <ComboBoxItem Content="Automatic (TV / World / Regular)" IsSelected="True"/>
-                 <ComboBoxItem Content="Touring / defended on most shows (2–5 days)"/>
-                 <ComboBoxItem Content="Television / very frequent (3–7 days)"/>
+                 <ComboBoxItem Content="Touring / defended on most shows (3–6 days)"/>
+                 <ComboBoxItem Content="Television / very frequent (2–5 days)"/>
                  <ComboBoxItem Content="Regular / weekly to biweekly (7–15 days)"/>
                  <ComboBoxItem Content="Occasional / 2–5 weeks"/>
                  <ComboBoxItem Content="Special attraction / 1–2 months"/>
