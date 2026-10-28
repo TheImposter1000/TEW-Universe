@@ -8,5 +8,7 @@
   <ItemGroup>
     <None Include="../../src/TEWUniverse.Desktop/App.xaml"
           Link="App.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/TEWUniverse.Desktop/MainWindow.xaml"
+          Link="MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
