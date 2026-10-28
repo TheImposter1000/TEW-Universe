@@ -2016,7 +2016,7 @@ public partial class MainWindow : Window
                         annualTournament, eventMonth, eventWeek, eventWeekday, startMonth,
                         _selectedExisting.Name,
                         (TitleDefenceFrequency)AdvancedDefenceFrequency.SelectedIndex,
-                        bounds.Through);
+                        bounds.Through, bounds.From);
                     if (memberCount > 1)
                         candidateHistory = TeamHistoryPlanner.Populate(
                             candidateHistory, candidate, teamLineups, seeds, memberCount);
