@@ -783,7 +783,7 @@
                <StackPanel x:Name="AdvancedPartner2NameGroup" Width="220"
                            Margin="0,0,8,6" Visibility="Collapsed">
                 <TextBlock x:Name="AdvancedPartner2NameLabel"
-                           Text="Partner 2: NPC name (if no worker selected)"
+                           Text="Partner 2: named historical teammate"
                            Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
                 <TextBox x:Name="AdvancedPartner2NpcName"
                          Style="{StaticResource FormTextBox}"
