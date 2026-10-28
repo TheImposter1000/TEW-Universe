@@ -88,6 +88,14 @@ This initial module must be tested in TEW IX's Data Check using a backed-up scen
 
 **Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
 
+## Workers → Accomplishments (mini-update 3 of 3)
+
+Workers now has a **ninth tab: Accomplishments**. Create, edit, and remove manually curated achievements: Championship, Award, Tournament, Hall of Fame, Milestone, or Other, with a title, optional year, and rich notes. Each entry belongs to the selected worker and a specific scenario. Existing worker/contract/title MDB records are never changed by the Accomplishments tab.
+
+Accomplishments are stored **outside TEW IX** as independent JSON under the Windows user's `LocalApplicationData/TEWUniverse/Accomplishments` directory. The JSON file is keyed by the absolute scenario database path; each item is tied to a worker UID and given a stable unique ID. Writes are atomic via temporary-file replacement. A malformed existing JSON file is never overwritten automatically. Moving or copying a scenario to a different path creates a separate accomplishments catalog unless the companion data is explicitly migrated; users should back up the companion directory separately from the MDB.
+
+This is an editorial ledger and is intentionally **not** auto-synced with actual world/company award tables, championship title lineages or worker biographies. For discrepancies with the real TEW database, use Tools → Data Check. Adding a custom "championship" here neither creates a title reign in TEW IX nor affects its gameplay.
+
 ## Tools: Studio Data Check (mini-update 2 of 3)
 
 **Tools** is now a working read-only diagnostics workspace, with **Run Data Check**, searchable and severity-filtered findings, a CSV report exporter, and shortcuts to Workers, Titles / existing record-name repairs, and Awards.
