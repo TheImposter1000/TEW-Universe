@@ -1572,6 +1572,17 @@ public partial class MainWindow : Window
         // Both modes accept named historical partners alongside real workers.
         // Safe mode still replaces only unlinked placeholders and preserves
         // all original lineage dates, defenses and linked worker reigns.
+        if (format >= TitleCompetitorFormat.TagTeam && partner2 == null &&
+            string.IsNullOrWhiteSpace(AdvancedPartner2NpcName.Text) &&
+            !string.IsNullOrWhiteSpace(AdvancedWorkerAlias.Text))
+        {
+            MessageBox.Show(this,
+                "Partner 2 is empty. The text in Champion 1's ring-name alias " +
+                "changes Champion 1's name; it does not create a second champion. " +
+                "To add a historical teammate, type their name in the Partner 2 " +
+                "historical-name field.");
+            return;
+        }
         bool allowNameOnlyPartners = true;
         HistoricalPartnerInput.Choice? resolved2;
         HistoricalPartnerInput.Choice? resolved3;
