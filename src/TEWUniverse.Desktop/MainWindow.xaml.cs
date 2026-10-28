@@ -1779,19 +1779,34 @@ public partial class MainWindow : Window
     private void AdvancedInputChanged(object sender, TextChangedEventArgs e)
     {
         // WPF can raise TextChanged during InitializeComponent.
-        if (AdvancedApplyButton != null) ResetAdvancedDraft();
+        if (AdvancedApplyButton != null)
+        {
+            ResetAdvancedDraft();
+            if (_activeModule == "Titles" && _selectedExisting != null)
+                UpdateTitleTimelineGuidance();
+        }
     }
 
     private void AdvancedCalendarChanged(object sender, SelectionChangedEventArgs e)
     {
         // A changed event schedule makes any existing preview unsafe to import.
-        if (AdvancedApplyButton != null) ResetAdvancedDraft();
+        if (AdvancedApplyButton != null)
+        {
+            ResetAdvancedDraft();
+            if (_activeModule == "Titles" && _selectedExisting != null)
+                UpdateTitleTimelineGuidance();
+        }
     }
 
     private void AdvancedChronologyChanged(object sender, RoutedEventArgs e)
     {
         // Changing the constraints invalidates any generated but unimported history.
-        if (AdvancedApplyButton != null) ResetAdvancedDraft();
+        if (AdvancedApplyButton != null)
+        {
+            ResetAdvancedDraft();
+            if (_activeModule == "Titles" && _selectedExisting != null)
+                UpdateTitleTimelineGuidance();
+        }
     }
 
     /// <summary>
