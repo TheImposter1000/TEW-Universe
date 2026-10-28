@@ -1264,6 +1264,30 @@ foreach (string invalidUid in new[] { "0", "-1", "not-a-worker", "" })
     catch (InvalidOperationException) { rejected = true; }
     if (!rejected) throw new Exception("Unverified award winner UID was accepted: " + invalidUid);
 }
+// Actual TEW IX award tables use MaleOverall, FemaleTag2 and other
+// category-specific winner slots. They must be editable as real worker IDs
+// without exposing match/show metadata as worker IDs.
+foreach (var table in new[] { AwardsRules.GlobalTable, AwardsRules.CompanyTable })
+{
+    foreach (var workerColumn in new[] {
+        "MaleOverall", "FemaleOverall", "MaleYoung", "FemaleYoung",
+        "MaleVeteran", "FemaleVeteran", "MaleTag1", "MaleTag2",
+        "FemaleTag1", "FemaleTag2", "MaleManager", "FemaleReferee"
+    })
+        if (!AwardsRules.IsWorkerField(table, workerColumn, typeof(int)) ||
+            !AwardsRules.CanEdit(table, workerColumn, typeof(int)))
+            throw new Exception("Missing TEW IX award recipient: " + table + "." + workerColumn);
+    foreach (var nonWorker in new[] { "Match", "Match_At", "Match_Rating",
+                                      "Card", "Card_Rating", "UID" })
+        if (AwardsRules.IsWorkerField(table, nonWorker, typeof(int)))
+            throw new Exception("Match, card or UID mistaken for award recipient.");
+}
+if (AwardsRules.CareerName("MaleTag1") != AwardsRules.CareerName("MaleTag2") ||
+    AwardsRules.FriendlyName("MaleOverall") != "Men's Wrestler of the Year" ||
+    AwardsRules.ValidateWinnerId("0", "MaleOverall") != 0 ||
+    !AwardsRules.CanBeUnassigned(AwardsRules.CompanyTable, "FemaleTag2", typeof(int)) ||
+    AwardsRules.CanBeUnassigned(AwardsRules.CompanyTable, "FedUID", typeof(int)))
+    throw new Exception("Award category labels or optional winner validation are incorrect.");
 Console.WriteLine("Passed Awards table routing, conservative editable-field allowlist, and validation.");
 
 // Contract form changes must be recognized by typed value rather than

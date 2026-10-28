@@ -5,23 +5,55 @@ using System.Text;
 
 namespace TEWUniverse.Studio;
 
+internal sealed record CareerChampionship(string Company, string Title,
+    IReadOnlyList<string> WonDates)
+{
+    internal int Reigns => WonDates.Count;
+}
+
+internal sealed record CareerAward(string Scope, string Category, string Year,
+    string Details);
+
+internal sealed record WorkerCareerRecord(
+    IReadOnlyList<CareerChampionship> Championships,
+    IReadOnlyList<CareerAward> Awards,
+    IReadOnlyList<string> Notes);
+
 /// <summary>
-/// A READ-ONLY, on-demand career record generated from actual TEW IX rows.
-/// No Studio-only accomplishments JSON and no text inferred from biographies.
+/// Read-only career details from actual TEW IX historical titles and awards.
+/// A worker only receives awards when the table's explicit recipient column
+/// points to that worker. An unrelated match/show reference never counts.
 /// </summary>
 internal sealed partial class DatabaseSession
 {
-    public string ReadWorkerCareerSummary(int workerId)
+    public WorkerCareerRecord ReadWorkerCareerDetails(int workerId)
     {
         CheckLinkedWorker(workerId);
         var titles = ListExistingRecords("Titles").ToDictionary(x => x.Id, x => x.Name);
         var companies = ListExistingRecords("Companies").ToDictionary(x => x.Id, x => x.Name);
-        var championships = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var awards = new List<string>();
+        var workers = ListWorkers().ToDictionary(x => x.Id, x => x.Name);
+        var beltCompanies = new Dictionary<int, string>();
+        var reigns = new Dictionary<int, List<string>>();
+        var awards = new List<CareerAward>();
         var notes = new List<string>();
 
-        // The game may also record active/current titleholders elsewhere. Only
-        // confirmed pregame reigns are counted here; never invent an active reign.
+        try
+        {
+            using var cmd = new OleDbCommand("SELECT [UID], [Fed] FROM [tblBelt]", _connection);
+            using var reader = cmd.ExecuteReader();
+            while (reader != null && reader.Read())
+            {
+                int id = Convert.ToInt32(reader["UID"], CultureInfo.InvariantCulture);
+                int fed = Convert.ToInt32(reader["Fed"], CultureInfo.InvariantCulture);
+                beltCompanies[id] = companies.TryGetValue(fed, out var company)
+                    ? company : "Other / Unassigned Promotions";
+            }
+        }
+        catch (OleDbException ex)
+        {
+            notes.Add("Title company information unavailable: " + ex.Message);
+        }
+
         try
         {
             using var cmd = new OleDbCommand("SELECT * FROM [tblBeltPreHistory]", _connection);
@@ -29,25 +61,23 @@ internal sealed partial class DatabaseSession
             using (var adapter = new OleDbDataAdapter(cmd)) adapter.Fill(data);
             foreach (DataRow row in data.Rows)
             {
-                bool holder = new[] { "Holder1", "Holder2", "Holder3" }.Any(name =>
+                bool isHolder = new[] { "Holder1", "Holder2", "Holder3" }.Any(name =>
                     data.Columns.Contains(name) &&
                     int.TryParse(Display(row[name]), NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out int id) && id == workerId);
-                if (!holder) continue;
+                if (!isHolder) continue;
                 int beltId = data.Columns.Contains("BeltUID") &&
                     int.TryParse(Display(row["BeltUID"]), out int found) ? found : -1;
-                string title = titles.TryGetValue(beltId, out string? actual)
-                    ? actual : "Title UID " + beltId;
                 string captured = "";
-                foreach (string dateField in new[] { "BeltCaptured", "Captured" })
-                    if (data.Columns.Contains(dateField) && row[dateField] is not DBNull)
-                    {
-                        captured = Display(row[dateField]);
-                        break;
-                    }
-                if (!championships.TryGetValue(title, out var histories))
-                    championships[title] = histories = new List<string>();
-                histories.Add(captured.Length > 0 ? captured : "Date not recorded");
+                foreach (string field in new[] { "Captured", "BeltCaptured" })
+                {
+                    if (!data.Columns.Contains(field) || row[field] is DBNull) continue;
+                    captured = Display(row[field]);
+                    break;
+                }
+                if (!reigns.TryGetValue(beltId, out var dates))
+                    reigns[beltId] = dates = new List<string>();
+                dates.Add(captured);
             }
         }
         catch (OleDbException ex)
@@ -65,71 +95,88 @@ internal sealed partial class DatabaseSession
                 using (var adapter = new OleDbDataAdapter(cmd)) adapter.Fill(data);
                 foreach (DataRow row in data.Rows)
                 {
-                    string year = data.Columns.Contains("Year") ?
-                        Display(row["Year"]) : "Year not recorded";
-                    string company = "";
+                    string year = data.Columns.Contains("Year")
+                        ? Display(row["Year"]) : "";
+                    string scope = "Global Awards";
                     if (companySpecific)
                     {
-                        string? companyCol = data.Columns.Contains("FedUID")
+                        string? col = data.Columns.Contains("FedUID")
                             ? "FedUID" : data.Columns.Contains("Fed") ? "Fed" : null;
-                        if (companyCol != null && int.TryParse(
-                            Display(row[companyCol]), out int cid))
-                            company = companies.TryGetValue(cid, out string? cname)
-                                ? cname + " — " : "Company UID " + cid + " — ";
+                        if (col != null && int.TryParse(Display(row[col]), out int fed))
+                            scope = companies.TryGetValue(fed, out var name)
+                                ? name : "Unlinked Promotion " + fed;
+                        else scope = "Unassigned Promotion";
                     }
-                    foreach (DataColumn column in data.Columns)
+                    foreach (DataColumn col in data.Columns)
                     {
-                        if (!AwardsRules.IsWorkerField(table, column.ColumnName,
-                                column.DataType)) continue;
-                        if (!int.TryParse(Display(row[column]), NumberStyles.Integer,
+                        if (!AwardsRules.IsWorkerField(table, col.ColumnName, col.DataType))
+                            continue;
+                        if (!int.TryParse(Display(row[col]), NumberStyles.Integer,
                                 CultureInfo.InvariantCulture, out int id) || id != workerId)
                             continue;
-                        string category = column.ColumnName;
-                        if (companySpecific && data.Columns.Contains("Award") &&
-                            row["Award"] is not DBNull)
-                            category += " (award code " + Display(row["Award"]) + ")";
-                        awards.Add(year + " — " + company + category +
-                            (companySpecific ? " (Company)" : " (World)"));
+                        string details = "";
+                        if (col.ColumnName is "MaleTag1" or "MaleTag2" or
+                            "FemaleTag1" or "FemaleTag2")
+                        {
+                            string partner = col.ColumnName.EndsWith("1",
+                                StringComparison.Ordinal) ?
+                                col.ColumnName[..^1] + "2" : col.ColumnName[..^1] + "1";
+                            if (data.Columns.Contains(partner) &&
+                                int.TryParse(Display(row[partner]), out int partnerId) &&
+                                partnerId != workerId &&
+                                workers.TryGetValue(partnerId, out var partnerName))
+                                details = "with " + partnerName;
+                        }
+                        awards.Add(new CareerAward(scope,
+                            AwardsRules.CareerName(col.ColumnName), year, details));
                     }
                 }
             }
             catch (OleDbException ex)
             {
-                notes.Add((companySpecific ? "Company" : "World") +
+                notes.Add((companySpecific ? "Company" : "Global") +
                     " awards unavailable: " + ex.Message);
             }
         }
 
-        var result = new StringBuilder();
-        result.AppendLine("CHAMPIONSHIPS — VERIFIED PRE-GAME TITLE HISTORY");
-        result.AppendLine();
-        if (championships.Count == 0)
-            result.AppendLine("No linked championship reigns found in tblBeltPreHistory.");
-        else foreach (var title in championships.OrderBy(x => x.Key))
+        var championships = reigns.Select(pair => new CareerChampionship(
+            beltCompanies.TryGetValue(pair.Key, out var company)
+                ? company : "Other / Unassigned Promotions",
+            titles.TryGetValue(pair.Key, out var title)
+                ? title : "Title UID " + pair.Key,
+            pair.Value))
+            .OrderBy(x => x.Company, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ToArray();
+
+        // A tag award is stored in two recipient columns. Suppress only
+        // duplicate references for this worker, not legitimate other years.
+        var distinctAwards = awards.Distinct()
+            .OrderBy(x => x.Scope, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenByDescending(x => int.TryParse(x.Year, out int year) ? year : 0)
+            .ToArray();
+
+        return new WorkerCareerRecord(championships, distinctAwards, notes);
+    }
+
+    // Kept for callers expecting plain text, but the UI uses structured
+    // records for the company-oriented Titles & Accomplishments layout.
+    public string ReadWorkerCareerSummary(int workerId)
+    {
+        var record = ReadWorkerCareerDetails(workerId);
+        var text = new StringBuilder("CHAMPIONSHIPS");
+        foreach (var company in record.Championships.GroupBy(x => x.Company))
         {
-            result.AppendLine(title.Key + " — " + title.Value.Count +
-                (title.Value.Count == 1 ? " reign" : " reigns"));
-            foreach (string date in title.Value)
-                result.AppendLine("    • Won: " + date);
-            result.AppendLine();
+            text.AppendLine().AppendLine().AppendLine(company.Key);
+            foreach (var title in company)
+                text.AppendLine(title.Reigns + "x " + title.Title);
         }
-        result.AppendLine();
-        result.AppendLine("AWARDS — RECORDED YEAR-END WINNERS");
-        result.AppendLine();
-        if (awards.Count == 0)
-            result.AppendLine("No linked global/company award wins found in recognized winner fields.");
-        else foreach (string award in awards.OrderBy(x => x))
-            result.AppendLine("• " + award);
-        result.AppendLine();
-        if (notes.Count > 0)
-        {
-            result.AppendLine("UNAVAILABLE SOURCES");
-            foreach (string note in notes) result.AppendLine("• " + note);
-            result.AppendLine();
-        }
-        result.AppendLine("Read-only. Generated from linked MDB records each time this tab opens.");
-        result.AppendLine("Title counts cover confirmed pre-game history, not unrecorded " +
-            "biographical accomplishments or in-game save progress.");
-        return result.ToString();
+        text.AppendLine().AppendLine("AWARDS & OTHER ACCOMPLISHMENTS");
+        foreach (var award in record.Awards)
+            text.AppendLine(award.Category + " (" + award.Year + ") · " +
+                award.Scope + (award.Details.Length == 0 ? "" : " · " + award.Details));
+        foreach (var note in record.Notes)
+            text.AppendLine("Note: " + note);
+        return text.ToString();
     }
 }

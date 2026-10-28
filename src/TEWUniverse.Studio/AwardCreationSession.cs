@@ -34,14 +34,15 @@ internal sealed partial class DatabaseSession
                 !AwardsRules.CanEdit(table, change.Key, schema.Columns[change.Key]!.DataType))
                 throw new InvalidOperationException(
                     "The award field " + change.Key + " has no verified mapping.");
+            Type type = schema.Columns[change.Key]!.DataType;
             int id = change.Key.Equals("Year", StringComparison.OrdinalIgnoreCase)
                 ? AwardsRules.ValidateYear(change.Value)
-                : AwardsRules.ValidateLinkedId(change.Value, change.Key);
-            if (AwardsRules.IsWorkerField(table, change.Key,
-                schema.Columns[change.Key]!.DataType))
+                : AwardsRules.CanBeUnassigned(table, change.Key, type)
+                    ? AwardsRules.ValidateWinnerId(change.Value, change.Key)
+                    : AwardsRules.ValidateLinkedId(change.Value, change.Key);
+            if (id > 0 && AwardsRules.IsWorkerField(table, change.Key, type))
                 CheckLinkedWorker(id);
-            if (AwardsRules.IsCompanyField(table, change.Key,
-                schema.Columns[change.Key]!.DataType) &&
+            if (id > 0 && AwardsRules.IsCompanyField(table, change.Key, type) &&
                 !ListExistingRecords("Companies").Any(x => x.Id == id))
                 throw new InvalidOperationException("The selected company UID is missing.");
         }
@@ -122,9 +123,35 @@ internal sealed partial class DatabaseSession
                 }
                 if (changes.TryGetValue(col.ColumnName, out string? requested))
                 {
-                    int parsed = AwardsRules.ValidateLinkedId(requested, col.ColumnName);
+                    int parsed = AwardsRules.CanBeUnassigned(table, col.ColumnName,
+                        col.DataType)
+                        ? AwardsRules.ValidateWinnerId(requested, col.ColumnName)
+                        : AwardsRules.ValidateLinkedId(requested, col.ColumnName);
                     values[col.ColumnName] =
                         Convert.ChangeType(parsed, col.DataType, CultureInfo.InvariantCulture);
+                }
+                else if (AwardsRules.CanBeUnassigned(table, col.ColumnName, col.DataType))
+                {
+                    // Do NOT clone last year's winners into a newly-created year.
+                    values[col.ColumnName] =
+                        Convert.ChangeType(0, col.DataType, CultureInfo.InvariantCulture);
+                }
+                else if (col.ColumnName is "Match" or "Match_At" or
+                         "Match_Rating" or "Card" or "Card_Rating")
+                {
+                    // Match/show-of-year details are year-specific too. A
+                    // newly-created year must not inherit last year's match,
+                    // show, or score. Use neutral values only for known types.
+                    values[col.ColumnName] = col.DataType == typeof(string)
+                        ? ""
+                        : col.DataType == typeof(int) ||
+                          col.DataType == typeof(short) ||
+                          col.DataType == typeof(long) ||
+                          col.DataType == typeof(double) ||
+                          col.DataType == typeof(float) ||
+                          col.DataType == typeof(decimal)
+                          ? Convert.ChangeType(0, col.DataType, CultureInfo.InvariantCulture)
+                          : row[col.ColumnName];
                 }
                 else values[col.ColumnName] = row[col.ColumnName];
 
