@@ -1150,6 +1150,43 @@ if (!rejectedNegativeNumeric)
     throw new Exception("Negative attribute codes were accepted.");
 Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
 
+// Awards live in two distinct Access tables; never accept a guessed
+// numeric winner column, table, or record creation operation.
+if (!AwardsRules.IsAwardTable("tblEOYAward") ||
+    !AwardsRules.IsAwardTable("tblEOYFedAward") ||
+    AwardsRules.IsAwardTable("tblStoryline") ||
+    !AwardsRules.CanEdit("tblEOYAward", "Year", typeof(int)) ||
+    !AwardsRules.CanEdit("tblEOYFedAward", "Year", typeof(short)) ||
+    !AwardsRules.CanEdit("tblEOYAward", "Worker", typeof(int)) ||
+    !AwardsRules.CanEdit("tblEOYAward", "Tag2", typeof(int)) ||
+    !AwardsRules.CanEdit("tblEOYAward", "Fed", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYFedAward", "Fed", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYFedAward", "Worker", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYAward", "Match_At", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYAward", "Match_Rating", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYAward", "UID", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYAward", "Worker", typeof(string)))
+    throw new Exception("Awards editor exposed undocumented identifiers or unsafe fields.");
+if (AwardsRules.ValidateYear("1997") != 1997 ||
+    AwardsRules.ValidateYear("2100") != 2100 ||
+    AwardsRules.ValidateLinkedId("123", "Worker") != 123)
+    throw new Exception("Awards verified year and worker input rejected.");
+foreach (string invalidYear in new[] { "1799", "2101", "-1", "not-a-year", "" })
+{
+    bool rejected = false;
+    try { AwardsRules.ValidateYear(invalidYear); }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected) throw new Exception("Awards year must fail closed: " + invalidYear);
+}
+foreach (string invalidUid in new[] { "0", "-1", "not-a-worker", "" })
+{
+    bool rejected = false;
+    try { AwardsRules.ValidateLinkedId(invalidUid, "Worker"); }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected) throw new Exception("Unverified award winner UID was accepted: " + invalidUid);
+}
+Console.WriteLine("Passed Awards table routing, conservative editable-field allowlist, and validation.");
+
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.
 foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {
