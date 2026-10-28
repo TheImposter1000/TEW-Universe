@@ -1564,23 +1564,15 @@ public partial class MainWindow : Window
             }
             name = selectedWorker.Name;
         }
-        if (nameOnly && AdvancedGenerationMode.SelectedIndex != 1)
-        {
-            MessageBox.Show(this,
-                "Name-only champions can be added in Build new full history mode. " +
-                "Choose that mode below first. It replaces this title's prior lineage " +
-                "only after generating a preview and confirming. Backups are optional.");
-            return;
-        }
         var format = CurrentTitleFormat();
         var partner2 = format >= TitleCompetitorFormat.TagTeam
             ? AdvancedPartner2Picker.SelectedItem as WorkerItem : null;
         var partner3 = format == TitleCompetitorFormat.Trios
             ? AdvancedPartner3Picker.SelectedItem as WorkerItem : null;
-        // The partner text boxes have TWO modes. When a real worker is
-        // selected, text is an optional ring-name alias. With no worker,
-        // text is a required name-only NPC, allowed for full-history builds.
-        bool allowNameOnlyPartners = AdvancedGenerationMode.SelectedIndex == 1;
+        // Both modes accept named historical partners alongside real workers.
+        // Safe mode still replaces only unlinked placeholders and preserves
+        // all original lineage dates, defenses and linked worker reigns.
+        bool allowNameOnlyPartners = true;
         HistoricalPartnerInput.Choice? resolved2;
         HistoricalPartnerInput.Choice? resolved3;
         try
@@ -1603,6 +1595,12 @@ public partial class MainWindow : Window
         int[] linkedIds = new[] { selectedWorker?.Id ?? -1,
             resolved2?.WorkerId ?? -1, resolved3?.WorkerId ?? -1 }
             .Take((int)format).Where(id => id > 0).ToArray();
+        if (AdvancedGenerationMode.SelectedIndex == 0 && linkedIds.Length == 0)
+        {
+            MessageBox.Show(this, "Safe replacement requires at least one real linked " +
+                "wrestler. Fully name-only teams belong in Build new full history.");
+            return;
+        }
         if (linkedIds.Distinct().Count() != linkedIds.Length)
         {
             MessageBox.Show(this, "The same roster wrestler cannot occupy " +
@@ -1654,8 +1652,9 @@ public partial class MainWindow : Window
         AdvancedPartner3NpcName.Clear();
         AdvancedCandidatesGrid.Items.Refresh();
         AdvancedGenerationStatus.Text = nameOnly
-            ? $"Added name-only historical champion {name}. No tblWorker record created."
-            : $"Added linked worker {name}. Set known win years or durations before generating.";
+            ? $"Added historical champion {name}. No tblWorker record created."
+            : $"Added {name} and any historical teammates. NPC partners use UID -1. " +
+              "Set known win years or durations before generating.";
     }
 
     private void AdvancedPartnerSelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -1678,7 +1677,7 @@ public partial class MainWindow : Window
                 ? $"Optional alternative ring name for the selected Partner {index} wrestler. " +
                   "Leave blank to use their existing worker name. Their real UID is preserved."
                 : $"Enter Partner {index}'s historical name (required if no worker is selected). " +
-                  "This name-only champion uses holder UID -1 and requires full-history mode.";
+                  "This partner is stored as historical holder UID -1 in either mode.";
         }
         UpdatePartner(AdvancedPartner2Picker, AdvancedPartner2NpcName,
             AdvancedPartner2NameLabel, 2);
