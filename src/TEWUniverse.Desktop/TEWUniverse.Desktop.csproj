@@ -39,6 +39,8 @@
     <Compile Include="..\TEWUniverse.Studio\RecordNameRepairSession.cs" Link="Services\RecordNameRepairSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\TitleSlotSession.cs" Link="Services\TitleSlotSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\StudioDateFormat.cs" Link="Services\StudioDateFormat.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\ScenarioDateBounds.cs" Link="Services\ScenarioDateBounds.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\ScenarioCalendarSession.cs" Link="Services\ScenarioCalendarSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\AppSettings.cs" Link="Services\AppSettings.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CredentialStore.cs" Link="Services\CredentialStore.cs"/>
     <Compile Include="..\TEWUniverse.Studio\UpdateService.cs" Link="Services\UpdateService.cs"/>
