@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Safe historical title-team replacements support linked workers paired with named historical NPCs. Partner name fields now sit beside the correct wrestler selectors. Previously linked reigns remain untouched.
+
           FIX: Championship History imports, including destructive full rebuilds and individual historical reign edits, no longer require a preexisting manual backup. Yes / No / Cancel offers a backup before the confirmed write, with No continuing without a backup. No database backup is created silently.
 
           FIX: Both title-history generators now estimate successful defenses from the actual days held and title-specific booking frequency, including Television, Touring, Regular, Occasional, and Special Attraction presets. Automatic detects Television/TV (roughly every 2-5 days) and World/Heavyweight/Universal (roughly every 3-6 days) titles. Preview data reflects varied defense rates instead of assigning 3-15 defenses to year-long reigns; annual Cup defenses are still -1.
