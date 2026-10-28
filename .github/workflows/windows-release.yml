@@ -29,6 +29,12 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Validate database and Data Check rules
+        run: dotnet run --project tests/AnnualTournamentCalendar.Tests/AnnualTournamentCalendar.Tests.csproj --configuration Release
+
+      - name: Validate editable dropdown templates
+        run: dotnet run --project tests/DropdownTemplate.Tests/DropdownTemplate.Tests.csproj --configuration Release
+
       - name: Set version
         shell: pwsh
         run: |
@@ -92,7 +98,7 @@ jobs:
 
           FIX: Workers > Accomplishments now groups title reigns by company, shows concise title counts with optional capture dates, and lists readable global and company award achievements in an Awards & Other Accomplishments section.
 
-          FIX: Previous worker tab spacing and cautious biography/team Data Check parsing remain in place.
+          FIX: Studio Tools > Data Check now verifies BOTH global and company award recipients, detects missing promotion/worker links, duplicate world award years, repeated company award records needing review, and duplicate award tag partners. Missing required table columns report Unavailable instead of silently passing. Biographical title counts require an explicit number directly tied to a championship name, reducing false positives. Findings can be copied, and valid worker findings can open the worker profile. Findings are cleared when changing databases. The check is read-only and not a substitute for TEW IX's own Data Check.
 
           IMPORTANT: Experimental unsigned installer. Windows compilation and regression checks pass. New award creation and editing must be tested on a disposable TEW IX scenario COPY with the game's Data Check, as actual in-game MDB write compatibility has not yet been verified. Do not edit the same MDB concurrently in TEW IX.
 
