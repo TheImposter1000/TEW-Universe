@@ -29,7 +29,10 @@ internal static class ExistingTitleSlotPlanner
         int EarliestYear, int LatestYear);
 
     private static bool SameMembers(ExistingTitleSlot slot, TitleSlotRequest request) =>
-        slot.LinkedWorkers.SequenceEqual(request.WorkerIds.OrderBy(x => x));
+        TeamMemberKeys(new[] { slot.Holder1, slot.Holder2, slot.Holder3 },
+            new[] { slot.Name1, slot.Name2, slot.Name3 },
+            request.WorkerIds.Count).SequenceEqual(
+            TeamMemberKeys(request.WorkerIds, request.Names, request.WorkerIds.Count));
 
     private static DateTime? MinimumEnd(ExistingTitleSlot slot, Wanted wanted) =>
         wanted.Years.HasValue ? slot.Captured.AddYears(wanted.Years.Value) :
