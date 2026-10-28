@@ -9,3 +9,7 @@ internal sealed record GeneratedTitleReign(
     int Holder2, string HolderName2,
     DateTime Captured, DateTime Lost, short Defences,
     int Holder3 = -1, string HolderName3 = "");
+
+internal sealed record FieldEdit(string Table, string Key, string Field,
+    Type FieldType, string NewText);
+internal sealed record CompanyFieldChange(FieldEdit Edit, int RecordId);
