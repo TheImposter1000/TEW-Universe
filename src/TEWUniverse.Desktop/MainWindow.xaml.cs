@@ -1216,6 +1216,16 @@ public partial class MainWindow : Window
         }
     }
 
+    private void LineageDefenceFrequencyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // The user must regenerate the preview to apply a new defense cadence.
+        if (ApplyGeneratedLineageButton == null) return;
+        ClearGeneratedLineage();
+        if (GeneratorHelp != null)
+            GeneratorHelp.Text = "Defense frequency changed. Generate Preview again " +
+                "to see the new reign-by-reign defense totals before importing.";
+    }
+
     private void ClearGeneratedLineage()
     {
         _generatedTitleReigns.Clear();
