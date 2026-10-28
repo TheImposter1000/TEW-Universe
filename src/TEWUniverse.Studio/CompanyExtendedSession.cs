@@ -85,7 +85,8 @@ internal sealed partial class DatabaseSession
             x.Edit.Table.Equals("tblFed", StringComparison.OrdinalIgnoreCase))
             .Select(x => x.Edit).ToList();
         if (baseEdits.Any(x =>
-            x.Field is "OpenYear" or "OpenMonth" or "ClosedYear" or "ClosedMonth"))
+            x.Field is "CompanyOpening" or "CompanyClosing" or
+                "OpenYear" or "OpenMonth" or "ClosedYear" or "ClosedMonth"))
             ValidateCompanyDates(primary.Data.Rows[0], baseEdits);
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
