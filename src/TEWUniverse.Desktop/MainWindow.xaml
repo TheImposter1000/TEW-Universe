@@ -881,6 +881,7 @@
                </StackPanel>
               </WrapPanel>
               <DataGrid x:Name="AdvancedCandidatesGrid" AutoGenerateColumns="False"
+                        FrozenColumnCount="1"
                         Height="230" IsReadOnly="False" CanUserAddRows="False"
                         CanUserDeleteRows="False" CanUserResizeColumns="True"
                         BorderBrush="#426080" BorderThickness="1"
@@ -1062,6 +1063,7 @@
               </StackPanel>
              </ScrollViewer>
              <DataGrid x:Name="AdvancedPreviewGrid" Grid.Row="1" Visibility="Collapsed" AutoGenerateColumns="True"
+                     FrozenColumnCount="2" ScrollViewer.HorizontalScrollBarVisibility="Auto"
                      AutoGeneratingColumn="TitleLineageGrid_AutoGeneratingColumn"
                      IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
                      Background="#102238" Foreground="#EDF6FF"
