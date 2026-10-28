@@ -1323,7 +1323,9 @@ public partial class MainWindow : Window
                 DateTime captured = start.AddDays(elapsedDays);
                 DateTime lost = captured.AddDays(heldDays - 1);
                 elapsedDays += heldDays;
-                short defences = AnchoredHistoryPlanner.EstimateReignDefences(heldDays);
+                short defences = AnchoredHistoryPlanner.EstimateReignDefences(
+                    heldDays, _selectedExisting.Name,
+                    (TitleDefenceFrequency)LineageDefenceFrequency.SelectedIndex);
                 proposed.Add(new GeneratedTitleReign(
                     i + 1, first.Id, first.Name, second?.Id ?? 0, second?.Name ?? "",
                     captured, lost, defences));
@@ -1359,7 +1361,7 @@ public partial class MainWindow : Window
             TitleLineageSummary.Text = $"GENERATED PREVIEW · {count} reign(s) · " +
                 $"{_existingLineageSlots} existing history slot(s) for this championship.";
             GeneratorHelp.Text = canApply
-                ? "Preview only. Reign lengths and defence counts now vary. " +
+                ? "Preview only. Reign lengths and defence counts vary by title frequency. " +
                   "Replace Existing Reigns will overwrite holders, captured/lost dates, " +
                   "and defences for this title's existing history rows, after confirmation. " +
                   "Other titles and history record IDs remain unchanged."
@@ -1393,9 +1395,10 @@ public partial class MainWindow : Window
                 $"{_selectedExisting.Name} (ID {_selectedExisting.Id})?\n\n" +
                 "This changes historical holders, capture dates, loss dates and defences " +
                 "in your active MDB. It cannot be undone without a backup.\n\n" +
-                "No new history records are created. Please make a backup first.",
+                "No new history records are created. Creating a backup is optional.",
                 "Replace Championship Lineage", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!OfferOptionalBackupBeforeWrite("replacing championship history")) return;
         try
         {
             int changed = _session.ReplaceExistingTitleLineage(
@@ -1556,7 +1559,7 @@ public partial class MainWindow : Window
             MessageBox.Show(this,
                 "Name-only champions can be added in Build new full history mode. " +
                 "Choose that mode below first. It replaces this title's prior lineage " +
-                "only after generating a preview, making a backup, and confirming.");
+                "only after generating a preview and confirming. Backups are optional.");
             return;
         }
         var format = CurrentTitleFormat();
@@ -1946,7 +1949,9 @@ public partial class MainWindow : Window
                 {
                     var candidateHistory = AnchoredHistoryPlanner.GenerateFromYears(
                         candidate, seeds, firstYear, lastYear,
-                        annualTournament, eventMonth, eventWeek, eventWeekday, startMonth);
+                        annualTournament, eventMonth, eventWeek, eventWeekday, startMonth,
+                        _selectedExisting.Name,
+                        (TitleDefenceFrequency)AdvancedDefenceFrequency.SelectedIndex);
                     if (memberCount > 1)
                         candidateHistory = TeamHistoryPlanner.Populate(
                             candidateHistory, candidate, teamLineups, seeds, memberCount);
@@ -2090,6 +2095,10 @@ public partial class MainWindow : Window
             int protectedReigns = anchored.Count(w =>
                 w.ReignDays.HasValue || w.ReignYears.HasValue ||
                 w.ReignMonths.HasValue);
+            string defenceStatus = annualTournament ? "" :
+                "Defense pace: " + TitleDefencePlanner.Description(
+                    TitleDefencePlanner.Resolve(_selectedExisting.Name,
+                        (TitleDefenceFrequency)AdvancedDefenceFrequency.SelectedIndex)) + ". ";
             string durationStatus = !annualTournament && protectedReigns > 0
                 ? $"{protectedReigns} requested superstar reign length(s) protected. " : "";
             string chronology = chronologyNotes.Count > 0
@@ -2100,7 +2109,7 @@ public partial class MainWindow : Window
             AdvancedGenerationStatus.Text =
                 (annualTournament ? "ANNUAL TOURNAMENT • " : "CHAMPIONSHIP • ") +
                 $"{competitorFormat.ToString().ToUpperInvariant()} • " +
-                schedule + chronology + durationStatus +
+                schedule + chronology + durationStatus + defenceStatus +
                 (_advancedEmploymentWarnings > 0
                     ? $"WARNING: {_advancedEmploymentWarnings} reign(s) lack verified title-company employment coverage. "
                     : "Employment history checked for linked workers. ") +
@@ -2109,7 +2118,7 @@ public partial class MainWindow : Window
                 npcLimitNote + variety +
                 $"{_advancedExistingSlots} existing title-history row(s). " +
                 (canApply
-                    ? "Create Backup is REQUIRED before replacing this title's history."
+                    ? "Backups are optional. Confirm import to replace this title's history."
                     : "Direct rebuilding is unavailable for this title's current schema.");
             SetStatus($"Prepared {_advancedDraft.Count:N0} championship history entries.");
         }
@@ -2128,7 +2137,7 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Save or discard the unsaved championship details first.");
             return;
         }
-        if (_advancedFullRebuild && !HasHistoricalWriteBackup()) return;
+
         string actionText = _advancedSlotMode
             ? $"LINK {_advancedSlotPatches.Count} NAME-ONLY REIGN(S) in {_selectedExisting.Name}?\n\n" +
               "Only holder UIDs and display names in the selected placeholder rows will change. " +
@@ -2150,13 +2159,15 @@ public partial class MainWindow : Window
                   "Review the flagged entries before importing."
                 : "") +
             "\n\nThis writes to your ACTIVE MDB and cannot be undone " +
-            (_advancedFullRebuild
-                ? "without a backup. A manual backup has been verified for this scenario.\n\nContinue?"
-                : "without a backup. Creating one first is recommended.\n\nContinue?"),
+            "without a backup. Creating a backup is optional.\n\nContinue?",
             _advancedSlotMode ? "Confirm Targeted Holder Substitution"
                 : "Confirm Championship History Rebuild",
             MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
+        if (!OfferOptionalBackupBeforeWrite(
+            _advancedFullRebuild ? "rebuilding this championship's full history" :
+            _advancedSlotMode ? "replacing name-only historical holders" :
+            "replacing championship history")) return;
         try
         {
             int changed = _advancedSlotMode
@@ -2345,6 +2356,8 @@ public partial class MainWindow : Window
             AnnualTournamentDateFields.Visibility = annual
                 ? Visibility.Visible : Visibility.Collapsed;
             ChampionshipStartMonthFields.Visibility = annual
+                ? Visibility.Collapsed : Visibility.Visible;
+            AdvancedDefenceFrequencyFields.Visibility = annual
                 ? Visibility.Collapsed : Visibility.Visible;
             AdvancedRespectTournamentDates.Visibility = annual
                 ? Visibility.Collapsed : Visibility.Visible;
