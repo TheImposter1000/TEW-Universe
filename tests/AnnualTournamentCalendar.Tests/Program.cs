@@ -76,6 +76,36 @@ if (ChampionshipCsvImport.Parse(cupCsv, 975, 1, true,
     throw new Exception("Annual tournament CSV sentinel was rejected.");
 Console.WriteLine("Passed championship CSV round trips and invalid input protections.");
 
+// The Companies editor exposes all company scalar fields but does not
+// permit identity, linked worker, product, or other unresolved references.
+var companySchema = new System.Data.DataTable("tblFed");
+companySchema.Columns.Add("Name", typeof(string));
+companySchema.Columns.Add("OpenYear", typeof(int));
+companySchema.Columns.Add("ClosedMonth", typeof(int));
+companySchema.Columns.Add("Prestige", typeof(int));
+companySchema.Columns.Add("Money", typeof(long));
+companySchema.Columns.Add("UID", typeof(int));
+companySchema.Columns.Add("Recordname", typeof(string));
+companySchema.Columns.Add("Owner", typeof(int));
+companySchema.Columns.Add("ProductUID", typeof(int));
+companySchema.Columns.Add("MediaGroup", typeof(int));
+companySchema.Columns.Add("Picture", typeof(byte[]));
+foreach (string key in new[] { "Name", "OpenYear", "ClosedMonth", "Prestige", "Money" })
+    if (!CompanyFieldRules.CanEdit(companySchema.Columns[key]!))
+        throw new Exception("Editable company field incorrectly protected: " + key);
+foreach (string key in new[] { "UID", "Recordname", "Owner",
+    "ProductUID", "MediaGroup", "Picture" })
+    if (CompanyFieldRules.CanEdit(companySchema.Columns[key]!))
+        throw new Exception("Unsafe company field incorrectly editable: " + key);
+foreach (var (table, _) in CompanyFieldRules.RelatedTables)
+    if (!CompanyFieldRules.IsRelatedTable(table))
+        throw new Exception("Recognized company data table not accessible: " + table);
+if (CompanyFieldRules.IsRelatedTable("tblContract") ||
+    CompanyFieldRules.Group("ClosedYear") != "Operating history and dates" ||
+    CompanyFieldRules.Group("Prestige") != "Business and finances")
+    throw new Exception("Company field categories or related table whitelist regressed.");
+Console.WriteLine("Passed complete company scalar edit policy and protected reference checks.");
+
 // Game-wide tblInfo and company tblFed month/year constraints must cut
 // history at the true last active month, not an invented December 31.
 var companyCalendar = new ScenarioChronology(
