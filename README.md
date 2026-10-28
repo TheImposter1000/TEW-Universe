@@ -96,6 +96,8 @@ This initial module must be tested in TEW IX's Data Check using a backed-up scen
 
 **Workers tab layout and Tools:** All nine worker tabs now use two readable rows rather than clipping text in a three-row space sized for two. Biography/team comparisons in Tools require explicit team-affiliation phrasing, so incidental phrases such as `the Elite Division` and `the family mask` no longer trigger reports for teams named `The Elite` or `The Family`. Selecting a Data Check finding shows its full explanation without horizontal truncation. This is deliberately a conservative text heuristic, not a claim to understand every biography.
 
+The checker preserves ambiguity: a word or number merely near a championship name is not a reliable title-reign claim; direct numerical phrasing is required for biography review findings. Data Check can open a referenced existing worker directly or copy the complete finding. Findings are cleared on database switches, and the UI distinguishes `Not yet checked` from a completed scan with zero findings. The scanner is read-only and does not replace TEW IX's own Data Check.
+
 ## Workers → Accomplishments (read-only automatic career record)
 
 The ninth Workers tab now looks like the Biography editor but is **read-only**. It automatically displays the worker's linked pre-game championship reigns and world/company year-end award wins recorded in the active TEW IX scenario MDB. It refreshes from actual title/award data when a worker is selected or the tab is opened. There is no manual entry, no custom achievement creation, and no extra user maintenance required.
@@ -108,7 +110,7 @@ This is a factual summary of *linked recorded pre-game* award/title data, not a 
 
 **Tools** is now a working read-only diagnostics workspace, with **Run Data Check**, searchable and severity-filtered findings, a CSV report exporter, and shortcuts to Workers, Titles / existing record-name repairs, and Awards.
 
-The checker compares actual `tblWorker` records with `tblTeam.Worker1/Worker2`, linked holders in `tblBeltPreHistory`, `tblBelt` championship references, and positively recognized worker winner IDs in `tblEOYAward`. Missing positive links and self-partnerships are marked **Error**. Duplicate same-company tag-team pairs are marked **Review** because an inactive alternate team could be legitimate.
+The checker compares actual `tblWorker` records with `tblTeam.Worker1/Worker2`, linked holders in `tblBeltPreHistory`, and positively verified award recipient fields in **both** `tblEOYAward` and `tblEOYFedAward`. Missing positive worker/company links and self-partnerships are marked **Error**. It also detects duplicate consolidated world award years, suspicious company/year duplicates, and duplicate partners in tag team award fields. Duplicate same-company tag-team pairs are marked **Review** because an inactive alternate team could be legitimate. Missing required table columns are reported as **Unavailable** rather than silently treating the scan as passed.
 
 It also reads workers' `tblWorkerBio.Profile` and flags carefully detected claims such as "3-time [actual title name] champion" when the recorded pregame title lineage has another number of linked reigns. Mentions of a known tag team not linked to the biography's worker also become **Review**, not errors. A biography can refer to another promotion, a former partnership, a non-pregame period, or in-game history. There are **no automatic fixes** and no MDB writes. Missing/unreadable tables are surfaced as **Unavailable** rather than silently treated as clean.
 
