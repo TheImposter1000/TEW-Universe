@@ -2689,7 +2689,8 @@ public partial class MainWindow : Window
             entry.TextChanged += (_, _) =>
             {
                 field.Value = entry.Text;
-                if (field.Column == "Name")
+                if (field.Column == "Name" &&
+                    !(_activeModule == "Companies" && field.Table != "tblFed"))
                     ExistingRecordTitle.Text = string.IsNullOrWhiteSpace(field.Value)
                         ? "(unnamed record)" : field.Value;
                 RefreshDirty();
