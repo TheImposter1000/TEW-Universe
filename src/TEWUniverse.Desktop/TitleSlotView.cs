@@ -190,7 +190,7 @@ public partial class MainWindow
         _titleEmploymentCache.Clear();
         var matches = ExistingTitleSlotPlanner.Plan(slots, requested, titleFormat,
             (request, slot) =>
-                request.WorkerIds.Count(uid => EmploymentFlag(
+                request.WorkerIds.Where(uid => uid > 0).Count(uid => EmploymentFlag(
                     new[] { uid }, slot.Captured, slot.Lost, IsAnnualTournament())
                     == "Covered by employment history"));
 
