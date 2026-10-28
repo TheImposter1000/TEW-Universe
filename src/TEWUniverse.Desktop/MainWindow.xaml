@@ -771,6 +771,14 @@
                           SelectionChanged="AdvancedPartnerSelectionChanged"
                           ToolTip="Choose an existing wrestler, or leave unselected to type a name-only champion."/>
                </StackPanel>
+               <StackPanel Width="195" Margin="0,0,8,6">
+                <TextBlock x:Name="AdvancedPrimaryNameLabel"
+                           Text="Champion 1: name-only historical person"
+                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
+                <TextBox x:Name="AdvancedWorkerAlias"
+                         Style="{StaticResource FormTextBox}"
+                         ToolTip="With a selected first worker, this is their optional ring-name alias. Without a selected worker, type a historical name to add a name-only champion."/>
+               </StackPanel>
                <StackPanel x:Name="AdvancedPartner2PickerGroup" Width="220"
                            Margin="0,0,8,6" Visibility="Collapsed">
                 <TextBlock Text="Partner 2: existing worker"
@@ -807,14 +815,7 @@
                          Style="{StaticResource FormTextBox}"
                          ToolTip="No worker selected: required NPC name. Worker selected: optional ring-name alias."/>
                </StackPanel>
-               <StackPanel Width="195" Margin="0,0,8,6">
-                <TextBlock x:Name="AdvancedPrimaryNameLabel"
-                           Text="Champion 1: name-only historical person"
-                           Foreground="#BCD7EF" FontSize="11" Margin="0,0,0,5"/>
-                <TextBox x:Name="AdvancedWorkerAlias"
-                         Style="{StaticResource FormTextBox}"
-                         ToolTip="With a selected first worker, this is their optional ring-name alias. Without a selected worker, type a historical name to add a name-only champion."/>
-               </StackPanel>
+
                <StackPanel Margin="0,0,0,6">
                 <TextBlock Text="Add champion / team" Foreground="#BCD7EF"
                            FontSize="11" Margin="0,0,0,5"/>
