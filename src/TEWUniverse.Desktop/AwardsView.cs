@@ -256,8 +256,9 @@ public partial class MainWindow
                             ? _allWorkers.Select(w => new ExistingRecordItem(w.Id, w.Name))
                             : _session!.ListExistingRecords("Companies"))
                             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
-                        if (recipient)
-                            options.Insert(0, new ExistingRecordItem(0, "(No winner recorded)"));
+                        if (AwardsRules.CanBeUnassigned(table, field.Name, field.Type))
+                            options.Insert(0, new ExistingRecordItem(0,
+                                recipient ? "(No winner recorded)" : "(No company selected)"));
                         if (!options.Any(x => x.Id == current))
                             options.Insert(0, new ExistingRecordItem(current,
                                 "Unresolved stored ID " + field.StoredValue));
@@ -347,22 +348,23 @@ public partial class MainWindow
         if (_session == null || _selectedAward == null) return;
         try
         {
-            string year = _awardNewYear.Text.Trim();
+            // A fresh dialog prevents the selected template's current winners
+            // from accidentally becoming the new year's winners.
+            var dialog = new AwardCreationDialog(
+                _selectedAward, _awardCompanySpecific, _allWorkers,
+                _session.ListExistingRecords("Companies"),
+                _awardNewYear.Text.Trim()) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            string year = dialog.AwardYear;
             AwardsRules.ValidateYear(year);
-            var edits = ChangedAwardFields();
-            // The year for the inserted row always comes from the explicit
-            // New award year field, never a temporary change to the template.
-            edits.Remove("Year");
             if (!ConfirmExtraWrite(
                 $"CREATE a new {(_awardCompanySpecific ? "company" : "world")} award " +
-                $"for {year} using award UID {_selectedAward.Uid} as the template? " +
-                "Unselected winner categories start empty. Other verified context " +
-                "and required database values come from the template. " +
-                "The template will remain unchanged.",
+                $"for {year} using record UID {_selectedAward.Uid} as the template? " +
+                "Recipients have been chosen separately. The template stays unchanged.",
                 "Create Year-End Award")) return;
             if (!OfferOptionalBackupBeforeWrite("creating this award")) return;
             int uid = _session.CreateAwardFromTemplate(
-                _awardCompanySpecific, _selectedAward, year, edits);
+                _awardCompanySpecific, _selectedAward, year, dialog.Winners);
             _lastSaved = DateTime.Now;
             ReloadAwards(uid);
             SetStatus($"Created award UID {uid} for year {year}.");
