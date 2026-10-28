@@ -95,10 +95,11 @@ public partial class MainWindow
                     HeadersVisibility = DataGridHeadersVisibility.All,
                     Height = 300, MinColumnWidth = 95,
                     Background = (Brush)FindResource("WindowBrush"),
-                    Foreground = Brushes.White,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                    Foreground = Brushes.White
                 };
                 grid.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty,
+                    ScrollBarVisibility.Auto);
+                grid.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty,
                     ScrollBarVisibility.Auto);
                 panel.Children.Add(grid);
                 continue;
