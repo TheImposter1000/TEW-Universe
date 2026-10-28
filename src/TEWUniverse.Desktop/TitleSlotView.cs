@@ -226,9 +226,10 @@ public partial class MainWindow
         {
             var patch = indexed.TryGetValue(slot.Uid, out var selected) ? selected : null;
             int[] holders = patch == null
-                ? slot.LinkedWorkers
+                ? new[] { slot.Holder1, slot.Holder2, slot.Holder3 }
+                    .Take((int)titleFormat).ToArray()
                 : new[] { patch.Holder1, patch.Holder2, patch.Holder3 }
-                    .Where(id => id > 0).ToArray();
+                    .Take((int)titleFormat).ToArray();
             string[] names = patch == null
                 ? new[] { slot.Name1, slot.Name2, slot.Name3 }
                     .Where(name => !string.IsNullOrWhiteSpace(name)).ToArray()
