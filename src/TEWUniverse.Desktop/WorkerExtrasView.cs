@@ -565,6 +565,7 @@ public partial class MainWindow
         if (_settingWorkerExtraForm || _worker == null || _attributesGrid == null)
             return false;
         if (_currentTab == "Contracts") return HasUnappliedContractEdits();
+        if (_currentTab == "Accomplishments") return HasPendingAccomplishmentEdits();
         if (_currentTab == "Attributes")
         {
             var entry = _attributesGrid.SelectedItem as WorkerAttributeEntry;

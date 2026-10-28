@@ -1150,6 +1150,51 @@ if (!rejectedNegativeNumeric)
     throw new Exception("Negative attribute codes were accepted.");
 Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
 
+// Accomplishments live OUTSIDE the Access MDB in a JSON file keyed by
+// scenario path and worker UID. Never alter or create the scenario itself.
+string tempAccomplishments = Path.Combine(Path.GetTempPath(),
+    "TEW-Accomplishment-Test-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(tempAccomplishments);
+try
+{
+    var store = new WorkerAccomplishmentStore(tempAccomplishments);
+    string dbOne = Path.Combine(tempAccomplishments, "Scenario A.mdb");
+    string dbTwo = Path.Combine(tempAccomplishments, "Scenario B.mdb");
+    File.WriteAllBytes(dbOne, new byte[] { 11, 22, 33, 44 });
+    byte[] originalBytes = File.ReadAllBytes(dbOne);
+    var first = store.Add(dbOne, 101, "Championship", "BCW Championship",
+        "2022", "Two reigns with Carson");
+    store.Add(dbOne, 202, "Award", "Wrestler of the Year", "2021", "Different worker");
+    store.Add(dbTwo, 101, "Tournament", "World Cup", "2020", "Different scenario");
+    if (store.List(dbOne, 101).Count != 1 ||
+        store.List(dbOne, 202).Count != 1 ||
+        store.List(dbTwo, 101).Count != 1 ||
+        store.FilePath(dbOne) == store.FilePath(dbTwo) ||
+        !File.ReadAllBytes(dbOne).SequenceEqual(originalBytes))
+        throw new Exception("Studio accomplishments escaped their worker/scenario storage boundary.");
+    var changed = store.Update(dbOne, 101, first.Id,
+        "Hall of Fame", "BCW Hall of Fame", "2024", "Inducted");
+    if (changed.Title != "BCW Hall of Fame" ||
+        store.List(dbOne, 101).Single().Category != "Hall of Fame")
+        throw new Exception("Studio accomplishment update did not round-trip.");
+    bool rejected = false;
+    try { store.Update(dbOne, 202, first.Id, "Award", "Wrong owner", "", ""); }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected) throw new Exception("Cross-worker accomplishment edit was allowed.");
+    rejected = false;
+    try { store.Add(dbOne, 101, "Championship", "No date", "1700", ""); }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected) throw new Exception("Invalid accomplishment year was accepted.");
+    store.Remove(dbOne, 101, first.Id);
+    if (store.List(dbOne, 101).Count != 0 ||
+        store.List(dbOne, 202).Count != 1 ||
+        store.List(dbTwo, 101).Count != 1 ||
+        !File.ReadAllBytes(dbOne).SequenceEqual(originalBytes))
+        throw new Exception("Accomplishment delete changed another worker or the MDB.");
+}
+finally { Directory.Delete(tempAccomplishments, recursive: true); }
+Console.WriteLine("Passed local accomplishments CRUD, scenario/worker isolation, and untouched-MDB checks.");
+
 // Cross-record Data Check: structured references are certain, but natural
 // language is a manual-review hint only (never an automatic "correction").
 var knownWorkerIds = new HashSet<int> { 101, 202 };
