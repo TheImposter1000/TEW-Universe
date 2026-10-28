@@ -86,6 +86,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeWorkerExtrasUI();
+        InitializeAccomplishmentsUI();
         InitializeWorkerFiltersUI();
         InitializeRelationshipsUI();
         InitializeAwardsUI();
@@ -103,7 +104,8 @@ public partial class MainWindow : Window
     private bool HasEdits() => _activeModule switch {
         "Workers" => _fields.Any(x => x.Dirty) ||
             (_bioExists && BioEditor.Text != _originalBio) ||
-            (_currentTab == "Contracts" && HasUnappliedContractEdits()),
+            (_currentTab == "Contracts" && HasUnappliedContractEdits()) ||
+            (_currentTab == "Accomplishments" && HasPendingAccomplishmentEdits()),
         "Relationships" => HasPendingRelationshipEdits(),
         "Awards" => HasPendingAwardEdits(),
         _ => _existingFields.Any(x => x.Dirty)
@@ -135,7 +137,7 @@ public partial class MainWindow : Window
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
-                    : _currentTab is not ("Attributes" or "Employment"))
+                    : _currentTab is not ("Attributes" or "Employment" or "Accomplishments"))
                 : _selectedExisting != null);
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
@@ -601,8 +603,8 @@ public partial class MainWindow : Window
         if (sender is not Button button || button.Tag is not string tab) return;
         if (tab != _currentTab && HasUnappliedWorkerExtraForm() &&
             MessageBox.Show(this,
-                "Discard edits to this worker's attribute, contract, or employment form? " +
-                "These records use their own Save Selected / Add controls.",
+                "Discard edits to this worker's attribute, contract, employment, " +
+                "or Studio-only accomplishment form? These sections have their own Save / Add controls.",
                 "Unapplied Worker Changes", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
@@ -618,14 +620,22 @@ public partial class MainWindow : Window
         AttributesView.Visibility = tab == "Attributes" ? Visibility.Visible : Visibility.Collapsed;
         ContractsView.Visibility = tab == "Contracts" ? Visibility.Visible : Visibility.Collapsed;
         EmploymentView.Visibility = tab == "Employment" ? Visibility.Visible : Visibility.Collapsed;
+        AccomplishmentsView.Visibility = tab == "Accomplishments"
+            ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.Visibility = tab is "Skills" or "Popularity" or "Physical"
             ? Visibility.Visible : Visibility.Collapsed;
         foreach (var button in new[] { ProfileTab, SkillsTab, PopularityTab,
-            PhysicalTab, BiographyTab, AttributesTab, ContractsTab, EmploymentTab })
+            PhysicalTab, BiographyTab, AttributesTab, ContractsTab, EmploymentTab,
+            AccomplishmentsTab })
             button.Style = (Style)FindResource(button.Tag as string == tab ? "BlueButton" : "ActionButton");
         if (tab is "Attributes" or "Contracts" or "Employment")
         {
             RefreshWorkerExtraTab(tab);
+            return;
+        }
+        if (tab == "Accomplishments")
+        {
+            RefreshAccomplishments();
             return;
         }
         if (DetailsView.Visibility != Visibility.Visible) return;
@@ -847,6 +857,7 @@ public partial class MainWindow : Window
             WorkerPortraitPlaceholder.Visibility = Visibility.Visible;
             _fields.Clear();
             ResetWorkerExtras();
+            RefreshAccomplishments();
             _selectedExisting = null;
             _existingFields.Clear();
             _availableExistingRecords.Clear();
