@@ -106,6 +106,53 @@ if (CompanyFieldRules.IsRelatedTable("tblContract") ||
     throw new Exception("Company field categories or related table whitelist regressed.");
 Console.WriteLine("Passed complete company scalar edit policy and protected reference checks.");
 
+// Actual TEW IX tblFed stores precise CompanyOpening and CompanyClosing
+// dates. These override month/year fallback and must retain the exact day.
+var realCompany = new System.Data.DataTable("tblFed");
+realCompany.Columns.Add("CompanyOpening", typeof(DateTime));
+realCompany.Columns.Add("CompanyClosing", typeof(DateTime));
+realCompany.Columns.Add("OpenYear", typeof(int));
+realCompany.Columns.Add("OpenMonth", typeof(int));
+realCompany.Columns.Add("ClosedYear", typeof(int));
+realCompany.Columns.Add("ClosedMonth", typeof(int));
+realCompany.Rows.Add(new DateTime(1996, 9, 7), new DateTime(2020, 3, 28),
+    1996, 9, 2020, 12);
+var companyExact = ScenarioDateBounds.ReadCompanyDates(realCompany.Rows[0]);
+if (companyExact.Opened != new DateTime(1996, 9, 7) ||
+    companyExact.Closed != new DateTime(2020, 3, 28))
+    throw new Exception("TEW company precise dates were replaced by legacy months.");
+var hcw = new ScenarioChronology(new DateTime(2022, 8, 1), 403,
+    "Heartland Championship Wrestling", companyExact.Opened, companyExact.Closed);
+var hcwHistory = ScenarioDateBounds.Resolve(new DateTime(2007, 1, 1),
+    new DateTime(2021, 12, 31), hcw, true);
+if (hcwHistory.From != new DateTime(2007, 1, 1) ||
+    hcwHistory.Through != new DateTime(2020, 3, 28))
+    throw new Exception("HCW Women's was permitted beyond the actual closure.");
+var hcwEarly = ScenarioDateBounds.Resolve(new DateTime(1996, 9, 1),
+    new DateTime(2020, 12, 31), hcw, true);
+if (hcwEarly.From != new DateTime(1996, 9, 7))
+    throw new Exception("Opening day precision was lost.");
+var legacyCompany = new System.Data.DataTable("tblFedLegacy");
+foreach (string column in new[] { "OpenYear", "OpenMonth", "ClosedYear", "ClosedMonth" })
+    legacyCompany.Columns.Add(column, typeof(int));
+legacyCompany.Rows.Add(1996, 9, 2020, 3);
+var legacyDates = ScenarioDateBounds.ReadCompanyDates(legacyCompany.Rows[0]);
+if (legacyDates.Opened != new DateTime(1996, 9, 1) ||
+    legacyDates.Closed != new DateTime(2020, 3, 31))
+    throw new Exception("Legacy company year/month compatibility regressed.");
+realCompany.Rows[0]["CompanyClosing"] = DBNull.Value;
+if (ScenarioDateBounds.ReadCompanyDates(realCompany.Rows[0]).Closed.HasValue)
+    throw new Exception("Blank exact closure fell back to stale legacy company data.");
+realCompany.Rows[0]["CompanyClosing"] = new DateTime(2020, 3, 28);
+bool invalidCompanyDates = false;
+try {
+    realCompany.Rows[0]["CompanyOpening"] = new DateTime(2021, 1, 1);
+    ScenarioDateBounds.ReadCompanyDates(realCompany.Rows[0]);
+} catch (InvalidOperationException) { invalidCompanyDates = true; }
+if (!invalidCompanyDates)
+    throw new Exception("Company closure earlier than its opening was accepted.");
+Console.WriteLine("Passed precise HCW company-date and legacy fallback checks.");
+
 // Game-wide tblInfo and company tblFed month/year constraints must cut
 // history at the true last active month, not an invented December 31.
 var companyCalendar = new ScenarioChronology(
