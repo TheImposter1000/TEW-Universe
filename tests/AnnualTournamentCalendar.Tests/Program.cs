@@ -1150,6 +1150,9 @@ if (!rejectedNegativeNumeric)
     throw new Exception("Negative attribute codes were accepted.");
 Console.WriteLine("Passed numeric tblAttribute value/flag parsing and unsupported code protections.");
 
+// Legacy Studio-only accomplishments remain readable on disk for existing
+// customers, but the new Accomplishments tab displays actual linked MDB
+// championship and award histories automatically and has no edit controls.
 // Accomplishments live OUTSIDE the Access MDB in a JSON file keyed by
 // scenario path and worker UID. Never alter or create the scenario itself.
 string tempAccomplishments = Path.Combine(Path.GetTempPath(),
@@ -1210,6 +1213,16 @@ if (DataCheckRules.MissingLinkedId(101, knownWorkerIds) ||
     !DataCheckRules.MentionsTeam("Former member of The Apex Alliance.",
         "The Apex Alliance") ||
     DataCheckRules.MentionsTeam("The Apex Alliance", "Team") ||
+    DataCheckRules.MentionsTeam("Embracing both the family mask and legacy",
+        "The Family") ||
+    DataCheckRules.MentionsTeam("DNA's attention, leading to his signing " +
+        "as part of the Elite Division", "The Elite") ||
+    DataCheckRules.MentionsTeam("the family mask", "The Family") ||
+    DataCheckRules.MentionsTeam("the Elite Division", "The Elite") ||
+    !DataCheckRules.MentionsTeam("He was a member of The Elite.",
+        "The Elite") ||
+    !DataCheckRules.MentionsTeam("Joined tag team The Family.",
+        "The Family") ||
     DataCheckRules.Csv("A, \"B\"\nC") != "\"A, \"\"B\"\" C\"")
     throw new Exception("Cross-record validation, bio claim handling, or CSV escaping failed.");
 Console.WriteLine("Passed read-only cross-record link checks and cautious biography parsing.");
@@ -1224,8 +1237,10 @@ if (!AwardsRules.IsAwardTable("tblEOYAward") ||
     !AwardsRules.CanEdit("tblEOYAward", "Worker", typeof(int)) ||
     !AwardsRules.CanEdit("tblEOYAward", "Tag2", typeof(int)) ||
     !AwardsRules.CanEdit("tblEOYAward", "Fed", typeof(int)) ||
-    AwardsRules.CanEdit("tblEOYFedAward", "Fed", typeof(int)) ||
-    AwardsRules.CanEdit("tblEOYFedAward", "Worker", typeof(int)) ||
+    !AwardsRules.CanEdit("tblEOYFedAward", "Fed", typeof(int)) ||
+    !AwardsRules.CanEdit("tblEOYFedAward", "Worker", typeof(int)) ||
+    !AwardsRules.CanEdit("tblEOYFedAward", "WinnerUID", typeof(int)) ||
+    AwardsRules.CanEdit("tblEOYFedAward", "Award", typeof(int)) ||
     AwardsRules.CanEdit("tblEOYAward", "Match_At", typeof(int)) ||
     AwardsRules.CanEdit("tblEOYAward", "Match_Rating", typeof(int)) ||
     AwardsRules.CanEdit("tblEOYAward", "UID", typeof(int)) ||
