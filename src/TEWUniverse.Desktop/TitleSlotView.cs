@@ -235,7 +235,7 @@ public partial class MainWindow
                     .Where(name => !string.IsNullOrWhiteSpace(name)).ToArray()
                 : new[] { patch.Name1, patch.Name2, patch.Name3 }
                     .Where(name => !string.IsNullOrWhiteSpace(name)).ToArray();
-            string check = EmploymentFlag(holders, slot.Captured, slot.Lost,
+            string check = EmploymentFlag(holders.Where(id => id > 0).ToArray(), slot.Captured, slot.Lost,
                 _advancedDraftIsAnnualTournament);
             if (check.Contains("FLAG:", StringComparison.Ordinal))
                 _advancedEmploymentWarnings++;
