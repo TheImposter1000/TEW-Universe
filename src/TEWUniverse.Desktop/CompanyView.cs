@@ -44,6 +44,9 @@ public partial class MainWindow
             TextWrapping = TextWrapping.Wrap
         };
         ExistingFieldsPanel.Children.Add(intro);
+        // Company-specific CSV tools and linked current roster take priority
+        // over the raw company schema and individual related tables.
+        AddCompanyCsvAndRoster();
 
         foreach (string category in order)
         {
