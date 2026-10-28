@@ -31,7 +31,8 @@ internal static class AnchoredHistoryPlanner
         DayOfWeek eventWeekday = DayOfWeek.Sunday,
         int startMonth = 1,
         string championshipName = "",
-        TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic)
+        TitleDefenceFrequency defenceFrequency = TitleDefenceFrequency.Automatic,
+        DateTime? historyEnd = null)
     {
         if (firstYear < 1800 || lastYear > 2100 || firstYear > lastYear)
             throw new InvalidOperationException(
@@ -80,7 +81,8 @@ internal static class AnchoredHistoryPlanner
         // Only annual cups use the fixed one-winner-per-year model below.
         if (!annualTournament)
             return GenerateVariedChampionshipReigns(fixedWins, npcNames,
-                firstYear, lastYear, startMonth, championshipName, defenceFrequency);
+                firstYear, lastYear, startMonth, championshipName, defenceFrequency,
+                historyEnd);
 
         int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
             .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
@@ -118,6 +120,11 @@ internal static class AnchoredHistoryPlanner
                 i + 1, e.UID, e.Name, -1, "", e.Date,
                 new DateTime(1666, 1, 1), -1));
         }
+        if (historyEnd is DateTime cutoff &&
+            reigns.Any(r => r.Captured > cutoff))
+            throw new InvalidOperationException(
+                "An annual event would take place after the company closed or the " +
+                "scenario began. Select an earlier event date or shorten the year range.");
         return reigns;
     }
 
@@ -183,7 +190,8 @@ internal static class AnchoredHistoryPlanner
     private static List<GeneratedTitleReign> GenerateVariedChampionshipReigns(
         IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
         int firstYear, int lastYear, int startMonth,
-        string championshipName, TitleDefenceFrequency defenceFrequency)
+        string championshipName, TitleDefenceFrequency defenceFrequency,
+        DateTime? historyEnd)
     {
         const int maxReigns = 500;
         const int minimumTransitionDays = 7;
@@ -192,7 +200,10 @@ internal static class AnchoredHistoryPlanner
         // day within that month on each regeneration.
         var firstDay = new DateTime(firstYear, startMonth,
             Random.Shared.Next(1, DateTime.DaysInMonth(firstYear, startMonth) + 1));
-        var lastDay = new DateTime(lastYear, 12, 31);
+        var lastDay = historyEnd ?? new DateTime(lastYear, 12, 31);
+        if (lastDay.Year != lastYear || lastDay < firstDay)
+            throw new InvalidOperationException(
+                "The company or scenario timeline ends before this history can begin.");
 
         // Fixed winning years are preserved, but any relevant prior tournament
         // victories can move the capture date later inside that same year.
