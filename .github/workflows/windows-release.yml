@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          NEW: Championship history CSV import is available in Title Lineage and Advanced Generator. Studio's original 9-column, advanced 11-column and targeted 12-column exported CSV files open into the existing full-height preview. No import runs automatically. Validation checks BeltUID, actual workers, name-only NPC partners, chronology, title type and exact saved UID/dates for targeted replacements. Full-history CSVs rebuild one title with newly allocated reign record IDs; targeted CSVs preserve historical UIDs, dates and defenses. Both import paths require explicit confirmation; backups remain optional. Arbitrary external CSV schemas are not supported.
+
           FIX: Titles > Advanced Generator now separates the editable Builder from a full-height Generated History Preview. The 437-pixel nested-scroll layout has been removed, the champion candidates grid has more vertical space, and Generate, Import, and Export controls remain visible. Previews automatically open in the dedicated review view; edits invalidate outdated previews and switching championships resets the builder scroll position.
 
           FIX: Safe historical title-team replacements support linked workers paired with named historical NPCs. Partner name fields now sit beside the correct wrestler selectors. Previously linked reigns remain untouched.
