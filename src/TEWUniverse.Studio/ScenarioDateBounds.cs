@@ -1,9 +1,13 @@
+using System.Data;
+using System.Globalization;
+
 namespace TEWUniverse.Studio;
 
 /// <summary>
 /// A TEW IX scenario starts at the beginning of StartMonth/StartYear in tblInfo.
 /// Pre-game history therefore stops on the last day of the preceding month.
-/// Company founding and closure are month/year fields, not exact dates.
+/// Company founding/closure may be actual dates (CompanyOpening/CompanyClosing)
+/// or legacy month/year fields. Never discard available day precision.
 /// </summary>
 internal sealed record ScenarioChronology(
     DateTime ScenarioStart, int? CompanyUid, string CompanyName,
@@ -22,6 +26,49 @@ internal static class ScenarioDateBounds
 
     internal static DateTime MonthEnd(int year, int month) =>
         MonthStart(year, month).AddMonths(1).AddDays(-1);
+
+    // TEW IX tblFed's actual full-date columns take precedence over legacy
+    // month/year columns. A zero/1666/null closing date means still active.
+    internal static (DateTime? Opened, DateTime? Closed) ReadCompanyDates(DataRow row)
+    {
+        DateTime? Exact(string name)
+        {
+            if (!row.Table.Columns.Contains(name)) return null;
+            object value = row[name];
+            if (value is null or DBNull) return null;
+            if (value is DateTime date)
+                return date.Year < 1800 ? null : date.Date;
+            string raw = Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim() ?? "";
+            if (raw.Length == 0 || raw is "0" or "None") return null;
+            if (!DateTime.TryParse(raw, CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var parsed))
+                throw new InvalidOperationException(
+                    "Company " + name + " has an invalid date: " + raw);
+            return parsed.Year < 1800 ? null : parsed.Date;
+        }
+
+        DateTime? Legacy(string yearName, string monthName, bool closing)
+        {
+            if (!row.Table.Columns.Contains(yearName) ||
+                !row.Table.Columns.Contains(monthName)) return null;
+            int Value(string column) => row[column] is DBNull ? 0 :
+                Convert.ToInt32(row[column], CultureInfo.InvariantCulture);
+            int year = Value(yearName), month = Value(monthName);
+            if (year is 0 or 1666) return null;
+            return closing ? MonthEnd(year, month) : MonthStart(year, month);
+        }
+
+        // If the precise field exists, it is authoritative, even when blank:
+        // do not fall back to stale legacy values for a currently active company.
+        DateTime? opened = row.Table.Columns.Contains("CompanyOpening")
+            ? Exact("CompanyOpening") : Legacy("OpenYear", "OpenMonth", false);
+        DateTime? closed = row.Table.Columns.Contains("CompanyClosing")
+            ? Exact("CompanyClosing") : Legacy("ClosedYear", "ClosedMonth", true);
+        if (opened.HasValue && closed.HasValue && opened.Value > closed.Value)
+            throw new InvalidOperationException(
+                "Company closing date precedes its opening date. Correct the company record.");
+        return (opened, closed);
+    }
 
     internal static HistoricalDateWindow Resolve(
         DateTime requestedFrom, DateTime requestedThrough,
