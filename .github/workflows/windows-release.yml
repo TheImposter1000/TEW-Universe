@@ -88,14 +88,14 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
-          FIX: Existing worker contracts now recognize unsaved edits as soon as fields change. Workers > Contracts supports the main Save Changes button as well as Save Selected Contract, with a changed-field count. Yes/No terms use true/false dropdowns; dates and numeric terms are compared by value instead of text formatting. Successful updates keep the same worker and contract selected.
+          NEW: Awards replaces the unused History navigation item. Browse world year-end awards (tblEOYAward) and company-specific awards (tblEOYFedAward) in two searchable views. Read actual MDB values and resolve known winner IDs to worker/company names.
 
-          FIX: Saving worker profiles or contracts no longer clears roster search text, sort order, age ranges, or active, gender, company, role, nationality, region, and portrait filters. Filter selections are preserved by database key when the roster index refreshes. New contract creation updates the company-filter data without resetting the user's choices.
+          NEW: Limited editing of existing award records. Year fields and recognizable world year-end award worker/company winner IDs can be updated after confirmation. Unverified award fields, company-specific winner codes, and new award-year INSERTs are intentionally read-only until their complete schemas are verified. Writes validate referenced IDs, preserve the rest of the record, and are transactional.
 
-          PREVIOUS FEATURES: 403 verified numeric mappings including 57 named worker attributes, optional backups for Relationships/Contract creation, full Singles/Tag Team/Trios championship histories, independent historical NPCs, TXT/CSV name import and dual-purpose ring-name alias fields.
+          PREVIOUS: Contracts recognize all pending changes, and saving workers/contracts preserves roster search, sorting and selected filters. Earlier updates added 403 verified numeric mappings, championship/tag-team/trios history generation, name-only NPCs and Relationships.
 
-          IMPORTANT: Experimental unsigned Windows installer. Windows build and regression tests passed, but live TEW IX MDB contract and lineage writes have not been verified by the game's Data Check. Work on a disposable COPY of your scenario, make backups before important operations and verify with TEW IX Data Check. Destructive full-history replacement requires a backup and confirmation.
+          IMPORTANT: This is an experimental unsigned Windows installer. CI build and regression tests passed; TEW IX has not validated new Awards write operations. Use a COPY of your .mdb, create a backup before important edits, and run TEW IX Data Check before trusting any change. There is no automatic data migration.
 
-          No game database or saved data is included.
+          No game database or scenario data is distributed.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
