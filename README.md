@@ -88,6 +88,14 @@ This initial module must be tested in TEW IX's Data Check using a backed-up scen
 
 **Visible tag-team dropdown selections:** The shared dark WPF ComboBox template now supports editable text via `PART_EditableTextBox`, preserving selected worker, company and team-type labels while allowing typed searches. The existing Tag Teams editor and Create Tag Team dialog explicitly render the option labels. This is a display and input fix; it does not change saved team IDs or modify MDB data.
 
+## Corrected Awards, Accomplishments and Data Check
+
+**Awards:** World and company awards now support creating a NEW year/award row by using an existing record from the same actual MDB award table as a template. All unverified mandatory fields are copied from the template rather than invented, with a new UID and unique Recordname where present. You can adjust recognized winner-worker/company references using **searchable name dropdowns**, choose an explicit new award year, confirm the write and optionally create a backup. The original template row remains unchanged. World award years cannot duplicate an existing year's consolidated record; company award records may have multiple categories per year. Unknown fields remain protected. All new writes need verification through TEW IX Data Check on a disposable scenario copy.
+
+**Workers → Accomplishments:** The manual add/edit/delete form is replaced by a biography-style **read-only career summary** generated from the selected worker's actual `tblBeltPreHistory` linked championship reigns and recognized winner fields in `tblEOYAward` and `tblEOYFedAward`. It refreshes on worker selection/tab open and never writes to either the MDB or the old companion JSON file. Pre-game history does not imply in-game reigns. Previously entered Studio-only accomplishment JSON remains on disk and is not deleted, but it is no longer displayed as official achievement data.
+
+**Workers tab layout and Tools:** All nine worker tabs now use two readable rows rather than clipping text in a three-row space sized for two. Biography/team comparisons in Tools require explicit team-affiliation phrasing, so incidental phrases such as `the Elite Division` and `the family mask` no longer trigger reports for teams named `The Elite` or `The Family`. Selecting a Data Check finding shows its full explanation without horizontal truncation. This is deliberately a conservative text heuristic, not a claim to understand every biography.
+
 ## Workers → Accomplishments (mini-update 3 of 3)
 
 Workers now has a **ninth tab: Accomplishments**. Create, edit, and remove manually curated achievements: Championship, Award, Tournament, Hall of Fame, Milestone, or Other, with a title, optional year, and rich notes. Each entry belongs to the selected worker and a specific scenario. Existing worker/contract/title MDB records are never changed by the Accomplishments tab.
