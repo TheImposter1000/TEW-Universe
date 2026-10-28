@@ -1305,8 +1305,11 @@ public partial class MainWindow : Window
                     tag ? "Choose at least two existing workers for tag team reigns." :
                           "Choose at least one existing worker for singles reigns.");
 
-            var start = new DateTime(startYear, 1, 1);
-            var end = new DateTime(endYear, 12, 31);
+            var bounds = ResolveTitleTimeline(startYear, endYear, 1,
+                LineageUseCompanyDates.IsChecked == true, LineageFinalDate.Text.Trim());
+            var start = bounds.From;
+            var end = bounds.Through;
+            LineageDateLimits.Text = bounds.Explanation;
             int days = (end - start).Days + 1;
             if (days < count)
                 throw new InvalidOperationException("The selected date range is too short.");
@@ -1565,6 +1568,7 @@ public partial class MainWindow : Window
             AdvancedStartYear.Text = dates.Min().ToString(CultureInfo.InvariantCulture);
             AdvancedEndYear.Text = dates.Max().ToString(CultureInfo.InvariantCulture);
         }
+        UpdateTitleTimelineGuidance();
         AdvancedGenerationStatus.Text =
             $"{history.Rows.Rows.Count:N0} existing history entry/entries. " +
             "Set the NPC history years below, add the linked superstars above, " +
@@ -1978,6 +1982,13 @@ public partial class MainWindow : Window
             // chooses a random inaugural day WITHIN the selected month.
             int startMonth = !annualTournament && AdvancedStartMonth.SelectedIndex > 0
                 ? AdvancedStartMonth.SelectedIndex : 1;
+            var bounds = ResolveTitleTimeline(firstYear, lastYear, startMonth,
+                AdvancedUseCompanyDates.IsChecked == true,
+                AdvancedFinalDate.Text.Trim());
+            firstYear = bounds.From.Year;
+            lastYear = bounds.Through.Year;
+            startMonth = bounds.From.Month;
+            AdvancedDateLimits.Text = bounds.Explanation;
             var chronologyNotes = new Dictionary<(int WorkerId, int Year), string>();
             var anchored = new List<AnchoredHistoryPlanner.Anchor>();
             List<GeneratedTitleReign>? proposal = null;
@@ -2004,7 +2015,8 @@ public partial class MainWindow : Window
                         candidate, seeds, firstYear, lastYear,
                         annualTournament, eventMonth, eventWeek, eventWeekday, startMonth,
                         _selectedExisting.Name,
-                        (TitleDefenceFrequency)AdvancedDefenceFrequency.SelectedIndex);
+                        (TitleDefenceFrequency)AdvancedDefenceFrequency.SelectedIndex,
+                        bounds.Through);
                     if (memberCount > 1)
                         candidateHistory = TeamHistoryPlanner.Populate(
                             candidateHistory, candidate, teamLineups, seeds, memberCount);
