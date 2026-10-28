@@ -674,6 +674,15 @@
                          Text="2020" Width="90"/>
                </StackPanel>
                <StackPanel Margin="0,0,13,5">
+                <TextBlock Text="Final date (optional)" FontSize="11" Foreground="#B9D4ED"/>
+                <TextBox x:Name="LineageFinalDate" Style="{StaticResource FormTextBox}"
+                         Width="125" ToolTip="MM/DD/YYYY; blank uses year-end or company/scenario cutoff."/>
+               </StackPanel>
+               <StackPanel Margin="0,17,13,5">
+                <CheckBox x:Name="LineageUseCompanyDates" Content="Respect company dates"
+                          IsChecked="True" Foreground="#DCEBFA"/>
+               </StackPanel>
+               <StackPanel Margin="0,0,13,5">
                 <TextBlock Text="Champion type" FontSize="11" Foreground="#B9D4ED"/>
                 <ComboBox x:Name="LineageTeamType" Style="{StaticResource DarkComboBox}"
                           Width="134">
@@ -710,6 +719,9 @@
                <Button Content="Show Saved Lineage" Style="{StaticResource ActionButton}"
                        Click="ShowSavedLineage_Click" Margin="0,0,8,7"/>
               </WrapPanel>
+              <TextBlock x:Name="LineageDateLimits" Foreground="#EFC184"
+                         TextWrapping="Wrap" FontSize="11" Margin="0,0,0,7"
+                         Text="Limits come from the scenario date and company operating history."/>
               <TextBlock x:Name="GeneratorHelp" Foreground="#E9BB65" FontSize="12"
                          TextWrapping="Wrap" Text="Drafts are previews. Replacing requires exactly the number of already-existing history rows for this championship; no new MDB records are inserted."/>
              </StackPanel>
@@ -1006,6 +1018,17 @@
                 <TextBox x:Name="AdvancedEndYear" Style="{StaticResource FormTextBox}"
                          Text="2021" Width="92" TextChanged="AdvancedInputChanged" ToolTip="The championship's final historical year"/>
                </StackPanel>
+               <StackPanel Margin="0,0,12,6">
+                <TextBlock Text="Final date (optional)" Foreground="#ADC9E8" FontSize="11"/>
+                <TextBox x:Name="AdvancedFinalDate" Style="{StaticResource FormTextBox}"
+                         TextChanged="AdvancedInputChanged" Width="140"
+                         ToolTip="MM/DD/YYYY; blank automatically uses the company or scenario cutoff."/>
+               </StackPanel>
+               <StackPanel Margin="0,17,12,6">
+                <CheckBox x:Name="AdvancedUseCompanyDates" Content="Respect company dates"
+                          IsChecked="True" Foreground="#DCEBFA"
+                          Checked="AdvancedCalendarChanged" Unchecked="AdvancedCalendarChanged"/>
+               </StackPanel>
                <StackPanel x:Name="AdvancedDefenceFrequencyFields" Margin="0,0,12,6">
                 <TextBlock Text="Defense frequency" Foreground="#ADC9E8" FontSize="11"/>
                 <ComboBox x:Name="AdvancedDefenceFrequency" Style="{StaticResource DarkComboBox}"
@@ -1019,6 +1042,9 @@
                  <ComboBoxItem Content="Special attraction / 1–2 months"/>
                 </ComboBox>
                </StackPanel>
+               <TextBlock x:Name="AdvancedDateLimits" Foreground="#EFC184" FontSize="11"
+                          TextWrapping="Wrap" Margin="0,5,0,12"
+                          Text="History stops when the scenario starts or the owning company closes."/>
                <StackPanel x:Name="AnnualTournamentDateFields" Orientation="Horizontal"
                            Visibility="Collapsed" Margin="0,0,12,6">
                 <StackPanel Margin="0,0,8,0">
