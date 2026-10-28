@@ -82,7 +82,7 @@ internal static class AnchoredHistoryPlanner
         if (!annualTournament)
             return GenerateVariedChampionshipReigns(fixedWins, npcNames,
                 firstYear, lastYear, startMonth, championshipName, defenceFrequency,
-                historyEnd);
+                historyEnd, historyStart);
 
         int total = Enumerable.Range(firstYear, lastYear - firstYear + 1)
             .Sum(y => Math.Max(1, reserved.TryGetValue(y, out var w) ? w.Count : 0));
@@ -196,7 +196,7 @@ internal static class AnchoredHistoryPlanner
         IReadOnlyList<Anchor> fixedWins, IReadOnlyList<NpcNameSeed> npcNames,
         int firstYear, int lastYear, int startMonth,
         string championshipName, TitleDefenceFrequency defenceFrequency,
-        DateTime? historyEnd)
+        DateTime? historyEnd, DateTime? historyStart)
     {
         const int maxReigns = 500;
         const int minimumTransitionDays = 7;
@@ -205,6 +205,10 @@ internal static class AnchoredHistoryPlanner
         // day within that month on each regeneration.
         var firstDay = new DateTime(firstYear, startMonth,
             Random.Shared.Next(1, DateTime.DaysInMonth(firstYear, startMonth) + 1));
+        // An exact company opening day cannot be lost when the generator
+        // randomizes the first reign's day inside the starting month.
+        if (historyStart is DateTime earliest && firstDay < earliest)
+            firstDay = earliest;
         var lastDay = historyEnd ?? new DateTime(lastYear, 12, 31);
         if (lastDay.Year != lastYear || lastDay < firstDay)
             throw new InvalidOperationException(
