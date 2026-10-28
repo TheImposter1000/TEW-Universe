@@ -88,6 +88,7 @@ public partial class MainWindow : Window
         InitializeWorkerExtrasUI();
         InitializeWorkerFiltersUI();
         InitializeRelationshipsUI();
+        InitializeAwardsUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
         Loaded += async (_, _) =>
@@ -103,6 +104,7 @@ public partial class MainWindow : Window
             (_bioExists && BioEditor.Text != _originalBio) ||
             (_currentTab == "Contracts" && HasUnappliedContractEdits()),
         "Relationships" => HasPendingRelationshipEdits(),
+        "Awards" => HasPendingAwardEdits(),
         _ => _existingFields.Any(x => x.Dirty)
     };
 
@@ -127,7 +129,8 @@ public partial class MainWindow : Window
     private void RefreshDirty()
     {
         bool dirty = HasEdits();
-        SaveButton.IsEnabled = _session != null && _activeModule != "Relationships" &&
+        SaveButton.IsEnabled = _session != null &&
+            _activeModule is not ("Relationships" or "Awards") &&
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
@@ -866,6 +869,7 @@ public partial class MainWindow : Window
                 _relationWorker2.ItemsSource = _allWorkers;
                 ReloadRelationships();
             }
+            else if (_activeModule == "Awards") ReloadAwards();
             else if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
             SetStatus($"Loaded {list.Count:N0} existing workers");
@@ -942,6 +946,11 @@ public partial class MainWindow : Window
             SelectRelationshipsModule();
             return;
         }
+        if (section == "Awards")
+        {
+            SelectAwardsModule();
+            return;
+        }
         if (ExistingEditors.TryGet(section, out _))
         {
             SelectModule(section);
@@ -968,7 +977,9 @@ public partial class MainWindow : Window
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+        AwardsWorkspace.Visibility = Visibility.Collapsed;
         RelationshipsNav.Style = (Style)FindResource("NavigationButton");
+        AwardsNav.Style = (Style)FindResource("NavigationButton");
         TitleClassificationOptions.Visibility = section == "Titles"
             ? Visibility.Visible : Visibility.Collapsed;
         ClearGeneratedLineage();
