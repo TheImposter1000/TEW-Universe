@@ -3,41 +3,44 @@ using System.Text.RegularExpressions;
 namespace TEWUniverse.Studio;
 
 /// <summary>
-/// Diagnostics never write to a scenario. Structured link failures are errors;
-/// biography text is unstructured, so discrepancies are review prompts only.
+/// Read-only, conservative diagnostic rules. Structured references can be
+/// definite errors; natural-language biography claims are review hints only.
 /// </summary>
 internal static class DataCheckRules
 {
     internal static int? ClaimedReigns(string biography, string titleName)
     {
         if (string.IsNullOrWhiteSpace(biography) ||
-            string.IsNullOrWhiteSpace(titleName) || titleName.Length < 6)
+            string.IsNullOrWhiteSpace(titleName) || titleName.Trim().Length < 6)
             return null;
-        int at = biography.IndexOf(titleName, StringComparison.OrdinalIgnoreCase);
-        if (at < 0) return null;
-        string context = biography.Substring(Math.Max(0, at - 70),
-            Math.Min(biography.Length - Math.Max(0, at - 70),
-                titleName.Length + 140));
-        // A number of title reigns is ambiguous unless directly tied to a
-        // specific championship mention. Never treat this as a hard error.
-        var matches = Regex.Matches(context,
-            @"\b(\d{1,2})\s*(?:[-– ]\s*)?time\b",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (matches.Count != 1) return null;
-        if (!int.TryParse(matches[0].Groups[1].Value, out int value) || value < 1)
-            return null;
-        return value;
+
+        // A nearby "3-time" belonging to a different title must not become
+        // a claim for this title. Demand direct adjacency between the count
+        // and the championship name. Support "3-time TITLE champion" and
+        // "TITLE (3 times)" but not a disconnected number in surrounding text.
+        string title = Regex.Escape(titleName.Trim()).Replace(@"\ ", @"\s+");
+        string leading = @"(?<!\w)(\d{1,2})\s*(?:[-–]\s*|\s+)time\s+" +
+            title + @"(?!\w)";
+        string trailing = @"(?<!\w)" + title +
+            @"(?!\w)\s*(?:champion\s*)?\(\s*(\d{1,2})\s*times?\s*\)";
+
+        var counts = new List<int>();
+        foreach (string pattern in new[] { leading, trailing })
+            foreach (Match match in Regex.Matches(biography, pattern,
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                if (int.TryParse(match.Groups[1].Value, out int value) &&
+                    value is >= 1 and <= 99)
+                    counts.Add(value);
+
+        // Multiple conflicting counts are too ambiguous to report.
+        return counts.Count > 0 && counts.Distinct().Count() == 1
+            ? counts[0] : null;
     }
 
     internal static bool MentionsTeam(string biography, string teamName)
     {
         if (string.IsNullOrWhiteSpace(biography) ||
             string.IsNullOrWhiteSpace(teamName) || teamName.Length < 6) return false;
-        // A common noun inside prose is not evidence of team membership:
-        // "the Elite Division" and "the family mask" must NOT match
-        // tblTeam entries named "The Elite" or "The Family".
-        // Require an explicit, immediately adjacent partnership/affiliation
-        // phrase and a complete team name with a true word boundary.
         string name = Regex.Escape(teamName.Trim());
         const string introduction =
             @"(?:\b(?:tag\s+team|stable|faction)\s+(?:called\s+|named\s+|known\s+as\s+)?" +
@@ -50,6 +53,13 @@ internal static class DataCheckRules
 
     internal static bool MissingLinkedId(int uid, ISet<int> valid) =>
         uid > 0 && !valid.Contains(uid);
+
+    internal static bool InvalidNegativeId(int uid) => uid < -1;
+
+    internal static bool DuplicateTagWinners(int first, int second) =>
+        first > 0 && first == second;
+
+    internal static bool ValidAwardYear(int year) => year is >= 1800 and <= 2100;
 
     internal static bool IsNameOnlyHolder(int uid) => uid == -1;
 
