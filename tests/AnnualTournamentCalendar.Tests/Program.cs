@@ -111,6 +111,31 @@ if (!emptyPeriodRejected)
     throw new Exception("A title was generated after its company was closed.");
 if (ScenarioDateBounds.MonthEnd(2020, 2) != new DateTime(2020, 2, 29))
     throw new Exception("February leap-year final day is incorrect.");
+bool earlyCupRejected = false;
+try
+{
+    AnchoredHistoryPlanner.GenerateFromYears(
+        Array.Empty<AnchoredHistoryPlanner.Anchor>(),
+        new[] { new NpcNameSeed("Historical Winner", null, null) },
+        2000, 2000, true, 3, 1, DayOfWeek.Sunday, 1, "Cup",
+        TitleDefenceFrequency.Automatic, new DateTime(2000, 12, 31),
+        new DateTime(2000, 7, 1));
+}
+catch (InvalidOperationException) { earlyCupRejected = true; }
+if (!earlyCupRejected)
+    throw new Exception("Annual Cup was permitted before company opened.");
+
+var monthEndDraft = AnchoredHistoryPlanner.GenerateFromYears(
+    Array.Empty<AnchoredHistoryPlanner.Anchor>(),
+    new[] {
+        new NpcNameSeed("Historical Winner", null, null),
+        new NpcNameSeed("Second Winner", null, null),
+        new NpcNameSeed("Third Winner", null, null)
+    }, 2000, 2000, false, 0, 0, DayOfWeek.Sunday, 1,
+    "UWE Television", TitleDefenceFrequency.Television, new DateTime(2000, 11, 30),
+    new DateTime(2000, 1, 1));
+if (monthEndDraft.Count == 0 || monthEndDraft[^1].Lost != new DateTime(2000, 11, 30))
+    throw new Exception("Company-specific November end was not applied to last reign.");
 Console.WriteLine("Passed scenario and company championship timeline constraints.");
 
 // Championship defense totals scale with days held and booking cadence,
