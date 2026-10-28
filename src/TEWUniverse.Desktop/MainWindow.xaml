@@ -618,6 +618,11 @@
                      Style="{StaticResource ActionButton}"
                      Click="InsertHistoricalReign_Click"
                      Margin="0,0,9,6" Padding="12,7"/>
+             <Button Content="Import History CSV"
+                     Style="{StaticResource ActionButton}"
+                     Click="ImportChampionshipCsv_Click"
+                     Margin="0,0,9,6" Padding="12,7"
+                     ToolTip="Load and preview a Studio-exported championship lineage CSV before applying it to the active MDB"/>
             </WrapPanel>
             <TextBlock Text="Set linked wrestlers or name-only NPCs in singles, tag-team or trios history. No NPC worker is created. Editing champions preserves the reign; insertion adds one new chronological reign. Backups are optional."
                        Foreground="#99B8D6" TextWrapping="Wrap" FontSize="11"
@@ -774,6 +779,9 @@
              <Button x:Name="AdvancedExportButton" Content="Export Draft CSV"
                      IsEnabled="False" Style="{StaticResource ActionButton}"
                      Click="AdvancedExport_Click" Margin="0,0,8,6"/>
+             <Button Content="Import History CSV" Style="{StaticResource ActionButton}"
+                     Click="ImportChampionshipCsv_Click" Margin="0,0,8,6"
+                     ToolTip="Import an exported 9-column, 11-column or targeted 12-column championship CSV into a review preview"/>
              <Button Content="Clear Superstars" Style="{StaticResource ActionButton}"
                      Click="AdvancedClear_Click" Margin="0,0,8,6"/>
             </WrapPanel>
