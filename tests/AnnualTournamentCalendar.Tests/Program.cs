@@ -610,6 +610,7 @@ var mixedCarsonGrant = new TitleSlotRequest("Carson Cade",
     new[] { 4966, -1 }, new[] { "Carson Cade", "Grant Cade" },
     2010, 2020, 2, "", "");
 var mixedSlots = existingReigns.ToArray();
+mixedSlots[5] = mixedSlots[5] with { Name2 = "Historical Partner" };
 var mixedPatches = ExistingTitleSlotPlanner.Plan(mixedSlots,
     new[] { mixedCarsonGrant }, TitleCompetitorFormat.TagTeam);
 if (mixedPatches.Count != 2 ||
