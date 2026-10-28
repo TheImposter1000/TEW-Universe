@@ -15,6 +15,7 @@ public partial class MainWindow
 {
     private DataGrid _toolsIssues = null!;
     private TextBlock _toolsSummary = null!;
+    private TextBlock _toolsSelectedDetail = null!;
     private TextBox _toolsSearch = null!;
     private ComboBox _toolsSeverity = null!;
     private List<StudioDataIssue> _toolsResults = new();
@@ -72,6 +73,7 @@ public partial class MainWindow
         var body = new Grid();
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         card.Child = body;
         _toolsIssues = ExtraGrid();
         TextColumn(_toolsIssues, "Status", "Severity", new DataGridLength(105));
@@ -82,13 +84,27 @@ public partial class MainWindow
             new DataGridLength(2.3, DataGridLengthUnitType.Star));
         Grid.SetRow(_toolsIssues, 0);
         body.Children.Add(_toolsIssues);
+        _toolsSelectedDetail = ExtraLabel(
+            "Select a finding to read its complete description here.");
+        _toolsSelectedDetail.TextWrapping = TextWrapping.Wrap;
+        _toolsSelectedDetail.Margin = new Thickness(3, 12, 3, 6);
+        _toolsSelectedDetail.MaxHeight = 95;
+        Grid.SetRow(_toolsSelectedDetail, 1);
+        body.Children.Add(_toolsSelectedDetail);
+        _toolsIssues.SelectionChanged += (_, _) => {
+            if (_toolsSelectedDetail == null) return;
+            _toolsSelectedDetail.Text = _toolsIssues.SelectedItem is StudioDataIssue item
+                ? item.Severity + " — " + item.Area + " — " +
+                    item.Record + "\n" + item.Description
+                : "Select a finding to read its complete description here.";
+        };
         var info = ExtraLabel("Error = a missing structured record link. " +
             "Review = an ambiguous or possibly historical mismatch. " +
             "Unavailable = a table could not be checked. " +
             "Existing record-name repairs remain under Titles → Title Lineage.");
         info.TextWrapping = TextWrapping.Wrap;
         info.Margin = new Thickness(2, 12, 2, 2);
-        Grid.SetRow(info, 1);
+        Grid.SetRow(info, 2);
         body.Children.Add(info);
     }
 
