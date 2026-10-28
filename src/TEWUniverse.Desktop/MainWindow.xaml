@@ -681,6 +681,7 @@
                <TextBlock Text="Title defense frequency" FontSize="11" Foreground="#B9D4ED" Margin="0,0,0,5"/>
                <ComboBox x:Name="LineageDefenceFrequency" Style="{StaticResource DarkComboBox}"
                          Width="410" HorizontalAlignment="Left"
+                         SelectionChanged="LineageDefenceFrequencyChanged"
                          ToolTip="Select how frequently the championship should be defended. Automatic recognizes TV and World titles.">
                 <ComboBoxItem Content="Automatic (detect TV / World title)" IsSelected="True"/>
                 <ComboBoxItem Content="Touring / defended on most shows (2–5 days)"/>
