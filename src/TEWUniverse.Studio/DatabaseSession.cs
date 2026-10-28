@@ -823,7 +823,8 @@ internal sealed partial class DatabaseSession : IDisposable
     /// <summary>
     /// Full lineage rebuild for the selected title only. Unlike the previous
     /// existing-slot updater, this creates new tblBeltPreHistory records.
-    /// The caller must require an explicit backup and destructive confirmation.
+    /// The caller requires destructive confirmation. Backup creation is optional
+    /// and explicitly offered by the UI; this transaction does not create one.
     /// Transaction rolls back DELETE and all INSERTs if any insertion fails.
     /// No changes to tblWorker or tblGenerateWorker are ever made.
     /// </summary>
