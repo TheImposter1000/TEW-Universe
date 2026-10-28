@@ -16,6 +16,12 @@ A new `Workers → Contracts → Create Contract From Template` action can inser
 
 **Pending, not mapped:** Body Shape was supplied as 1 Average, 2 Skinny, 3 Toned, 4 Muscular, 5 Ripped, 6 Flabby, 7 Bulky, 8 Obese. An earlier audit observed `tblWorker.BodyType` values 0–7, so those labels are intentionally **not** bound to `BodyType` until the offset is verified. The app must not mislabel code 1 as Average if its actual meaning is different.
 
+## Company opening/closing dates now correctly constrain generated title histories
+
+TEW IX's `tblFed.CompanyOpening` and `tblFed.CompanyClosing` are **full dates**, not merely an opening/closing year and month. The generators now use these precise fields when present, with legacy year/month fallback for other compatible MDB layouts. A closed company stops on its actual closing day. **Heartland Championship Wrestling (company UID 403)**, for example, has an opening date of September 7, 1996 and closure of March 28, 2020. Selecting HCW in the Advanced Generator with **Respect company dates** checked now limits a requested 2007–2021 championship history to **2007–March 28, 2020**. The first reign is similarly prevented from beginning before an exact company opening day.
+
+A championship with an empty `OriginalFed` must no longer silently generate beyond its company closure. Both the original lineage generator and the advanced generator have a historical company selector. In the Advanced Generator, the selected **Company for dates and employment** is used for *both* chronology constraints and worker-employment checks. The effective date window is displayed before generating and updates as company/dates change. If no company is known and company constraints are enabled, the generator requests an explicit company selection. Users can deliberately disable company constraints to use a manual final date, while the scenario start remains a hard cutoff.
+
 ## Comprehensive company editor
 
 **Companies** now loads **every available tblFed column** from the active MDB, rather than silently showing only a few preselected fields. The interface groups identity, operating dates, business/finances, presentation/product, personnel/policies, geographic settings, and remaining TEW IX fields into expandable sections. Supported scalar settings are editable. Primary and internal record identities, unknown relationship references, and non-scalar database values are visible but read-only; codes are never assigned speculative descriptions.
