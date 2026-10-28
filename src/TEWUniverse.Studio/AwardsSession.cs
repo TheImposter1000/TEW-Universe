@@ -113,10 +113,12 @@ internal sealed partial class DatabaseSession
                     " requires a verified award field mapping.");
             int value = AwardsRules.IsYearField(edit.Key, field.Type)
                 ? AwardsRules.ValidateYear(edit.Value)
-                : AwardsRules.ValidateLinkedId(edit.Value, edit.Key);
-            if (AwardsRules.IsWorkerField(table, edit.Key, field.Type))
+                : AwardsRules.CanBeUnassigned(table, edit.Key, field.Type)
+                    ? AwardsRules.ValidateWinnerId(edit.Value, edit.Key)
+                    : AwardsRules.ValidateLinkedId(edit.Value, edit.Key);
+            if (value > 0 && AwardsRules.IsWorkerField(table, edit.Key, field.Type))
                 CheckLinkedWorker(value);
-            if (AwardsRules.IsCompanyField(table, edit.Key, field.Type) &&
+            if (value > 0 && AwardsRules.IsCompanyField(table, edit.Key, field.Type) &&
                 !ListExistingRecords("Companies").Any(x => x.Id == value))
                 throw new InvalidOperationException("The chosen company UID does not exist.");
             typed.Add(edit.Key, Convert.ChangeType(value, field.Type, CultureInfo.InvariantCulture));
