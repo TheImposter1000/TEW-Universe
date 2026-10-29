@@ -168,6 +168,29 @@ This first Awards release allows **editing existing years and selected recogniza
 
 This is separate from the existing Workers → Employment History and Titles → Title Lineage features, neither of which is removed. Verify any new edits on a **disposable copy** of the scenario and run TEW IX Data Check. This is mini-release 1 of 3; Tools Data Check and Studio-only Worker Accomplishments follow as separate features.
 
+## Historical championship edit: preserve unknown defence counts
+
+**Titles → Title Lineage → Edit Selected Reign's Champions** preserves the
+selected historical reign's UID, capture date, loss date, `Defences`,
+`BeltOrder` and record name. TEW IX uses `Defences = -1` to mean
+unknown/not recorded for **regular championships as well as tournaments**.
+It is not invalid data. The editor now validates holder IDs and historical
+display names, then checks that the other row values are unchanged, instead
+of rejecting the existing -1 count.
+
+**Insert Historical Reign** separately validates new dates and accepts either
+`-1` (unknown defenses) or any nonnegative defense count. Counts below -1,
+overlapping dates, and invalid new championship date ranges remain rejected.
+Annual tournament wins continue to require the 1666 loss-date sentinel and
+-1 defenses.
+
+For each champion the edit form identifies whether the existing holder was
+a linked worker or a **name-only NPC (UID -1)**. The final confirmation shows
+the exact new linked worker IDs and separately warns whenever a worker link
+changes. A displayed historical name alone does **not** link an NPC to a
+roster wrestler. Always edit a COPY of your TEW IX database first and run
+the game's Data Check after verifying this feature.
+
 ## Desktop application
 
 The published Windows app now uses **WPF and .NET 8**. Its source is in `src/TEWUniverse.Desktop`, sharing the existing Access data layer and settings from `src/TEWUniverse.Studio`.
