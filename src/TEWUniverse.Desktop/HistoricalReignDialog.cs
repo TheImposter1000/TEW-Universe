@@ -101,6 +101,20 @@ internal sealed class HistoricalReignDialog : Window
             };
             _holders[i] = picker;
             form.Children.Add(picker);
+            if (original != null)
+            {
+                form.Children.Add(new TextBlock {
+                    Text = initialId == -1
+                        ? "Stored record: Name-only NPC (holder UID -1). " +
+                          "Choose a worker ONLY to deliberately link this reign to them."
+                        : $"Stored record: linked wrestler UID {initialId}. " +
+                          "Choosing Name-only NPC will remove that worker link.",
+                    Foreground = Brush("#C4DBEE"),
+                    FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 5)
+                });
+            }
             Label(form, $"Champion {i + 1} historical display name");
             var name = Entry(original?.HolderNames[i] ?? "");
             _names[i] = name;
@@ -127,10 +141,12 @@ internal sealed class HistoricalReignDialog : Window
         _lost.IsReadOnly = _edit || _annual;
         form.Children.Add(_lost);
 
-        Label(form, "Defences");
+        Label(form, "Defences (-1 = unknown / not recorded)");
         _defences = Entry((original?.Defences ?? (_annual ? (short)-1 : (short)0))
             .ToString(CultureInfo.InvariantCulture));
         _defences.IsReadOnly = _edit || _annual;
+        _defences.ToolTip = "-1 is the TEW IX unknown/not-recorded defence count, " +
+            "including ordinary championships. Edits to champions preserve this value.";
         form.Children.Add(_defences);
         form.Children.Add(new TextBlock {
             Text = _edit
