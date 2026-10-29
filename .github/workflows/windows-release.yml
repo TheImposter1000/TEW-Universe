@@ -122,6 +122,10 @@ jobs:
 
           IMPORTANT: Experimental unsigned installer. Windows compilation and regression checks pass. New award creation and editing must be tested on a disposable TEW IX scenario COPY with the game's Data Check, as actual in-game MDB write compatibility has not yet been verified. Do not edit the same MDB concurrently in TEW IX.
 
+          FIX: Historical title-lineage champion editing no longer rejects existing ordinary championship reigns whose Defences value is -1 (unknown/not recorded). The selected reign's dates, defenses, UID and order remain untouched when changing holders. New reigns accept -1 or a nonnegative defence count; invalid dates and counts below -1 remain blocked.
+
+          FIX: The historical champion editor explains whether the original holder was a name-only NPC (UID -1) or a linked wrestler. Final confirmation explicitly lists target worker IDs/NPC status and warns about any linked worker UID changes, preventing accidental attribution of historical NPC reigns to roster wrestlers.
+
           No game database, saves or private files are included in the installer.
           "@
           gh release create $env:RELEASE_TAG "publish/installer/$filename" "publish/installer/$filename.sha256" --title "TEW Universe Studio $env:APP_VERSION" --notes $notes --latest
