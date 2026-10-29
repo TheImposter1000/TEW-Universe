@@ -131,6 +131,7 @@ public partial class MainWindow : Window
 
     private void RefreshDirty()
     {
+        UpdateSectionCsvButtons();
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null &&
             _activeModule is not ("Relationships" or "Awards" or "Tools") &&
