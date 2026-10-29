@@ -35,6 +35,39 @@ internal static class HistoricalReignRules
     }
 
     /// <summary>
+    /// TEW IX uses -1 as its "unknown/not recorded" defence count, even for
+    /// regular championships. It is not exclusive to annual tournaments.
+    ///
+    /// Editing existing champions must NEVER reinterpret or normalize the
+    /// existing reign dates/defences: a separate optimistic row comparison
+    /// guarantees those fields are unchanged before writing holder IDs/names.
+    /// Only new reign INSERTs are subject to date-range/timing validation.
+    /// </summary>
+    public static void ValidateReignTiming(DateTime captured, DateTime lost,
+        short defences, bool annual, bool editingHoldersOnly)
+    {
+        if (editingHoldersOnly) return;
+
+        if (captured.Year is < 1800 or > 2100)
+            throw new InvalidOperationException(
+                "New historical reign capture year must be between 1800 and 2100.");
+        if (annual)
+        {
+            if (lost != new DateTime(1666, 1, 1) || defences != -1)
+                throw new InvalidOperationException(
+                    "Annual tournaments use the 01/01/1666 loss sentinel and -1 defences.");
+            return;
+        }
+        if (lost.Year is < 1800 or > 2100 || captured > lost)
+            throw new InvalidOperationException(
+                "Championship loss date must be on or after its capture date " +
+                "and between 1800 and 2100.");
+        if (defences < -1)
+            throw new InvalidOperationException(
+                "Defences must be -1 (unknown) or a non-negative count.");
+    }
+
+    /// <summary>
     /// Compute where a new reign belongs in an existing chronological title history.
     /// Existing capture/loss dates are never adjusted to make room.
     /// </summary>

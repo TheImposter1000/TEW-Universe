@@ -1997,6 +1997,52 @@ if (!rejectedOverlap)
     throw new Exception("An overlapping historical title reign bypassed validation.");
 Console.WriteLine("Passed name-only NPC tag team, 2014 title history and overlap safety checks.");
 
+// Regression: an ordinary championship can store -1 defences (unknown).
+// Editing holders must preserve unchanged dates and defensive statistics
+// even for older legacy rows; new inserts still enforce valid time spans.
+var reignStart = new DateTime(2020, 5, 23);
+var reignEnd = new DateTime(2021, 1, 30);
+HistoricalReignRules.ValidateReignTiming(reignStart, reignEnd, -1,
+    annual: false, editingHoldersOnly: true);
+HistoricalReignRules.ValidateReignTiming(reignStart, reignEnd, -1,
+    annual: false, editingHoldersOnly: false);
+HistoricalReignRules.ValidateReignTiming(reignStart, reignEnd, 0,
+    annual: false, editingHoldersOnly: false);
+HistoricalReignRules.ValidateReignTiming(reignStart, reignEnd, 5,
+    annual: false, editingHoldersOnly: false);
+HistoricalReignRules.ValidateReignTiming(reignStart, new DateTime(1666, 1, 1),
+    -1, annual: true, editingHoldersOnly: false);
+HistoricalReignRules.ValidateReignTiming(reignStart, new DateTime(1700, 1, 1),
+    -2, annual: false, editingHoldersOnly: true);
+foreach (var (start, end, defences, annual) in
+    new (DateTime, DateTime, short, bool)[] {
+        (reignStart, reignEnd, -2, false),
+        (reignEnd, reignStart, -1, false),
+        (reignStart, new DateTime(1666, 1, 1), -1, false),
+        (reignStart, reignEnd, -1, true),
+        (reignStart, new DateTime(1666, 1, 1), 0, true)
+    })
+{
+    bool invalid = false;
+    try {
+        HistoricalReignRules.ValidateReignTiming(start, end, defences,
+            annual, editingHoldersOnly: false);
+    }
+    catch (InvalidOperationException) { invalid = true; }
+    if (!invalid) throw new Exception("Unsafe NEW historical reign accepted: " +
+        start.ToString("d") + " / " + end.ToString("d") + " / " + defences);
+}
+// A holder represented only by their historical name must remain UID -1;
+// assigning a positive worker UID is a deliberate separate selection.
+HistoricalReignRules.ValidateHolders(
+    new[] { -1, -1, -1 }, new[] { "Fénix Negro", "Rayo Negro", "" },
+    2, new HashSet<int> { 4967, 4968 });
+HistoricalReignRules.ValidateHolders(
+    new[] { 4967, -1, -1 }, new[] { "Fénix Negro", "Rayo Negro", "" },
+    2, new HashSet<int> { 4967, 4968 });
+Console.WriteLine("Passed unknown -1 defence, historical NPC IDs, " +
+    "holder-only edits and insert timing regression checks.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);

@@ -66,11 +66,26 @@ public partial class MainWindow
                 { Owner = this };
             if (dialog.ShowDialog() != true || dialog.Draft == null) return;
             var proposed = dialog.Draft;
-            string participants = string.Join(" / ",
-                proposed.HolderNames.Where(n => !string.IsNullOrWhiteSpace(n)));
+            string participants = string.Join("\n",
+                Enumerable.Range(0, (int)CurrentTitleFormat()).Select(i =>
+                    $"Champion {i + 1}: {proposed.HolderNames[i]} — " +
+                    (proposed.HolderIds[i] == -1 ? "Name-only NPC (no linked wrestler)" :
+                     "Linked worker ID " + proposed.HolderIds[i])));
+            var relinks = Enumerable.Range(0, (int)CurrentTitleFormat())
+                .Where(i => draft.HolderIds[i] != proposed.HolderIds[i])
+                .Select(i => $"Champion {i + 1}: " +
+                    (draft.HolderIds[i] == -1 ? "NPC" : "Worker " + draft.HolderIds[i]) +
+                    " → " +
+                    (proposed.HolderIds[i] == -1 ? "NPC" :
+                        "Worker " + proposed.HolderIds[i]))
+                .ToArray();
+            string linkWarning = relinks.Length == 0 ? "" :
+                "\n\nWORKER LINK CHANGES:\n" + string.Join("\n", relinks) +
+                "\nThis explicitly changes the champion's linked wrestler. " +
+                "To keep a historical NPC, select Name-only NPC instead.";
             if (MessageBox.Show(this,
                 $"Change champions in existing reign #{order} of {_selectedExisting!.Name}?\n\n" +
-                $"{participants}\n\n" +
+                participants + linkWarning + "\n\n" +
                 "The existing dates, UID, defenses and record identity are preserved. " +
                 "Name-only NPCs have no tblWorker record. This writes to the active MDB.",
                 "Confirm Historical Champions", MessageBoxButton.YesNo,

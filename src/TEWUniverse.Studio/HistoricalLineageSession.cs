@@ -34,24 +34,16 @@ internal sealed partial class DatabaseSession
         HistoricalNames(history.Rows);
     }
 
-    private void ValidateHistoricalDraft(HistoricalReignDraft draft, int memberCount, bool annual)
+    private void ValidateHistoricalDraft(HistoricalReignDraft draft, int memberCount,
+        bool annual, bool editingHoldersOnly)
     {
         if (memberCount is < 1 or > 3 ||
             draft.HolderIds.Length != 3 || draft.HolderNames.Length != 3)
             throw new InvalidOperationException("Invalid holder count for this title.");
         HistoricalReignRules.ValidateHolders(draft.HolderIds, draft.HolderNames,
             memberCount, ListWorkers().Select(w => w.Id).ToHashSet());
-        if (draft.Captured.Year is < 1800 or > 2100)
-            throw new InvalidOperationException("Use a capture year between 1800 and 2100.");
-        if (annual)
-        {
-            if (draft.Lost != new DateTime(1666, 1, 1) || draft.Defences != -1)
-                throw new InvalidOperationException(
-                    "Annual tournaments use the 01/01/1666 loss sentinel and -1 defences.");
-        }
-        else if (draft.Lost.Year is < 1800 or > 2100 ||
-                 draft.Captured > draft.Lost || draft.Defences < 0)
-            throw new InvalidOperationException("Invalid championship loss date or defense count.");
+        HistoricalReignRules.ValidateReignTiming(draft.Captured, draft.Lost,
+            draft.Defences, annual, editingHoldersOnly);
     }
 
     /// <summary>
@@ -61,7 +53,7 @@ internal sealed partial class DatabaseSession
     public void EditHistoricalReign(int beltId, int originalUid, int originalOrder,
         HistoricalReignDraft draft, int memberCount, bool annual)
     {
-        ValidateHistoricalDraft(draft, memberCount, annual);
+        ValidateHistoricalDraft(draft, memberCount, annual, editingHoldersOnly: true);
         var history = ReadTitleLineage(beltId);
         ValidateHistoricalSchema(history);
         var row = history.Rows.Rows.Cast<DataRow>().SingleOrDefault(r =>
@@ -118,7 +110,7 @@ internal sealed partial class DatabaseSession
     public int InsertHistoricalReign(int beltId, HistoricalReignDraft draft,
         int memberCount, bool annual, int expectedRowCount)
     {
-        ValidateHistoricalDraft(draft, memberCount, annual);
+        ValidateHistoricalDraft(draft, memberCount, annual, editingHoldersOnly: false);
         var history = ReadTitleLineage(beltId);
         ValidateHistoricalSchema(history);
         var title = ReadSection("tblBelt", beltId);
