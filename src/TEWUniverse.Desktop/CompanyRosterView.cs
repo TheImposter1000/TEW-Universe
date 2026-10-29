@@ -16,32 +16,13 @@ public partial class MainWindow
     {
         if (_session == null || _selectedExisting == null) return;
 
-        var actions = new WrapPanel { Margin = new Thickness(0, 2, 0, 14) };
-        var export = new Button {
-            Content = "Export Selected Company CSV", Padding = new Thickness(14, 8, 14, 8),
-            Margin = new Thickness(0, 0, 10, 7),
-            Style = (Style)FindResource("BlueButton")
-        };
-        export.Click += ExportSelectedCompanyCsv_Click;
-        actions.Children.Add(export);
-        var import = new Button {
-            Content = "Import Selected Company CSV", Padding = new Thickness(14, 8, 14, 8),
-            Margin = new Thickness(0, 0, 10, 7),
-            Style = (Style)FindResource("ActionButton")
-        };
-        import.Click += ImportSelectedCompanyCsv_Click;
-        actions.Children.Add(import);
-        ExistingFieldsPanel.Children.Add(actions);
-
-        var description = new TextBlock {
-            Text = "CSV export includes this company's scalar fields and uniquely linked " +
-                "company settings. Edit the Value column in the exported file, then " +
-                "import it here to preview changes. IDs and linked records remain protected.",
-            Foreground = Muted, FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
+        ExistingFieldsPanel.Children.Add(new TextBlock {
+            Text = "Use Export Record CSV and Import Record CSV in the top toolbar " +
+                "to update the selected company. Protected links and roster contracts " +
+                "are not changed through company CSV imports.",
+            Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 14)
-        };
-        ExistingFieldsPanel.Children.Add(description);
+        });
 
         var content = CreateCompanySection("Current Roster  •  tblContract", true);
         content.Children.Add(new TextBlock {
