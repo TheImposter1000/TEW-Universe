@@ -194,8 +194,8 @@ public partial class MainWindow
         StudioCsvPreview preview, string section, int uid)
     {
         var table = new DataTable();
-        foreach (string heading in new[] { "Table", "Field", "Original value", "New value" })
-            table.Columns.Add(heading);
+        foreach (string columnTitle in new[] { "Table", "Field", "Original value", "New value" })
+            table.Columns.Add(columnTitle);
         foreach (var change in preview.Changes)
             table.Rows.Add(change.Field.Table, change.Field.Field,
                 change.Field.OriginalValue, change.NewValue);
