@@ -61,14 +61,31 @@ internal static class StudioRecordNames
         throw new InvalidOperationException("Too many duplicate record names.");
     }
 
-    internal static string Award(string companyName, int year,
+    internal static string Award(string companyInitials, int year,
         IEnumerable<string> existingNames, int maxLength)
     {
         if (year is < 1800 or > 2100)
             throw new InvalidOperationException("Choose a valid award year.");
-        return UniqueReadable(companyName,
-            " " + year.ToString("D4", CultureInfo.InvariantCulture),
-            existingNames, maxLength);
+        string initials = (companyInitials ?? "").Trim().ToUpperInvariant();
+        if (initials.Length == 0 || initials.Any(char.IsControl))
+            throw new InvalidOperationException(
+                "Choose a company with valid initials before creating an award.");
+        string name = initials + " " +
+            year.ToString("D4", CultureInfo.InvariantCulture);
+        var used = new HashSet<string>(
+            existingNames.Where(n => !string.IsNullOrWhiteSpace(n)),
+            StringComparer.OrdinalIgnoreCase);
+        for (int number = 1; number < 1000000; number++)
+        {
+            string proposal = number == 1
+                ? name : WithCollisionSuffix(name, number);
+            if (maxLength > 0 && proposal.Length > maxLength)
+                throw new InvalidOperationException(
+                    "The award Recordname text limit cannot hold the company initials, year and unique suffix.");
+            if (!used.Contains(proposal))
+                return proposal;
+        }
+        throw new InvalidOperationException("Too many duplicate award names.");
     }
 
     internal static string WorldAward(int year,
