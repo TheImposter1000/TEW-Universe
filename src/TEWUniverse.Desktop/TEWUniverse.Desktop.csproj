@@ -20,6 +20,8 @@
     <Compile Include="..\TEWUniverse.Studio\CompanyRosterSession.cs" Link="Services\CompanyRosterSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CompanyCsvCodec.cs" Link="Services\CompanyCsvCodec.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CompanyCsvSession.cs" Link="Services\CompanyCsvSession.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\StudioSectionCsvCodec.cs" Link="Services\StudioSectionCsvCodec.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\StudioSectionCsvSession.cs" Link="Services\StudioSectionCsvSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\HistoricalLineageSession.cs" Link="Services\HistoricalLineageSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\HistoricalReignRules.cs" Link="Services\HistoricalReignRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\RelationshipRules.cs" Link="Services\RelationshipRules.cs"/>
