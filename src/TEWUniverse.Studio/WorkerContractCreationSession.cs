@@ -67,9 +67,13 @@ internal sealed partial class DatabaseSession
             schema.Columns["UID"]!.DataType != typeof(int) ||
             schema.Columns["Recordname"]!.DataType != typeof(string))
             throw new InvalidOperationException("Unsupported contract identity schema.");
-        if (template.CompanyId < 1 ||
-            !ListExistingRecords("Companies").Any(c => c.Id == template.CompanyId))
+        var company = ListExistingRecords("Companies")
+            .FirstOrDefault(c => c.Id == template.CompanyId);
+        if (template.CompanyId < 1 || company == null)
             throw new InvalidOperationException("Contract company no longer exists.");
+        var worker = ListWorkers().FirstOrDefault(w => w.Id == targetWorkerId);
+        if (worker == null)
+            throw new InvalidOperationException("Contract worker no longer exists.");
         var sourceFields = template.Fields.ToDictionary(f => f.Name,
             StringComparer.OrdinalIgnoreCase);
         if (sourceFields.Count != schema.Columns.Count)
@@ -135,17 +139,17 @@ internal sealed partial class DatabaseSession
                     Convert.ToInt32(value, CultureInfo.InvariantCulture)) + 1);
             }
             if (proposedUid < 1) throw new InvalidOperationException("Cannot allocate a contract UID.");
-            string recordName = $"TUSCON{proposedUid:D8}";
+            var reservedContractNames = new List<string>();
+            using (var namesRead = new OleDbCommand(
+                "SELECT [Recordname] FROM [tblContract]", _connection, tx))
+            using (var reader = namesRead.ExecuteReader())
+                while (reader?.Read() == true)
+                    if (!reader.IsDBNull(0))
+                        reservedContractNames.Add(Convert.ToString(reader.GetValue(0),
+                            CultureInfo.InvariantCulture) ?? "");
             int maxName = schema.Columns["Recordname"]!.MaxLength;
-            if (maxName > 0 && recordName.Length > maxName)
-                throw new InvalidOperationException("The contract Recordname exceeds its MDB limit.");
-            using (var unique = new OleDbCommand(
-                "SELECT COUNT(*) FROM [tblContract] WHERE [Recordname]=?", _connection, tx))
-            {
-                unique.Parameters.Add("record", OleDbType.VarWChar).Value = recordName;
-                if (Convert.ToInt32(unique.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
-                    throw new InvalidOperationException("The generated contract Recordname already exists.");
-            }
+            string recordName = StudioRecordNames.Contract(
+                worker.Name, company.Name, reservedContractNames, maxName);
 
             var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             foreach (DataColumn column in schema.Columns)

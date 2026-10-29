@@ -46,6 +46,11 @@ internal sealed partial class DatabaseSession
                 !ListExistingRecords("Companies").Any(x => x.Id == id))
                 throw new InvalidOperationException("The selected company UID is missing.");
         }
+        // Resolve company names from existing promotion records, never from
+        // numeric IDs or the template's display label.
+        var promotionNames = companySpecific
+            ? ListExistingRecords("Companies").ToDictionary(x => x.Id, x => x.Name)
+            : new Dictionary<int, string>();
         // The newly created row always uses the NEW YEAR, never the
         // original template's Year, regardless of uncommitted form edits.
         EnsureUnchanged();
@@ -108,11 +113,8 @@ internal sealed partial class DatabaseSession
                 {
                     if (col.DataType != typeof(string))
                         throw new InvalidOperationException("Unverified award Recordname type.");
-                    string value = "TUSAW" + newUid.ToString("D8", CultureInfo.InvariantCulture);
-                    if (col.MaxLength > 0 && value.Length > col.MaxLength)
-                        throw new InvalidOperationException(
-                            "Award Recordname is too short to create a safe unique identity.");
-                    values[col.ColumnName] = value;
+                    // Generate this after all fields, including the chosen
+                    // promotion, have been populated from the NEW record.
                     continue;
                 }
                 if (col.ColumnName.Equals("Year", StringComparison.OrdinalIgnoreCase))
@@ -160,19 +162,49 @@ internal sealed partial class DatabaseSession
                         "Required award field " + col.ColumnName + " is missing.");
             }
 
-            // Check that the new Recordname is not already in use.
+            // Award identifiers have meaning in TEW: promotion + year for
+            // company awards, and World Awards + year for global awards.
+            // The same promotion can have several categories in one year,
+            // so an occupied name receives a readable #2 / #3 suffix.
             var recordCol = schema.Columns.Cast<DataColumn>().FirstOrDefault(c =>
                 c.ColumnName.Equals("Recordname", StringComparison.OrdinalIgnoreCase));
             if (recordCol != null)
             {
-                using var nameCheck = new OleDbCommand(
-                    "SELECT COUNT(*) FROM [" + table + "] WHERE [" +
-                    recordCol.ColumnName + "]=?", _connection, tx);
-                nameCheck.Parameters.Add("name", OleDbType.VarWChar).Value =
-                    values[recordCol.ColumnName];
-                if (Convert.ToInt32(nameCheck.ExecuteScalar(),
-                    CultureInfo.InvariantCulture) != 0)
-                    throw new InvalidOperationException("Generated award Recordname already exists.");
+                var reserved = new List<string>();
+                using (var namesRead = new OleDbCommand(
+                    "SELECT [" + recordCol.ColumnName + "] FROM [" + table + "]",
+                    _connection, tx))
+                using (var reader = namesRead.ExecuteReader())
+                    while (reader?.Read() == true)
+                        if (!reader.IsDBNull(0))
+                            reserved.Add(Convert.ToString(reader.GetValue(0),
+                                CultureInfo.InvariantCulture) ?? "");
+
+                int maxLength = recordCol.MaxLength;
+                string readable;
+                if (companySpecific)
+                {
+                    var companyCol = schema.Columns.Cast<DataColumn>().FirstOrDefault(c =>
+                        c.ColumnName.Equals("FedUID", StringComparison.OrdinalIgnoreCase))
+                        ?? schema.Columns.Cast<DataColumn>().FirstOrDefault(c =>
+                        c.ColumnName.Equals("Fed", StringComparison.OrdinalIgnoreCase));
+                    if (companyCol == null ||
+                        !AwardsRules.IsCompanyField(table, companyCol.ColumnName,
+                            companyCol.DataType) ||
+                        !values.TryGetValue(companyCol.ColumnName, out object? companyValue) ||
+                        companyValue is null or DBNull)
+                        throw new InvalidOperationException(
+                            "Company award has no verified promotion. Creation blocked.");
+                    int companyId = Convert.ToInt32(companyValue, CultureInfo.InvariantCulture);
+                    if (!promotionNames.TryGetValue(companyId, out string? companyName))
+                        throw new InvalidOperationException(
+                            "The selected company could not be resolved by name.");
+                    readable = StudioRecordNames.Award(
+                        companyName, year, reserved, maxLength);
+                }
+                else
+                    readable = StudioRecordNames.WorldAward(year, reserved, maxLength);
+                values[recordCol.ColumnName] = readable;
             }
 
             var names = values.Keys.ToArray();

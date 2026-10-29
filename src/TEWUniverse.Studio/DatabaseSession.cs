@@ -524,17 +524,17 @@ internal sealed partial class DatabaseSession : IDisposable
                     Convert.ToInt32(value, CultureInfo.InvariantCulture)) + 1);
             }
             if (id < 1) throw new InvalidOperationException("Could not allocate a team UID.");
-            string recordName = $"TUSTEAM{id:D8}";
+            var reservedTeamNames = new List<string>();
+            using (var namesRead = new OleDbCommand(
+                "SELECT [Recordname] FROM [tblTeam]", _connection, tx))
+            using (var reader = namesRead.ExecuteReader())
+                while (reader?.Read() == true)
+                    if (!reader.IsDBNull(0))
+                        reservedTeamNames.Add(Convert.ToString(reader.GetValue(0),
+                            CultureInfo.InvariantCulture) ?? "");
             int maxName = schema.Columns["Recordname"]!.MaxLength;
-            if (maxName > 0 && recordName.Length > maxName)
-                throw new InvalidOperationException("Generated Recordname exceeds MDB length limit.");
-            using (var duplicate = new OleDbCommand(
-                "SELECT COUNT(*) FROM [tblTeam] WHERE [Recordname] = ?", _connection, tx))
-            {
-                duplicate.Parameters.Add("record", OleDbType.VarWChar).Value = recordName;
-                if (Convert.ToInt32(duplicate.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
-                    throw new InvalidOperationException("The generated Recordname already exists.");
-            }
+            string recordName = StudioRecordNames.TagTeam(
+                teamName, reservedTeamNames, maxName);
             values["Recordname"] = recordName;
             bool autoUid = schema.Columns["UID"]!.AutoIncrement;
             if (!autoUid) values["UID"] = id;
