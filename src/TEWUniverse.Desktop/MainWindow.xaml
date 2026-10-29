@@ -100,6 +100,16 @@
               <TextBlock Text="Keep active MDB selected" FontWeight="Normal" FontSize="10" Foreground="{StaticResource TextBrushMuted}"/>
             </StackPanel>
           </Button>
+          <Button x:Name="SectionCsvExportButton" Style="{StaticResource ActionButton}"
+                  Click="ExportSectionCsv_Click" Visibility="Collapsed" Margin="0,0,9,0"
+                  ToolTip="Export the selected existing record as an editable CSV, excluding Workers">
+            <TextBlock Text="Export Record CSV" FontWeight="SemiBold"/>
+          </Button>
+          <Button x:Name="SectionCsvImportButton" Style="{StaticResource ActionButton}"
+                  Click="ImportSectionCsv_Click" Visibility="Collapsed" Margin="0,0,9,0"
+                  ToolTip="Validate and preview changes to the selected record from an exported Studio CSV">
+            <TextBlock Text="Import Record CSV" FontWeight="SemiBold"/>
+          </Button>
           <Button Style="{StaticResource ActionButton}" Click="EditScenarioStart_Click" Margin="0,0,9,0"
                   ToolTip="Edit the scenario starting month/year stored in tblInfo">
             <TextBlock Text="Scenario Start..." FontWeight="SemiBold"/>
