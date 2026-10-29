@@ -137,7 +137,7 @@ public partial class MainWindow
                 _contractDetails.Children.Add(ExtraLabel(
                     selected.Company + "  •  tblContract (current contract)"));
                 _contractDetails.Children.Add(new TextBlock {
-                    Text = "Dates: MM/DD/YYYY. Numeric enumerations are raw TEW IX codes. " +
+                    Text = "Dates: 5/12/1998 or May 12th 1998. Numeric enumerations are raw TEW IX codes. " +
                         "UID, record identity and foreign-key links cannot be edited here.",
                     Foreground = ExtraColor("#A8C4E1"), FontSize = 11,
                     TextWrapping = TextWrapping.Wrap,
@@ -166,7 +166,7 @@ public partial class MainWindow
                         textbox.Text = field.Value;
                         textbox.IsReadOnly = !field.CanEdit;
                         if (field.Type == typeof(DateTime))
-                            textbox.ToolTip = "MM/DD/YYYY";
+                            textbox.ToolTip = "5/12/1998 or May 12th 1998";
                         if (field.CanEdit)
                             textbox.TextChanged += (_, _) => ContractInputChanged();
                         input = textbox;

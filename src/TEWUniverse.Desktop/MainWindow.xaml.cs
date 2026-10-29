@@ -2717,7 +2717,7 @@ public partial class MainWindow : Window
                 VerticalContentAlignment = multiline
                     ? VerticalAlignment.Top : VerticalAlignment.Center,
                 ToolTip = field.ValueType == typeof(DateTime)
-                    ? "Date format: MM/DD/YYYY (stored as a native MDB date)"
+                    ? "Date: 5/12/1998 or May 12th 1998 (stored as an MDB date)"
                     : $"{field.Table}.{field.Column} ({field.ValueType.Name})"
             };
             entry.TextChanged += (_, _) =>

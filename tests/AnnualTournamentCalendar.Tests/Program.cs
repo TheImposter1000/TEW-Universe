@@ -864,22 +864,40 @@ if (!annualRepeatRejected)
 
 Console.WriteLine("Passed repeat-year, partial-length, approximate-month and randomized-start checks.");
 
-// All user-facing dates (worker fields, employment history, title previews,
-// exports, prompts) use month/day/year. Do not silently accept ISO year-first
-// dates as manually entered values.
+// Manual date input accepts US numeric month/day/year with optional zero
+// padding and English month names with or without valid ordinal suffixes.
+// Display/CSV serialization remain MM/dd/yyyy and ISO year-first stays rejected.
 if (StudioDateFormat.Format(new DateTime(2002, 6, 9)) != "06/09/2002" ||
     StudioDateFormat.Format(new DateTime(2020, 2, 29)) != "02/29/2020" ||
     !StudioDateFormat.TryParse("06/09/2002", out var parsed) ||
     parsed != new DateTime(2002, 6, 9))
-    throw new Exception("MM/DD/YYYY display and input do not round-trip.");
+    throw new Exception("Numeric date display and input do not round-trip.");
 
-if (StudioDateFormat.TryParse("2002-06-09", out _) ||
-    StudioDateFormat.TryParse("09/06/2002", out var ambiguous) &&
-        ambiguous != new DateTime(2002, 9, 6) ||
-    StudioDateFormat.TryParse("6/9/2002", out _) ||
-    StudioDateFormat.TryParse("02/29/2019", out _) ||
-    StudioDateFormat.TryParse("13/01/2002", out _))
-    throw new Exception("Year-first, invalid, or non-MM/DD/YYYY date input was accepted.");
+foreach (var (input, expected) in new (string, DateTime)[] {
+    ("5/12/1998", new DateTime(1998, 5, 12)),
+    ("05/12/1998", new DateTime(1998, 5, 12)),
+    ("May 12th 1998", new DateTime(1998, 5, 12)),
+    ("May 12, 1998", new DateTime(1998, 5, 12)),
+    ("May 12th, 1998", new DateTime(1998, 5, 12)),
+    ("MAY 12TH, 1998", new DateTime(1998, 5, 12)),
+    ("Jan 1st 2000", new DateTime(2000, 1, 1)),
+    ("Sept 3rd, 2021", new DateTime(2021, 9, 3)),
+    ("Feb 29th 2024", new DateTime(2024, 2, 29)),
+    ("11/3/2021", new DateTime(2021, 11, 3)),
+    ("09/06/2002", new DateTime(2002, 9, 6))
+})
+    if (!StudioDateFormat.TryParse(input, out var actual) ||
+        actual != expected || StudioDateFormat.Parse(input) != expected)
+        throw new Exception("Valid numeric or written date was not accepted: " + input);
+
+foreach (string invalid in new[] {
+    "2002-06-09", "13/01/2002", "02/29/2019", "2/29/2019",
+    "February 29th 2023", "May 12st 1998", "May 1th 1998",
+    "April 31st 2001", "May 12 98", "May 12th", "1998 May 12",
+    "5-12-1998", "May 99th 1998", "June 31, 2026"
+})
+    if (StudioDateFormat.TryParse(invalid, out _))
+        throw new Exception("Invalid or non-US date was accepted: " + invalid);
 
 var moreDates = new[] {
     new DateTime(1666, 1, 1), // TEW annual tournament no-reign sentinel
@@ -892,7 +910,7 @@ foreach (var date in moreDates)
     if (!StudioDateFormat.TryParse(StudioDateFormat.Format(date), out var again) ||
         again != date)
         throw new Exception("MM/DD/YYYY round-trip failed for historical or leap-year dates.");
-Console.WriteLine("Passed MM/DD/YYYY date formatting, round-trip and strict input checks.");
+Console.WriteLine("Passed numeric and written English date input, strict validation and MM/DD/YYYY output.");
 
 // Completed title histories are not to be deleted just to link a real
 // champion. Carson's FOUR National titles replace only four matching
@@ -1725,6 +1743,10 @@ foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {
     ("25.00", "25", typeof(decimal), true),
     ("25.00", "26.00", typeof(decimal), false),
     ("01/02/2022", "1/2/2022", typeof(DateTime), true),
+    ("05/12/1998", "May 12th 1998", typeof(DateTime), true),
+    ("May 12th 1998", "5/12/1998", typeof(DateTime), true),
+    ("May 12th 1998", "May 13th 1998", typeof(DateTime), false),
+    ("1998-05-12", "May 12th 1998", typeof(DateTime), true),
     ("01/02/2022", "01/03/2022", typeof(DateTime), false),
     ("Name A", "Name B", typeof(string), false),
     ("Name A", "Name A", typeof(string), true)

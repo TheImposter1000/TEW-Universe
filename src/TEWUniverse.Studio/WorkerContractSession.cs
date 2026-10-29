@@ -139,7 +139,7 @@ internal sealed partial class DatabaseSession
                 catch (Exception ex) when (ex is FormatException or OverflowException)
                 {
                     throw new InvalidOperationException(
-                        $"Invalid value for {edit.Key}. Dates require MM/DD/YYYY; " +
+                        $"Invalid value for {edit.Key}. Dates accept 5/12/1998 or May 12th 1998; " +
                         "other fields must use their MDB type.", ex);
                 }
                 using var command = new OleDbCommand(

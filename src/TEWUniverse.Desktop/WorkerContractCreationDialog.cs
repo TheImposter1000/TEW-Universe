@@ -169,7 +169,7 @@ internal sealed class WorkerContractCreationDialog : Window
                     Opacity = field.CanEdit ? 1.0 : 0.66,
                     Margin = new Thickness(0,0,0,6),
                     ToolTip = field.Type == typeof(DateTime)
-                        ? "Enter a date as MM/DD/YYYY" : field.Type.Name
+                        ? "Enter a date as 5/12/1998 or May 12th 1998" : field.Type.Name
                 };
                 if (field.Name.Equals("FedUID", StringComparison.OrdinalIgnoreCase))
                     input.Text = ChosenTemplate.CompanyId.ToString(CultureInfo.InvariantCulture);

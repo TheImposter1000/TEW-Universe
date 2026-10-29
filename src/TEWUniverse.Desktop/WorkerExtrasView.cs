@@ -271,10 +271,10 @@ public partial class MainWindow
         AddExtraField(employmentEditor, ExtraLabel("Historical company initials"), _employmentInitials);
         _employmentFrom = ExtraTextBox();
         _employmentFrom.TextChanged += EmploymentNameSourceChanged;
-        AddExtraField(employmentEditor, ExtraLabel("From date (MM/DD/YYYY)"), _employmentFrom);
+        AddExtraField(employmentEditor, ExtraLabel("From date (e.g. 5/12/1998 or May 12th 1998)"), _employmentFrom);
         _employmentUntil = ExtraTextBox();
         _employmentUntil.TextChanged += EmploymentNameSourceChanged;
-        AddExtraField(employmentEditor, ExtraLabel("Until date (MM/DD/YYYY)"), _employmentUntil);
+        AddExtraField(employmentEditor, ExtraLabel("Until date (e.g. 5/12/1998 or May 12th 1998)"), _employmentUntil);
         var flags = new WrapPanel { Margin = new Thickness(0, 0, 0, 13) };
         _employmentLoan = ExtraFlag("Loan", flags);
         _employmentTrade = ExtraFlag("Trade", flags);
@@ -358,7 +358,7 @@ public partial class MainWindow
             end < start)
         {
             MessageBox.Show(this, "Enter company initials and valid From / Until " +
-                "dates in MM/DD/YYYY before generating a Record Name.");
+                "dates (5/12/1998 or May 12th 1998) before generating a Record Name.");
             return;
         }
         try
@@ -691,7 +691,7 @@ public partial class MainWindow
         if (!StudioDateFormat.TryParse(_employmentFrom.Text, out DateTime from) ||
             !StudioDateFormat.TryParse(_employmentUntil.Text, out DateTime until))
             throw new InvalidOperationException(
-                "Enter valid employment dates using MM/DD/YYYY for both From and Until (for example, 06/01/2002).");
+                "Enter valid employment From / Until dates, such as 5/12/1998 or May 12th 1998.");
         return new WorkerEmploymentDraft(
             company.Id, _employmentInitials.Text.Trim(), from, until,
             _employmentLoan.IsChecked == true, _employmentTrade.IsChecked == true,

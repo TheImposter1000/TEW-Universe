@@ -84,7 +84,7 @@ internal static class ChampionshipCsvImport
             {
                 if (!StudioDateFormat.TryParse(Cell(name), out DateTime value))
                     throw new InvalidOperationException(
-                        $"CSV record {n}: {name} must use MM/DD/YYYY.");
+                        $"CSV record {n}: {name} needs a date like 5/12/1998 or May 12th 1998.");
                 return value;
             }
 

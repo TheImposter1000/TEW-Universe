@@ -696,7 +696,7 @@
                <StackPanel Margin="0,0,13,5">
                 <TextBlock Text="Final date (optional)" FontSize="11" Foreground="#B9D4ED"/>
                 <TextBox x:Name="LineageFinalDate" Style="{StaticResource FormTextBox}"
-                         TextChanged="LineageTimelineChanged" Width="125" ToolTip="MM/DD/YYYY; blank uses year-end or company/scenario cutoff."/>
+                         TextChanged="LineageTimelineChanged" Width="125" ToolTip="5/12/1998 or May 12th 1998; blank uses year-end or company/scenario cutoff."/>
                </StackPanel>
                <StackPanel Margin="0,17,13,5">
                 <CheckBox x:Name="LineageUseCompanyDates" Content="Respect company dates"
@@ -1043,7 +1043,7 @@
                 <TextBlock Text="Final date (optional)" Foreground="#ADC9E8" FontSize="11"/>
                 <TextBox x:Name="AdvancedFinalDate" Style="{StaticResource FormTextBox}"
                          TextChanged="AdvancedInputChanged" Width="140"
-                         ToolTip="MM/DD/YYYY; blank automatically uses the company or scenario cutoff."/>
+                         ToolTip="5/12/1998 or May 12th 1998; blank automatically uses the company or scenario cutoff."/>
                </StackPanel>
                <StackPanel Margin="0,17,12,6">
                 <CheckBox x:Name="AdvancedUseCompanyDates" Content="Respect company dates"

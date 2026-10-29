@@ -130,12 +130,12 @@ internal sealed class HistoricalReignDialog : Window
             form.Children.Add(name);
         }
 
-        Label(form, "Captured (MM/DD/YYYY)");
+        Label(form, "Captured (e.g. 5/12/1998 or May 12th 1998)");
         _captured = Entry(StudioDateFormat.Format(original?.Captured ?? DateTime.Today));
         _captured.IsReadOnly = _edit;
         form.Children.Add(_captured);
 
-        Label(form, "Lost (MM/DD/YYYY)");
+        Label(form, "Lost (e.g. 5/12/1998 or May 12th 1998)");
         _lost = Entry(StudioDateFormat.Format(original?.Lost ??
             (_annual ? new DateTime(1666, 1, 1) : DateTime.Today)));
         _lost.IsReadOnly = _edit || _annual;
@@ -195,7 +195,7 @@ internal sealed class HistoricalReignDialog : Window
                 !StudioDateFormat.TryParse(_lost.Text, out DateTime lost) ||
                 !short.TryParse(_defences.Text, NumberStyles.Integer,
                     CultureInfo.InvariantCulture, out short defences))
-                throw new InvalidOperationException("Enter valid dates as MM/DD/YYYY and numeric defenses.");
+                throw new InvalidOperationException("Enter valid dates (5/12/1998 or May 12th 1998) and numeric defenses.");
             Draft = new HistoricalReignDraft(ids, names, captured, lost, defences);
             DialogResult = true;
         }
