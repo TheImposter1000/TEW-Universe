@@ -374,6 +374,7 @@ public partial class MainWindow
             _relationDelete.IsEnabled = entry != null;
         }
         finally { _loadingRelationshipForm = false; }
+        UpdateSectionCsvButtons();
     }
 
     private bool HasPendingRelationshipEdits()
