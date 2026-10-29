@@ -46,11 +46,17 @@ internal sealed partial class DatabaseSession
                 !ListExistingRecords("Companies").Any(x => x.Id == id))
                 throw new InvalidOperationException("The selected company UID is missing.");
         }
-        // Resolve company names from existing promotion records, never from
-        // numeric IDs or the template's display label.
-        var promotionNames = companySpecific
-            ? ListExistingRecords("Companies").ToDictionary(x => x.Id, x => x.Name)
-            : new Dictionary<int, string>();
+        // Award Recordnames use the promotion's actual stored initials,
+        // not its full name, label or numeric database ID.
+        if (companySpecific)
+        {
+            var companySchema = ValidateWorkerExtraSchema(
+                "tblFed", "UID", "Initials");
+            if (companySchema.Columns["UID"]!.DataType != typeof(int) ||
+                companySchema.Columns["Initials"]!.DataType != typeof(string))
+                throw new InvalidOperationException(
+                    "The company's UID / Initials schema is unsupported.");
+        }
         // The newly created row always uses the NEW YEAR, never the
         // original template's Year, regardless of uncommitted form edits.
         EnsureUnchanged();
@@ -162,8 +168,8 @@ internal sealed partial class DatabaseSession
                         "Required award field " + col.ColumnName + " is missing.");
             }
 
-            // Award identifiers have meaning in TEW: promotion + year for
-            // company awards, and World Awards + year for global awards.
+            // TEW-friendly company awards use initials + year (e.g. DNA 2022);
+            // world awards retain their separate World Awards + year format.
             // The same promotion can have several categories in one year,
             // so an occupied name receives a readable #2 / #3 suffix.
             var recordCol = schema.Columns.Cast<DataColumn>().FirstOrDefault(c =>
@@ -196,11 +202,22 @@ internal sealed partial class DatabaseSession
                         throw new InvalidOperationException(
                             "Company award has no verified promotion. Creation blocked.");
                     int companyId = Convert.ToInt32(companyValue, CultureInfo.InvariantCulture);
-                    if (!promotionNames.TryGetValue(companyId, out string? companyName))
-                        throw new InvalidOperationException(
-                            "The selected company could not be resolved by name.");
+                    string initials;
+                    using (var companyRead = new OleDbCommand(
+                        "SELECT [Initials] FROM [tblFed] WHERE [UID]=?",
+                        _connection, tx))
+                    {
+                        companyRead.Parameters.Add("uid", OleDbType.Integer)
+                            .Value = companyId;
+                        object? found = companyRead.ExecuteScalar();
+                        if (found is null or DBNull)
+                            throw new InvalidOperationException(
+                                "The selected promotion has no verified initials.");
+                        initials = Convert.ToString(found,
+                            CultureInfo.InvariantCulture) ?? "";
+                    }
                     readable = StudioRecordNames.Award(
-                        companyName, year, reserved, maxLength);
+                        initials, year, reserved, maxLength);
                 }
                 else
                     readable = StudioRecordNames.WorldAward(year, reserved, maxLength);

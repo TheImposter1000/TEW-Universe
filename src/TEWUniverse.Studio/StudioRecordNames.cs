@@ -72,8 +72,14 @@ internal static class StudioRecordNames
     }
 
     internal static string WorldAward(int year,
-        IEnumerable<string> existingNames, int maxLength) =>
-        Award("World Awards", year, existingNames, maxLength);
+        IEnumerable<string> existingNames, int maxLength)
+    {
+        if (year is < 1800 or > 2100)
+            throw new InvalidOperationException("Choose a valid award year.");
+        return UniqueReadable("World Awards",
+            " " + year.ToString("D4", CultureInfo.InvariantCulture),
+            existingNames, maxLength);
+    }
 
     internal static string TagTeam(string teamName,
         IEnumerable<string> existingNames, int maxLength) =>

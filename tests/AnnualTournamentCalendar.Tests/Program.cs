@@ -1089,14 +1089,16 @@ if (!invalidRecordNameRejected)
 
 // Newly created awards, tag teams and contracts use readable record names,
 // keep the trailing award year if truncated, and avoid duplicate identifiers.
-if (StudioRecordNames.Award("Dynamic National Alliance", 2022,
-        Array.Empty<string>(), 50) != "Dynamic National Alliance 2022" ||
+if (StudioRecordNames.Award("dna", 2022,
+        Array.Empty<string>(), 50) != "DNA 2022" ||
+    StudioRecordNames.Award(" BCW ", 2024,
+        Array.Empty<string>(), 50) != "BCW 2024" ||
     StudioRecordNames.WorldAward(2022,
         Array.Empty<string>(), 50) != "World Awards 2022" ||
     StudioRecordNames.Award("DNA", 2022,
         new[] { "DNA 2022", "DNA 2022 #2" }, 50) != "DNA 2022 #3" ||
-    StudioRecordNames.Award("Very Long Wrestling Company Name", 2022,
-        Array.Empty<string>(), 15) != "Very Long 2022" ||
+    StudioRecordNames.Award("NJPW", 2022,
+        Array.Empty<string>(), 15) != "NJPW 2022" ||
     StudioRecordNames.TagTeam("North Air",
         Array.Empty<string>(), 40) != "North Air" ||
     StudioRecordNames.TagTeam("North Air",
@@ -1106,6 +1108,16 @@ if (StudioRecordNames.Award("Dynamic National Alliance", 2022,
     StudioRecordNames.Contract("Jayden Cole", "DNA",
         new[] { "Jayden Cole (DNA)" }, 40) != "Jayden Cole (DNA) #2")
     throw new Exception("Readable award, team or contract names regressed.");
+
+bool tooShortAwardRejected = false;
+try
+{
+    StudioRecordNames.Award("DNA", 2022,
+        Array.Empty<string>(), 7);
+}
+catch (InvalidOperationException) { tooShortAwardRejected = true; }
+if (!tooShortAwardRejected)
+    throw new Exception("Award initials were silently truncated to fit the MDB.");
 
 Console.WriteLine("Passed TEW-style title, employment, award, team and contract RecordName conventions.");
 
