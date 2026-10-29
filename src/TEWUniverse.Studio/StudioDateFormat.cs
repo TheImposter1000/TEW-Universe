@@ -44,8 +44,8 @@ internal static class StudioDateFormat
         string ordinal = match.Groups["suffix"].Value;
         if (ordinal.Length > 0)
         {
-            string expected = day % 100 is >= 11 and <= 13 ? "th" :
-                day % 10 switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
+            string expected = (day % 100) is >= 11 and <= 13 ? "th" :
+                (day % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
             if (!ordinal.Equals(expected, StringComparison.OrdinalIgnoreCase))
                 return false;
         }
