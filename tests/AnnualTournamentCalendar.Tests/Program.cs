@@ -76,6 +76,56 @@ if (ChampionshipCsvImport.Parse(cupCsv, 975, 1, true,
     throw new Exception("Annual tournament CSV sentinel was rejected.");
 Console.WriteLine("Passed championship CSV round trips and invalid input protections.");
 
+// One reusable CSV format spans independent TEW record modules and keeps
+// module, record ID, original values and protected fields intact.
+var sectionCells = new[] {
+    new StudioCsvField("Titles", 914, "HCW Women's", "tblBelt", "UID",
+        914, "Name", "String", "HCW Women's", "HCW Women's", true),
+    new StudioCsvField("Titles", 914, "HCW Women's", "tblBelt", "UID",
+        914, "UID", "Int32", "914", "914", false),
+    new StudioCsvField("Titles", 914, "HCW Women's", "tblBelt", "UID",
+        914, "Description", "String", "A \"Title\", with commas",
+        "A \"Title\", with commas", true)
+};
+var sectionExport = StudioSectionCsvCodec.Export(sectionCells);
+if (StudioSectionCsvCodec.Preview(sectionExport, sectionCells,
+    "Titles", 914).Changes.Count != 0)
+    throw new Exception("Generic section CSV did not round trip quoted values.");
+var sectionChanged = StudioSectionCsvCodec.Export(sectionCells.Select(x =>
+    x.Field == "Description" ? x with { Value = "Changed title, with \"quotes\"" } : x).ToArray());
+var sectionPreview = StudioSectionCsvCodec.Preview(sectionChanged, sectionCells,
+    "Titles", 914);
+if (sectionPreview.Changes.Count != 1 ||
+    sectionPreview.Changes[0].NewValue != "Changed title, with \"quotes\"")
+    throw new Exception("Generic section CSV did not preserve edited values.");
+
+void RejectSectionCsv(string sample, string module = "Titles", int recordId = 914)
+{
+    bool rejected = false;
+    try { StudioSectionCsvCodec.Preview(sample, sectionCells, module, recordId); }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected)
+        throw new Exception("Unsafe cross-section or protected CSV changes were allowed.");
+}
+RejectSectionCsv(sectionChanged, "Events");
+RejectSectionCsv(sectionChanged, "Titles", 915);
+RejectSectionCsv(StudioSectionCsvCodec.Export(sectionCells.Select(x =>
+    x.Field == "UID" ? x with { Value = "111" } : x).ToArray()));
+RejectSectionCsv(StudioSectionCsvCodec.Export(sectionCells.Select(x =>
+    x.Field == "Description" ? x with {
+        OriginalValue = "stale source", Value = "Changed"
+    } : x).ToArray()));
+RejectSectionCsv(StudioSectionCsvCodec.Export(sectionCells.Concat(
+    new[] { sectionCells[0] }).ToArray()));
+var teamCell = new[] { new StudioCsvField("Tag Teams", 912, "HCW Team",
+    "tblTeam", "UID", 912, "Name", "String", "Old", "Old", true) };
+var teamPreview = StudioSectionCsvCodec.Preview(StudioSectionCsvCodec.Export(
+    teamCell.Select(c => c with { Value = "New" }).ToArray()), teamCell,
+    "Tag Teams", 912);
+if (teamPreview.Changes.Count != 1)
+    throw new Exception("Generic section CSV failed Tag Teams module.");
+Console.WriteLine("Passed cross-section CSV, wrong module, stale values and protected ID checks.");
+
 // Selected-company CSV round trip, including quotes and dangerous edits.
 var companyCells = new[] {
     new CompanyCsvCell(403, "Heartland Championship Wrestling",
