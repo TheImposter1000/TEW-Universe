@@ -94,6 +94,10 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Database writes treat backups as optional. Create Tag Team no longer blocks without an existing manual backup, and Record Name Repair offers Yes (back up), No (continue without a backup), or Cancel (stop). Failed or canceled backups do not count as previously saved snapshots; confirmations, transactions and MDB validation are unchanged.
+
+          FIX: Newly created company year-end award Recordnames use actual promotion initials plus year (for example DNA 2022), rather than full promotion names or generated numeric codes. World award identifiers remain separate.
+
           NEW: Record CSV import and export now share a consistent main toolbar workflow across Companies, Championships (details), Tag Teams, Events, Stables, World/Company Year-End Awards, and Relationships. An export includes section identity, record UID, field types, original values and protected-field flags; import previews changes and rejects different sections, stale records or protected keys. Section-specific validation and save behavior remain in control, with optional backup. New registered record-backed editor sections inherit the CSV workflow; Workers remain excluded. Tools retains its Data Check report CSV export without edit/import. Championship lineage has its separate specialized CSV import/export.
 
           NEW: Companies now supports company-scoped CSV import and export, including verified one-record related settings. Exported CSV rows preserve company UID, record UID and original-value snapshots; imports validate those identities and protected fields, preview every change and require explicit confirmation, with backup optional. The Companies editor now has a searchable Current Roster section linked through actual tblContract.FedUID to existing workers, with worker navigation and a separate roster CSV export. Company imports do not change workers or contracts.

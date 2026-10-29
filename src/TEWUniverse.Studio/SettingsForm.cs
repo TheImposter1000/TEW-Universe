@@ -114,7 +114,7 @@ internal sealed class SettingsForm : Form
     private void BrowseFolder()
     {
         using var dialog = new FolderBrowserDialog {
-            Description = "Choose where pre-save database backups will be stored",
+            Description = "Choose where optional database backups will be stored",
             UseDescriptionForTitle = true
         };
         if (Directory.Exists(_backupPath.Text)) dialog.SelectedPath = _backupPath.Text;

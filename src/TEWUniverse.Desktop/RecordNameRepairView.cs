@@ -167,10 +167,12 @@ public partial class MainWindow
                     ? $"{plan.Warnings.Count} unsupported record(s) will stay unchanged.\n\n"
                     : "") +
                 "This action is not automatically reversible. " +
-                "Create a database backup first (strongly recommended).",
+                "You may choose to create a backup before proceeding.",
                 "Confirm Existing Record Name Repair",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes) return;
+            if (!OfferOptionalBackupBeforeWrite(
+                    "repairing existing record names", window)) return;
 
             try
             {

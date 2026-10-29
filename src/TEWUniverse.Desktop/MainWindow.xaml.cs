@@ -713,21 +713,34 @@ public partial class MainWindow : Window
 
     private void Backup_Click(object sender, RoutedEventArgs e)
     {
-        if (_session == null) return;
+        CreateBackupWithFeedback(this);
+    }
+
+    // Used by Create Backup and optional pre-write prompts. A canceled or failed
+    // backup never counts as success, even if an older snapshot exists.
+    private bool CreateBackupWithFeedback(Window owner)
+    {
+        if (_session == null) return false;
         try
         {
-            if (HasEdits() && MessageBox.Show(this,
+            if (HasEdits() && MessageBox.Show(owner,
                     "Unsaved edits will not be included in this backup. Continue?",
                     "Unsaved edits", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-                != MessageBoxResult.Yes) return;
+                != MessageBoxResult.Yes) return false;
             var copy = _session.Backup(_settings.BackupFolderPath);
             _lastManualBackup = copy;
             _lastBackupDatabase = _session.PathOnDisk;
             SetStatus("Backup created: " + copy);
-            MessageBox.Show(this, "Backup created:\n" + copy, "Create Backup",
+            MessageBox.Show(owner, "Backup created:\n" + copy, "Create Backup",
                 MessageBoxButton.OK, MessageBoxImage.Information);
+            return true;
         }
-        catch (Exception ex) { Error(ex); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(owner, "Backup could not be created:\n" + ex.Message,
+                "Backup Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
     }
 
     private void SaveAs_Click(object sender, RoutedEventArgs e)
@@ -2791,16 +2804,6 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Save or discard unsaved edits before creating a tag team.");
             return;
         }
-        if (string.IsNullOrWhiteSpace(_lastManualBackup) ||
-            !File.Exists(_lastManualBackup) ||
-            !AppSettings.SamePath(_lastBackupDatabase, _session.PathOnDisk))
-        {
-            MessageBox.Show(this,
-                "Creating a new team adds a record to the active MDB. Use CREATE BACKUP " +
-                "before adding teams. Your original database should be recoverable.",
-                "Create a backup first", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
         try
         {
             var types = _session.ListTagTeamTypeCodes();
@@ -2819,9 +2822,10 @@ public partial class MainWindow : Window
                     $"Company ID: {draft.CompanyId}\n" +
                     $"Team type: {TewCodeLabels.Display("tblTeam", "Type", draft.TypeCode.ToString(CultureInfo.InvariantCulture))} (stored code {draft.TypeCode})\n\n" +
                     "This creates one new tblTeam record, without changing other records. " +
-                    "The backup will not be created automatically.",
+                    "Backups are optional and will not be created automatically.",
                     "Confirm New Tag Team", MessageBoxButton.YesNo,
                     MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (!OfferOptionalBackupBeforeWrite("creating this tag team")) return;
             int id = _session.CreateTagTeam(draft);
             _lastSaved = DateTime.Now;
             _availableExistingRecords = _session.ListExistingRecords("Tag Teams");
