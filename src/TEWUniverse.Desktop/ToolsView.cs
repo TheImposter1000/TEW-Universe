@@ -127,6 +127,8 @@ public partial class MainWindow
         WorkerDetailPanel.Visibility = Visibility.Collapsed;
         ExistingWorkspace.Visibility = Visibility.Collapsed;
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+        ChemistryWorkspace.Visibility = Visibility.Collapsed;
+        ChemistryNav.Style = (Style)FindResource("NavigationButton");
         AwardsWorkspace.Visibility = Visibility.Collapsed;
         ToolsWorkspace.Visibility = Visibility.Visible;
         WorkersNav.Style = (Style)FindResource("NavigationButton");

@@ -244,6 +244,8 @@ public partial class MainWindow
         ExistingWorkspace.Visibility = Visibility.Collapsed;
         RelationshipsWorkspace.Visibility = Visibility.Visible;
         AwardsWorkspace.Visibility = Visibility.Collapsed;
+        ChemistryWorkspace.Visibility = Visibility.Collapsed;
+        ChemistryNav.Style = (Style)FindResource("NavigationButton");
         AwardsNav.Style = (Style)FindResource("NavigationButton");
         ToolsWorkspace.Visibility = Visibility.Collapsed;
         ToolsNav.Style = (Style)FindResource("NavigationButton");

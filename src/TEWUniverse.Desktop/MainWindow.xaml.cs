@@ -90,6 +90,7 @@ public partial class MainWindow : Window
         InitializeWorkerFiltersUI();
         InitializeRelationshipsUI();
         InitializeAwardsUI();
+        InitializeChemistryUI();
         InitializeToolsUI();
         RefreshPortraits();
         AdvancedCandidatesGrid.ItemsSource = _advancedParticipants;
@@ -107,6 +108,7 @@ public partial class MainWindow : Window
             (_currentTab == "Contracts" && HasUnappliedContractEdits()) ||
             (_currentTab == "Accomplishments" && HasPendingAccomplishmentEdits()),
         "Relationships" => HasPendingRelationshipEdits(),
+        "Chemistry" => HasPendingChemistryEdits(),
         "Awards" => HasPendingAwardEdits(),
         _ => _existingFields.Any(x => x.Dirty)
     };
@@ -134,7 +136,7 @@ public partial class MainWindow : Window
         UpdateSectionCsvButtons();
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null &&
-            _activeModule is not ("Relationships" or "Awards" or "Tools") &&
+            _activeModule is not ("Relationships" or "Chemistry" or "Awards" or "Tools") &&
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
@@ -901,6 +903,7 @@ public partial class MainWindow : Window
                 ReloadRelationships();
             }
             else if (_activeModule == "Awards") ReloadAwards();
+            else if (_activeModule == "Chemistry") ReloadChemistry();
             else if (_activeModule == "Tools")
             {
                 _toolsResults.Clear();
@@ -952,6 +955,7 @@ public partial class MainWindow : Window
                 _availableExistingRecords.Clear();
                 _selectedExisting = null;
                 _allWorkers.Clear();
+                if (_activeModule == "Chemistry") ReloadChemistry();
                 ReloadWorkerFilterIndex();
                 FilterWorkers();
                 BackupButton.IsEnabled = SaveAsButton.IsEnabled = SaveButton.IsEnabled = false;
@@ -990,6 +994,11 @@ public partial class MainWindow : Window
             SelectAwardsModule();
             return;
         }
+        if (section == "Chemistry")
+        {
+            SelectChemistryModule();
+            return;
+        }
         if (section == "Tools")
         {
             SelectToolsModule();
@@ -1021,9 +1030,11 @@ public partial class MainWindow : Window
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+        ChemistryWorkspace.Visibility = Visibility.Collapsed;
         AwardsWorkspace.Visibility = Visibility.Collapsed;
         ToolsWorkspace.Visibility = Visibility.Collapsed;
         RelationshipsNav.Style = (Style)FindResource("NavigationButton");
+        ChemistryNav.Style = (Style)FindResource("NavigationButton");
         AwardsNav.Style = (Style)FindResource("NavigationButton");
         ToolsNav.Style = (Style)FindResource("NavigationButton");
         TitleClassificationOptions.Visibility = section == "Titles"

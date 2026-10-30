@@ -1732,6 +1732,29 @@ if (AwardsRules.CareerName("MaleTag1") != AwardsRules.CareerName("MaleTag2") ||
     throw new Exception("Award category labels or optional winner validation are incorrect.");
 Console.WriteLine("Passed Awards table routing, conservative editable-field allowlist, and validation.");
 
+// Preset chemistry uses unordered pairs and only verified, existing MDB codes.
+var chemWorkers = new HashSet<int> { 11, 22, 33 };
+ChemistryRules.ValidatePair(11, 22, chemWorkers);
+if (!ChemistryRules.SamePairAndType(11, 22, 2, 22, 11, 2) ||
+    ChemistryRules.SamePairAndType(11, 22, 2, 22, 11, 3))
+    throw new Exception("Chemistry pair/type uniqueness was misidentified.");
+bool chemPairRejected = false;
+try { ChemistryRules.ValidatePair(11, 11, chemWorkers); }
+catch (InvalidOperationException) { chemPairRejected = true; }
+if (!chemPairRejected) throw new Exception("Self-chemistry was accepted.");
+ChemistryRules.ValidateObserved(2, 5, new[] { 1, 2 }, new[] { 3, 5 });
+bool unverifiedChemRejected = false;
+try { ChemistryRules.ValidateObserved(999, 5, new[] { 1, 2 }, new[] { 3, 5 }); }
+catch (InvalidOperationException) { unverifiedChemRejected = true; }
+if (!unverifiedChemRejected) throw new Exception("Invented chemistry type was accepted.");
+if (ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2,
+        Array.Empty<string>(), 80) != "Jayden Cole / Zoey Luxe Chemistry 2" ||
+    ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2,
+        new[] { "Jayden Cole / Zoey Luxe Chemistry 2" }, 80) !=
+        "Jayden Cole / Zoey Luxe Chemistry 2 #2")
+    throw new Exception("Human-readable chemistry names or collision handling regressed.");
+Console.WriteLine("Passed chemistry worker, duplicate-pair, observed-code and record-name tests.");
+
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.
 foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {

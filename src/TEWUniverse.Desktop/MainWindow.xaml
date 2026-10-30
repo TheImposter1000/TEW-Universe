@@ -155,7 +155,8 @@
 <Button x:Name="StablesNav" Tag="Stables" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Stables" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="RelationshipsNav" Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="AwardsNav" Tag="Awards" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Awards" VerticalAlignment="Center"/></StackPanel></Button>
-<Button x:Name="ToolsNav" Tag="Tools" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tools" VerticalAlignment="Center"/></StackPanel></Button></StackPanel>
+<Button x:Name="ChemistryNav" Tag="Chemistry" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Chemistry" VerticalAlignment="Center"/></StackPanel></Button>
+<Button x:Name="ToolsNav" Tag="Tools" Visibility="Collapsed" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tools" VerticalAlignment="Center"/></StackPanel></Button></StackPanel>
        </DockPanel>
       </Border>
 
@@ -471,6 +472,10 @@
       </Grid>
       <!-- Relationship records are managed separately from generic existing-record editing. -->
       <Grid x:Name="RelationshipsWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
+            Visibility="Collapsed" Margin="10,10,11,10"/>
+
+      <!-- Actual preset chemistry records from tblChemistryForce. -->
+      <Grid x:Name="ChemistryWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
             Visibility="Collapsed" Margin="10,10,11,10"/>
 
       <!-- Real world/company year-end awards, with verified-field editing. -->

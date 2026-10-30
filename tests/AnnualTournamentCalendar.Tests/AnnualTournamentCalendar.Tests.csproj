@@ -20,6 +20,7 @@
     <Compile Include="../../src/TEWUniverse.Studio/DataCheckRules.cs" Link="DataCheckRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/WorkerAccomplishmentStore.cs" Link="WorkerAccomplishmentStore.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RelationshipRules.cs" Link="RelationshipRules.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/ChemistryRules.cs" Link="ChemistryRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/StudioRecordNames.cs" Link="StudioRecordNames.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RecordNameRepairPlanner.cs" Link="RecordNameRepairPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/AnnualTournamentWinnerPlanner.cs" Link="AnnualTournamentWinnerPlanner.cs" />
