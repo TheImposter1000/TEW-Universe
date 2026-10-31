@@ -240,6 +240,11 @@ if (legacyDates.Opened != new DateTime(1996, 9, 1) ||
 realCompany.Rows[0]["CompanyClosing"] = DBNull.Value;
 if (ScenarioDateBounds.ReadCompanyDates(realCompany.Rows[0]).Closed.HasValue)
     throw new Exception("Blank exact closure fell back to stale legacy company data.");
+// A company whose closing date is TEW's ongoing sentinel is still active;
+ // never mistake 1666 for a closure before the founding date.
+realCompany.Rows[0]["CompanyClosing"] = StudioDateFormat.OngoingEndDate;
+if (ScenarioDateBounds.ReadCompanyDates(realCompany.Rows[0]).Closed != null)
+    throw new Exception("An active company with 1666 closure was treated as closed.");
 realCompany.Rows[0]["CompanyClosing"] = new DateTime(2020, 3, 28);
 bool invalidCompanyDates = false;
 try {
@@ -1075,9 +1080,13 @@ if (TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
     TitleEmploymentValidator.Check(50, new DateTime(2016, 1, 1),
         new DateTime(2016, 2, 1), new[] {
             new EmploymentWindow(50, new DateTime(2015, 1, 1), new DateTime(1666, 1, 1))
-        }) != EmploymentVerification.Unverified ||
+        }) != EmploymentVerification.Covered ||
     TitleEmploymentValidator.Check(50, new DateTime(2014, 9, 1),
-        new DateTime(1666, 1, 1), employment) != EmploymentVerification.Unverified)
+        new DateTime(1666, 1, 1), employment) != EmploymentVerification.Unverified ||
+    TitleEmploymentValidator.Check(50, new DateTime(2016, 1, 1),
+        new DateTime(2016, 2, 1), new[] {
+            new EmploymentWindow(50, new DateTime(2015, 1, 1), new DateTime(1700, 1, 1))
+        }) != EmploymentVerification.Unverified)
     throw new Exception("Title employment verification produced an unsafe result.");
 
 Console.WriteLine("Passed title-format, protected-placeholder and employment coverage checks.");
@@ -1092,7 +1101,9 @@ if (StudioRecordNames.TitleHistory("BCW Championship", 1) != "BCW Championship00
     StudioRecordNames.Employment(" NCW ", new DateTime(2008, 10, 25),
         new DateTime(2012, 8, 18)) != "NCW (2008-2012)" ||
     StudioRecordNames.WithCollisionSuffix("PWA (2015-2021)", 2)
-        != "PWA (2015-2021) #2")
+        != "PWA (2015-2021) #2" ||
+    StudioRecordNames.Employment("dna", new DateTime(1998, 5, 12),
+        StudioDateFormat.OngoingEndDate) != "DNA (1998-Present)")
     throw new Exception("Championship or employment record-name format regressed.");
 
 bool invalidRecordNameRejected = false;
@@ -1218,6 +1229,15 @@ var unknown = RecordNameRepairPlanner.Employment(new[]
 }, 90);
 if (unknown.Changes.Count != 0 || unknown.Warnings.Count != 1)
     throw new Exception("An incomplete employment period was renamed by guessing its years.");
+var ongoingPeriod = RecordNameRepairPlanner.Employment(new[]
+{
+    new EmploymentRecordNameRow(90, 11, "DNA",
+        new DateTime(1998, 5, 12), StudioDateFormat.OngoingEndDate, "OldOngoing")
+}, 90);
+if (ongoingPeriod.Changes.Count != 1 ||
+    ongoingPeriod.Changes[0].NewName != "DNA (1998-Present)" ||
+    ongoingPeriod.Warnings.Count != 0)
+    throw new Exception("Ongoing employment was incorrectly rejected in record-name repair.");
 
 bool duplicateKeysRejected = false;
 try
@@ -1785,7 +1805,13 @@ var validEmploymentName = EmploymentNameGeneration.Validate(
 if (!validEmploymentName.IsValid ||
     validEmploymentName.RecordName != "DNA (1998-2002)" ||
     EmploymentNameGeneration.Validate("DNA", "May 12th 1998", "6/30/2002")
-        .RecordName != "DNA (1998-2002)")
+        .RecordName != "DNA (1998-2002)" ||
+    !StudioDateFormat.IsOngoingEndDate(new DateTime(1666, 1, 1)) ||
+    StudioDateFormat.IsOngoingEndDate(new DateTime(1666, 1, 2)) ||
+    EmploymentNameGeneration.Validate("DNA", "May 12th 1998", "01/01/1666")
+        .RecordName != "DNA (1998-Present)" ||
+    EmploymentNameGeneration.Validate("DNA", "5/12/1998", "1/1/1666")
+        .RecordName != "DNA (1998-Present)")
     throw new Exception("Employment name generation rejects valid numeric/written dates.");
 
 foreach (var (initials, fromDate, untilDate, field) in new[] {
@@ -1805,7 +1831,7 @@ foreach (var (initials, fromDate, untilDate, field) in new[] {
         throw new Exception("Employment name generator did not diagnose invalid " +
             field + " input.");
 }
-Console.WriteLine("Passed contextual employment name generation validation.");
+Console.WriteLine("Passed contextual employment name generation and ongoing-sentinel validation.");
 
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.

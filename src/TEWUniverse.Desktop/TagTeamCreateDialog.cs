@@ -108,7 +108,8 @@ internal sealed class TagTeamCreateDialog : Window
         AddField(content, "Experience (stored numeric value)", _experience);
         _formed = Entry();
         _formed.ToolTip = formedFieldType == typeof(DateTime)
-            ? "Enter 5/12/1998 or May 12th 1998; use 01/01/1666 only when TEW IX treats the date as unknown."
+            ? "Enter the team formation date (5/12/1998 or May 12th 1998). " +
+              "A 01/01/1666 Formed value is an unknown date, not the Active flag."
             : $"Enter the stored {formedFieldType.Name} value used by this database.";
         AddField(content, $"Formed ({formedFieldType.Name})", _formed);
         _finisher = Entry();

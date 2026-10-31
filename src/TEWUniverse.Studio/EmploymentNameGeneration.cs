@@ -46,12 +46,14 @@ internal static class EmploymentNameGeneration
             return new(null, "The Until date is invalid: '" + until +
                 "'. Use 6/30/2002 or June 30th 2002.",
                 EmploymentNameField.Until);
-        if (end.Year is < 1800 or > 2100)
-            return new(null, "The Until date must be between 1800 and 2100.",
-                EmploymentNameField.Until);
-        if (end.Date < start.Date)
+        bool ongoing = StudioDateFormat.IsOngoingEndDate(end);
+        if (!ongoing && (end.Year is < 1800 or > 2100))
             return new(null,
-                "The Until date cannot be earlier than the From date.",
+                "The Until date must be between 1800 and 2100, or 01/01/1666 for still active.",
+                EmploymentNameField.Until);
+        if (!ongoing && end.Date < start.Date)
+            return new(null,
+                "The Until date cannot be earlier than the From date, unless it is 01/01/1666 (ongoing).",
                 EmploymentNameField.Until);
 
         return new(StudioRecordNames.Employment(shortName, start, end),

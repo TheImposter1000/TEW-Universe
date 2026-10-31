@@ -29,6 +29,7 @@ internal static class ScenarioDateBounds
 
     // TEW IX tblFed's actual full-date columns take precedence over legacy
     // month/year columns. A zero/1666/null closing date means still active.
+    // Formation/opening and other date fields do not inherit this meaning.
     internal static (DateTime? Opened, DateTime? Closed) ReadCompanyDates(DataRow row)
     {
         DateTime? Exact(string name)

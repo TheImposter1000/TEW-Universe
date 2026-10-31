@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: TEW IX 01/01/1666 ongoing end dates are recognized. Employment History accepts and saves the 1666 Until code for still-active stints, displays Ongoing, and offers a Still active shortcut. Generated and repaired RecordNames show INITIALS (YYYY-Present), not YYYY-1666. Company closing-date sentinel remains an active-company marker; ongoing employment correctly covers finite title reigns. Start/formed dates and tournament title loss sentinels keep their own semantics.
+
           FIX: Employment History Generate name no longer presents an unhelpful generic date/initials popup. Missing or invalid initials, From and Until dates, out-of-range years and reversed date ranges are identified inline with focus on the field that needs attention. The generated name remains INITIALS (YYYY-YYYY), with no missing dates guessed. Selected companies with stored initials can populate a blank initials entry.
 
           IMPROVED: Employment History Company and Historical company initials now sync both ways. Selecting a company fills its verified tblFed initials even if the field is already populated; typing unique initials selects the matching company automatically. Unknown, partial, and ambiguous initials cannot silently save against an unrelated company. Existing historical data is not changed simply by opening a period.

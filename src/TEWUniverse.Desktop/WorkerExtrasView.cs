@@ -50,7 +50,8 @@ public partial class MainWindow
     private sealed record EmploymentDisplay(WorkerEmploymentEntry Entry, string Company)
     {
         public string FromText => StudioDateFormat.Format(Entry.FromDate);
-        public string UntilText => StudioDateFormat.Format(Entry.UntilDate);
+        public string UntilText => StudioDateFormat.IsOngoingEndDate(Entry.UntilDate)
+            ? "Ongoing" : StudioDateFormat.Format(Entry.UntilDate);
         public string Type => string.Join(", ", new[] {
             Entry.Loan ? "Loan" : "", Entry.Trade ? "Trade" : "",
             Entry.Tour ? "Tour" : "", Entry.Developmental ? "Developmental" : ""
@@ -261,7 +262,7 @@ public partial class MainWindow
         AddExtraField(employmentEditor, recordHeading, _employmentRecordName);
         _employmentNameHint = new TextBlock {
             Text = "Record names use company initials and both employment dates. " +
-                   "Example: PWA (2015-2021). You can also edit the generated name.",
+                   "Example: PWA (2015-2021) or PWA (2015-Present). You can edit the generated name.",
             Foreground = ExtraColor("#93B4D5"), FontSize = 11,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -5, 0, 11)
         };
@@ -285,7 +286,13 @@ public partial class MainWindow
         AddExtraField(employmentEditor, ExtraLabel("From date (e.g. 5/12/1998 or May 12th 1998)"), _employmentFrom);
         _employmentUntil = ExtraTextBox();
         _employmentUntil.TextChanged += EmploymentNameSourceChanged;
-        AddExtraField(employmentEditor, ExtraLabel("Until date (e.g. 5/12/1998 or May 12th 1998)"), _employmentUntil);
+        AddExtraField(employmentEditor,
+            ExtraLabel("Until date (or 01/01/1666 if still active)"), _employmentUntil);
+        var ongoingButton = ExtraButton("Still active (01/01/1666)", false, (_, _) => {
+            _employmentUntil.Text = StudioDateFormat.Format(StudioDateFormat.OngoingEndDate);
+        });
+        ongoingButton.ToolTip = "Set the TEW IX ongoing employment code in Until. This is not a real end date.";
+        employmentEditor.Children.Add(ongoingButton);
         var flags = new WrapPanel { Margin = new Thickness(0, 0, 0, 13) };
         _employmentLoan = ExtraFlag("Loan", flags);
         _employmentTrade = ExtraFlag("Trade", flags);
@@ -469,7 +476,7 @@ public partial class MainWindow
             _employmentNameAutomatic = true;
             _employmentRecordName.Text = "";
             _employmentNameHint.Text = "Record names use company initials and both employment dates. " +
-                "Example: PWA (2015-2021). You can also edit the generated name.";
+                "Example: PWA (2015-2021) or PWA (2015-Present).";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
             _employmentCompanyMatch.Text = "Select a company or type its initials.";
@@ -598,7 +605,7 @@ public partial class MainWindow
             _employmentRecordName.Text = item?.RecordName ?? "";
             _employmentNameHint.Text = item == null
                 ? "Record names use company initials and both employment dates. " +
-                  "Example: PWA (2015-2021). You can also edit the generated name."
+                  "Example: PWA (2015-2021) or PWA (2015-Present)."
                 : "Existing record name is preserved until you choose Generate name or edit it.";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentCompany.SelectedItem = item == null ? null :
@@ -780,7 +787,10 @@ public partial class MainWindow
                 (createNew ? "Add a new" : "Update this") +
                 $" historical employment period for {_worker.Name} at {company}?\n" +
                 $"Record Name: {(string.IsNullOrEmpty(draft.RequestedRecordName) ? "(generate)" : draft.RequestedRecordName)}\n" +
-                $"{StudioDateFormat.Format(draft.FromDate)} through {StudioDateFormat.Format(draft.UntilDate)}.\n\n" +
+                $"{StudioDateFormat.Format(draft.FromDate)} through " +
+                (StudioDateFormat.IsOngoingEndDate(draft.UntilDate)
+                    ? "Ongoing (01/01/1666)" : StudioDateFormat.Format(draft.UntilDate)) +
+                ".\n\n" +
                 "This does not create or change an active worker contract.",
                 createNew ? "Add Employment History" : "Save Employment History")) return;
 

@@ -1,3 +1,5 @@
+using TEWUniverse.Studio;
+
 namespace TEWUniverse.Desktop;
 
 internal enum EmploymentVerification { Covered, Missing, Unverified, CompanyUnknown }
@@ -7,7 +9,8 @@ internal sealed record EmploymentWindow(int CompanyUid, DateTime From, DateTime 
 /// <summary>
 /// Compares the full inclusive championship tenure against a worker's
 /// historical CV periods. Disjoint but adjacent periods may cover a title
-/// reign. 1666/unknown dates do not prove coverage and must be flagged.
+/// reign. An ongoing CV Until date (01/01/1666) covers finite dates; an
+/// unknown title loss date must still be flagged as unverified.
 /// </summary>
 internal static class TitleEmploymentValidator
 {
@@ -26,7 +29,8 @@ internal static class TitleEmploymentValidator
         var matching = periods.Where(p => p.CompanyUid == companyUid.Value).ToArray();
         if (matching.Length == 0) return EmploymentVerification.Missing;
         var valid = matching.Where(p => p.From.Year >= 1800 &&
-            p.Until.Year >= 1800 && p.Until >= p.From)
+            (StudioDateFormat.IsOngoingEndDate(p.Until) ||
+             (p.Until.Year >= 1800 && p.Until >= p.From)))
             .OrderBy(p => p.From).ToArray();
         // Merge contiguous historical employment periods; no artificial gaps.
         var coveredThrough = captured.AddDays(-1);
@@ -34,13 +38,17 @@ internal static class TitleEmploymentValidator
         {
             if (period.From.Date > coveredThrough.AddDays(1))
                 continue;
-            if (period.Until.Date > coveredThrough)
-                coveredThrough = period.Until.Date;
+            DateTime effectiveUntil = StudioDateFormat.IsOngoingEndDate(period.Until)
+                ? DateTime.MaxValue.Date : period.Until.Date;
+            if (effectiveUntil > coveredThrough)
+                coveredThrough = effectiveUntil;
             if (coveredThrough >= lost.Date)
                 return EmploymentVerification.Covered;
         }
-        return matching.Any(p => p.From.Year < 1800 || p.Until.Year < 1800 ||
-            p.Until < p.From) ? EmploymentVerification.Unverified :
+        return matching.Any(p => p.From.Year < 1800 ||
+            (!StudioDateFormat.IsOngoingEndDate(p.Until) &&
+             (p.Until.Year < 1800 || p.Until < p.From)))
+            ? EmploymentVerification.Unverified :
             EmploymentVerification.Missing;
     }
 

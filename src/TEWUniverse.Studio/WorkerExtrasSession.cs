@@ -343,11 +343,13 @@ internal sealed partial class DatabaseSession
         var schema = ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID",
             "FedUID", "Initials", "CVFromDate", "CVUntilDate",
             "Loan", "Trade", "Tour", "Developmental");
+        bool ongoing = StudioDateFormat.IsOngoingEndDate(draft.UntilDate);
         if (draft.FromDate.Year is < 1800 or > 2100 ||
-            draft.UntilDate.Year is < 1800 or > 2100 ||
-            draft.UntilDate.Date < draft.FromDate.Date)
+            (!ongoing && ((draft.UntilDate.Year is < 1800 or > 2100) ||
+                          draft.UntilDate.Date < draft.FromDate.Date)))
             throw new InvalidOperationException(
-                "Employment dates must be in 1800–2100, with the ending date no earlier than the starting date.");
+                "Employment dates must be in 1800–2100. The Until date may be " +
+                "01/01/1666 when employment is ongoing; the From date may not.");
         if (draft.Initials.Length == 0 || draft.Initials.Any(char.IsControl))
             throw new InvalidOperationException("Enter the company's initials for this historical stint.");
 

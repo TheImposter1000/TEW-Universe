@@ -112,8 +112,9 @@ internal static class RecordNameRepairPlanner
             string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
             row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
             row.Initials.Any(char.IsControl) ||
-            row.From.Year < 1800 || row.Until.Year > 2100 ||
-            row.Until < row.From))
+            row.From.Year is < 1800 or > 2100 ||
+            (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
+             ((row.Until.Year is < 1800 or > 2100) || row.Until < row.From))))
             if (!string.IsNullOrEmpty(invalid.OldName))
                 reserved.Add(invalid.OldName);
         var changes = new List<RecordNameRepair>();
@@ -124,8 +125,9 @@ internal static class RecordNameRepairPlanner
             if (string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
                 row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
                 row.Initials.Any(char.IsControl) ||
-                row.From.Year < 1800 || row.Until.Year > 2100 ||
-                row.Until < row.From)
+                row.From.Year is < 1800 or > 2100 ||
+            (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
+             ((row.Until.Year is < 1800 or > 2100) || row.Until < row.From)))
             {
                 warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
                     "missing initials, dates, or a valid record identity—left unchanged.");
@@ -146,7 +148,9 @@ internal static class RecordNameRepairPlanner
                     "tblCV", null, row.WorkerUid, row.FedUid, null,
                     row.From, row.Until, row.OldName, proposed,
                     $"Worker {row.WorkerUid} • {row.Initials} • " +
-                    $"{row.From.Year}-{row.Until.Year}"));
+                    $"{row.From.Year}-" +
+                    (StudioDateFormat.IsOngoingEndDate(row.Until)
+                        ? "Present" : row.Until.Year.ToString())));
         }
         return new RecordNameRepairPlan(
             "tblCV", selectedWorkerUid, targets.Length, changes, warnings);

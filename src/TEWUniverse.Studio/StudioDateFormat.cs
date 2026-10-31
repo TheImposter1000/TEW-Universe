@@ -14,6 +14,15 @@ internal static class StudioDateFormat
     internal const string Pattern = "MM/dd/yyyy";
     internal const string Hint = "M/D/YYYY or Month Day Year";
 
+    // TEW IX uses January 1, 1666 in relevant end-date columns to mean
+    // still active / ongoing, not a real end in the year 1666.
+    // A start date, title cup loss or team formation date has its own
+    // semantics; never interpret every 1666 value as ongoing globally.
+    internal static readonly DateTime OngoingEndDate = new(1666, 1, 1);
+
+    internal static bool IsOngoingEndDate(DateTime date) =>
+        date.Date == OngoingEndDate;
+
     private static readonly Regex WrittenDate = new(
         @"^(?<month>[A-Za-z]+)\s+(?<day>\d{1,2})(?<suffix>st|nd|rd|th)?(?:\s*,\s*|\s+)(?<year>\d{4})$",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);

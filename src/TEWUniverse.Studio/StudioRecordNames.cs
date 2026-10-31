@@ -20,11 +20,14 @@ internal static class StudioRecordNames
     internal static string Employment(string initials, DateTime from, DateTime until)
     {
         string company = (initials ?? "").Trim();
+        bool ongoing = StudioDateFormat.IsOngoingEndDate(until);
         if (company.Length == 0 || company.Any(char.IsControl) ||
-            from.Date > until.Date || from.Year < 1800 || until.Year > 2100)
+            from.Year is < 1800 or > 2100 ||
+            (!ongoing && ((until.Year is < 1800 or > 2100) || from.Date > until.Date)))
             throw new InvalidOperationException(
-                "Choose company initials and valid employment dates before generating a record name.");
-        return $"{company.ToUpperInvariant()} ({from.Year:D4}-{until.Year:D4})";
+                "Choose initials and valid employment dates, or 01/01/1666 as an ongoing Until date.");
+        string end = ongoing ? "Present" : until.Year.ToString("D4", CultureInfo.InvariantCulture);
+        return $"{company.ToUpperInvariant()} ({from.Year:D4}-{end})";
     }
 
     /// <summary>
