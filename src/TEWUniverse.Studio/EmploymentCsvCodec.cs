@@ -106,10 +106,14 @@ internal static class EmploymentCsvCodec
                 $"CSV row {rowNumber}: invalid {SimpleHeader.Split(',')[6 + n - flagStart]} value '{v}'.");
         }
         string initials = fields[initialsIndex].Trim();
-        if (initials.Length == 0 || initials.Any(char.IsControl))
-            throw new InvalidOperationException(
-                $"CSV row {rowNumber}: enter valid company initials.");
         string name = recordName.Trim();
+        // Many historical TEW tblCV rows legitimately have empty Initials;
+        // their explicit company/year RecordName is still a usable identifier.
+        // Require initials only when a new name must be generated.
+        if (initials.Any(char.IsControl) ||
+            initials.Length == 0 && name.Length == 0)
+            throw new InvalidOperationException(
+                $"CSV row {rowNumber}: enter company initials or a RecordName.");
         if (name.Length == 0)
             name = StudioRecordNames.Employment(initials, start, end);
         if (name.Any(char.IsControl))
