@@ -398,8 +398,12 @@ internal sealed partial class DatabaseSession
         }
         if (schema.Columns["RecordName"]!.DataType != typeof(string))
             throw new InvalidOperationException("Unexpected employment record identifier type.");
+        string displayCompany = draft.FedUid > 0
+            ? ReadEmploymentCompanies().FirstOrDefault(c => c.Id == draft.FedUid)?.Name
+                ?? draft.Initials
+            : draft.Initials;
         string proposedName = string.IsNullOrWhiteSpace(draft.RequestedRecordName)
-            ? StudioRecordNames.Employment(draft.Initials, draft.FromDate, draft.UntilDate)
+            ? StudioRecordNames.Employment(displayCompany, draft.FromDate, draft.UntilDate)
             : draft.RequestedRecordName.Trim();
         if (proposedName.Length == 0 || proposedName.Any(char.IsControl))
             throw new InvalidOperationException("Enter a valid employment Record Name.");
