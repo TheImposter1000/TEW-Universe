@@ -32,6 +32,8 @@ public partial class MainWindow
     private bool _employmentNameAutomatic = true;
     private bool _settingGeneratedEmploymentName;
     private TextBox _employmentInitials = null!;
+    private TextBlock _employmentCompanyMatch = null!;
+    private bool _syncingEmploymentCompany;
     private TextBox _employmentFrom = null!;
     private TextBox _employmentUntil = null!;
     private CheckBox _employmentLoan = null!;
@@ -41,7 +43,7 @@ public partial class MainWindow
     private Button _employmentSave = null!;
     private Button _employmentDelete = null!;
     private TextBlock _employmentSummary = null!;
-    private List<ExistingRecordItem> _employmentCompanies = new();
+    private List<EmploymentCompanyChoice> _employmentCompanies = new();
     private bool _settingWorkerExtraForm;
 
     private sealed record EmploymentDisplay(WorkerEmploymentEntry Entry, string Company)
@@ -263,12 +265,18 @@ public partial class MainWindow
         });
         _employmentCompany = ExtraPicker(editable: true);
         _employmentCompany.SelectionChanged += EmploymentCompanyChanged;
-        _employmentCompany.DisplayMemberPath = nameof(ExistingRecordItem.Name);
-        TextSearch.SetTextPath(_employmentCompany, nameof(ExistingRecordItem.Name));
+        _employmentCompany.DisplayMemberPath = nameof(EmploymentCompanyChoice.Name);
+        TextSearch.SetTextPath(_employmentCompany, nameof(EmploymentCompanyChoice.Name));
         AddExtraField(employmentEditor, ExtraLabel("Company"), _employmentCompany);
         _employmentInitials = ExtraTextBox();
-        _employmentInitials.TextChanged += EmploymentNameSourceChanged;
+        _employmentInitials.TextChanged += EmploymentInitialsChanged;
         AddExtraField(employmentEditor, ExtraLabel("Historical company initials"), _employmentInitials);
+        _employmentCompanyMatch = new TextBlock {
+            Text = "Selecting a company fills its initials. Typing unique company initials selects the company.",
+            Foreground = ExtraColor("#93B4D5"), FontSize = 11,
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -6, 0, 11)
+        };
+        employmentEditor.Children.Add(_employmentCompanyMatch);
         _employmentFrom = ExtraTextBox();
         _employmentFrom.TextChanged += EmploymentNameSourceChanged;
         AddExtraField(employmentEditor, ExtraLabel("From date (e.g. 5/12/1998 or May 12th 1998)"), _employmentFrom);
@@ -371,31 +379,59 @@ public partial class MainWindow
 
     private void EmploymentCompanyChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_settingWorkerExtraForm || _session == null ||
-            _employmentCompany.SelectedItem is not ExistingRecordItem company ||
+        if (_settingWorkerExtraForm || _syncingEmploymentCompany ||
             _employmentInitials == null) return;
-        if (string.IsNullOrWhiteSpace(_employmentInitials.Text))
-        {
-            string initials = "";
-            try
-            {
-                var record = _session.ReadExistingRecord("Companies", company.Id);
-                if (record.Data.Rows.Count > 0 &&
-                    record.Data.Columns.Contains("Initials") &&
-                    record.Data.Rows[0]["Initials"] is not DBNull)
-                    initials = Convert.ToString(record.Data.Rows[0]["Initials"],
-                        CultureInfo.InvariantCulture)?.Trim() ?? "";
-            }
-            catch { /* fallback to letters from company name */ }
-            if (initials.Length == 0)
-                initials = string.Concat(company.Name
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                    .Where(token => token.Length > 0)
-                    .Select(token => char.ToUpperInvariant(token[0])));
-            if (initials.Length > 0)
-                _employmentInitials.Text = initials;
-        }
+        if (_employmentCompany.SelectedItem is not EmploymentCompanyChoice company)
+            return;
+
+        // A deliberate company selection wins even if another historical
+        // abbreviation was previously entered. Never invent initials.
+        _syncingEmploymentCompany = true;
+        try { _employmentInitials.Text = company.Initials; }
+        finally { _syncingEmploymentCompany = false; }
+        _employmentCompanyMatch.Text = string.IsNullOrWhiteSpace(company.Initials)
+            ? "This company has no initials stored in tblFed. Enter valid initials before saving."
+            : company.Name + " is selected. Company initials: " + company.Initials + ".";
         RefreshAutomaticEmploymentName();
+    }
+
+    private void EmploymentInitialsChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_settingWorkerExtraForm || _syncingEmploymentCompany) return;
+        string typed = _employmentInitials.Text.Trim();
+        var unique = EmploymentCompanyLookup.FindUniqueByInitials(
+            typed, _employmentCompanies);
+        int matches = EmploymentCompanyLookup.CountMatches(
+            typed, _employmentCompanies);
+
+        _syncingEmploymentCompany = true;
+        try
+        {
+            if (unique != null)
+            {
+                if ((_employmentCompany.SelectedItem as EmploymentCompanyChoice)?.Id != unique.Id)
+                    _employmentCompany.SelectedItem = unique;
+            }
+            else if (_employmentCompany.SelectedItem is EmploymentCompanyChoice selected &&
+                !(matches > 1 &&
+                  string.Equals(selected.Initials.Trim(), typed,
+                      StringComparison.OrdinalIgnoreCase)))
+            {
+                // A partial, unknown, or ambiguous abbreviation cannot leave
+                // a different company silently selected for the MDB write.
+                _employmentCompany.SelectedItem = null;
+            }
+        }
+        finally { _syncingEmploymentCompany = false; }
+
+        _employmentCompanyMatch.Text = typed.Length == 0
+            ? "Enter company initials to find the matching company."
+            : unique != null ? "Matched company: " + unique.Name + "."
+            : matches > 1
+                ? "Multiple companies use these initials. Select the intended company by name."
+                : "No company has these initials. Select a company from the list.";
+        RefreshAutomaticEmploymentName();
+        RefreshDirty();
     }
 
     private void ResetWorkerExtras()
@@ -415,6 +451,7 @@ public partial class MainWindow
             _employmentNameAutomatic = true;
             _employmentRecordName.Text = "";
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
+            _employmentCompanyMatch.Text = "Select a company or type its initials.";
             _employmentLoan.IsChecked = _employmentTrade.IsChecked =
                 _employmentTour.IsChecked = _employmentDevelopmental.IsChecked = false;
             _attributeSave.IsEnabled = _attributeDelete.IsEnabled = false;
@@ -474,7 +511,7 @@ public partial class MainWindow
             else if (tab == "Employment")
             {
                 var records = _session.ReadWorkerEmployment(_worker.Id);
-                _employmentCompanies = _session.ListExistingRecords("Companies");
+                _employmentCompanies = _session.ReadEmploymentCompanies();
                 var names = _employmentCompanies.ToDictionary(c => c.Id, c => c.Name);
                 var rows = records.Select(r => new EmploymentDisplay(r,
                     names.TryGetValue(r.FedUid, out var company) ? company :
@@ -541,6 +578,10 @@ public partial class MainWindow
             _employmentCompany.SelectedItem = item == null ? null :
                 _employmentCompanies.FirstOrDefault(c => c.Id == item.FedUid);
             _employmentInitials.Text = item?.Initials ?? "";
+            _employmentCompanyMatch.Text = item == null
+                ? "Select a company or type its initials."
+                : "Company: " + (_employmentCompany.SelectedItem as EmploymentCompanyChoice)?.Name +
+                  ". Historical initials: " + (item?.Initials ?? "") + ".";
             _employmentFrom.Text = item is null ? "" : StudioDateFormat.Format(item.FromDate);
             _employmentUntil.Text = item is null ? "" : StudioDateFormat.Format(item.UntilDate);
             _employmentLoan.IsChecked = item?.Loan ?? false;
@@ -580,7 +621,7 @@ public partial class MainWindow
         if (_currentTab == "Employment")
         {
             var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
-            var company = _employmentCompany.SelectedItem as ExistingRecordItem;
+            var company = _employmentCompany.SelectedItem as EmploymentCompanyChoice;
             if (item == null)
                 return company != null || _employmentRecordName.Text.Trim().Length > 0 ||
                     _employmentInitials.Text.Trim().Length > 0 ||
@@ -685,7 +726,7 @@ public partial class MainWindow
 
     private WorkerEmploymentDraft EmploymentDraft()
     {
-        if (_employmentCompany.SelectedItem is not ExistingRecordItem company)
+        if (_employmentCompany.SelectedItem is not EmploymentCompanyChoice company)
             throw new InvalidOperationException(
                 "Select an existing company from the list. Typing an unmatched company name is not enough.");
         if (!StudioDateFormat.TryParse(_employmentFrom.Text, out DateTime from) ||

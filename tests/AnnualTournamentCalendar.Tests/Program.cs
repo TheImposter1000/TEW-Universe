@@ -1755,6 +1755,29 @@ if (ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2,
     throw new Exception("Human-readable chemistry names or collision handling regressed.");
 Console.WriteLine("Passed chemistry worker, duplicate-pair, observed-code and record-name tests.");
 
+// Employment company/initials lookup must resolve actual tblFed initials in
+// both directions without guessing names or choosing between duplicates.
+var employmentCompanies = new[] {
+    new EmploymentCompanyChoice(7, "Dynamic National Alliance", "DNA"),
+    new EmploymentCompanyChoice(9, "Pro Wrestling Alliance", "PWA"),
+    new EmploymentCompanyChoice(11, "National Pro Wrestling", "NPW"),
+    new EmploymentCompanyChoice(12, "New Pro Wrestling", "NPW"),
+    new EmploymentCompanyChoice(13, "Without Initials", "")
+};
+if (EmploymentCompanyLookup.FindUniqueByInitials(
+        " dna ", employmentCompanies)?.Id != 7 ||
+    EmploymentCompanyLookup.FindUniqueByInitials(
+        "pWa", employmentCompanies)?.Name != "Pro Wrestling Alliance" ||
+    EmploymentCompanyLookup.CountMatches("NPW", employmentCompanies) != 2 ||
+    EmploymentCompanyLookup.FindUniqueByInitials(
+        "NPW", employmentCompanies) != null ||
+    EmploymentCompanyLookup.FindUniqueByInitials(
+        "XYZ", employmentCompanies) != null ||
+    EmploymentCompanyLookup.FindUniqueByInitials(
+        "", employmentCompanies) != null)
+    throw new Exception("Employment company/initials synchronization matched an incorrect company.");
+Console.WriteLine("Passed company initials lookup, case/whitespace, missing and ambiguous company checks.");
+
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.
 foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {

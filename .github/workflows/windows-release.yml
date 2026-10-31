@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          IMPROVED: Employment History Company and Historical company initials now sync both ways. Selecting a company fills its verified tblFed initials even if the field is already populated; typing unique initials selects the matching company automatically. Unknown, partial, and ambiguous initials cannot silently save against an unrelated company. Existing historical data is not changed simply by opening a period.
+
           NEW: Chemistry is a standalone editor for TEW IX tblChemistryForce presets, with searchable worker pairs, actual stored type/quality codes, and verified insert, edit and delete actions. Unknown enum meanings are not guessed; new codes must already exist in the scenario. Worker references, duplicate pair/type detection, transactional saves, confirmations and optional backups are preserved. Tools has been removed from visible navigation; its diagnostic engine remains dormant.
 
           NEW: Editable date fields now accept both US numeric dates and English written dates. For example, 5/12/1998, 05/12/1998, May 12th 1998 and May 12, 1998 all mean the same day. Ordinal suffixes are validated, stored values remain native MDB dates, and display/CSV exports retain MM/DD/YYYY. Employment history, contracts, tag-team formation, championship history imports and title timeline limits follow the same parsing rule.

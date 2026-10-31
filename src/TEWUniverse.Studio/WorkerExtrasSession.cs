@@ -281,6 +281,33 @@ internal sealed partial class DatabaseSession
         }
     }
 
+    /// <summary>
+    /// One schema-checked tblFed lookup feeds both the company name picker
+    /// and the historical initials lookup, avoiding per-selection MDB queries.
+    /// </summary>
+    public List<EmploymentCompanyChoice> ReadEmploymentCompanies()
+    {
+        var schema = ValidateWorkerExtraSchema("tblFed", "UID", "Name", "Initials");
+        if (schema.Columns["Name"]!.DataType != typeof(string) ||
+            schema.Columns["Initials"]!.DataType != typeof(string))
+            throw new InvalidOperationException(
+                "Company Name and Initials must be text fields in tblFed.");
+        var companies = new List<EmploymentCompanyChoice>();
+        using var cmd = new OleDbCommand(
+            "SELECT [UID], [Name], [Initials] FROM [tblFed] ORDER BY [Name]", _connection);
+        using var reader = cmd.ExecuteReader();
+        if (reader == null) return companies;
+        while (reader.Read())
+        {
+            if (reader[0] is DBNull) continue;
+            companies.Add(new EmploymentCompanyChoice(
+                Convert.ToInt32(reader[0], CultureInfo.InvariantCulture),
+                FieldText(reader[1]).Trim(),
+                FieldText(reader[2]).Trim()));
+        }
+        return companies;
+    }
+
     public List<WorkerEmploymentEntry> ReadWorkerEmployment(int workerId)
     {
         CheckLinkedWorker(workerId);
