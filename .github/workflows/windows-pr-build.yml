@@ -23,5 +23,7 @@ jobs:
         run: dotnet run --project tests/AnnualTournamentCalendar.Tests/AnnualTournamentCalendar.Tests.csproj --configuration Release
       - name: Check editable dropdown templates
         run: dotnet run --project tests/DropdownTemplate.Tests/DropdownTemplate.Tests.csproj --configuration Release
+      - name: Validate employment and chemistry record names
+        run: dotnet run --project tests/RecordNaming.Tests/RecordNaming.Tests.csproj --configuration Release
       - name: Compile TEW Universe desktop
         run: dotnet build src/TEWUniverse.Desktop/TEWUniverse.Desktop.csproj --configuration Release
