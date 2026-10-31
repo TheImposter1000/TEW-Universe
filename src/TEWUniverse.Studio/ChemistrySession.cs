@@ -9,8 +9,8 @@ internal sealed record ChemistryEntry(
     string Worker1Name, string Worker2Name, int RelType, int Quality)
 {
     public string PairLabel => Worker1Name + " / " + Worker2Name;
-    public string TypeLabel => "Code " + RelType.ToString(CultureInfo.InvariantCulture);
-    public string QualityLabel => "Code " + Quality.ToString(CultureInfo.InvariantCulture);
+    public string TypeLabel => ChemistryRules.TypeLabel(RelType);
+    public string QualityLabel => ChemistryRules.QualityLabel(Quality);
     public string SearchText => PairLabel + " " + RecordName + " " + Uid + " " +
         Worker1 + " " + Worker2 + " " + TypeLabel + " " + QualityLabel;
 }
@@ -109,14 +109,14 @@ internal sealed partial class DatabaseSession
     private static void ValidateChemistryCodeChoice(ChemistryEntry? existing,
         int type, int quality, IReadOnlyList<ChemistryEntry> all)
     {
-        // An existing unknown value can be left untouched; changed values
-        // must be observed in this specific database, not guessed.
+        // Verified codes may be used even when no preset currently uses them.
+        // Unknown existing codes can be preserved without being re-assigned.
         if ((existing == null || type != existing.RelType) &&
-            !all.Any(x => x.RelType == type))
-            throw new InvalidOperationException("Unverified chemistry RelType code.");
+            !ChemistryRules.Types.ContainsKey(type))
+            throw new InvalidOperationException("Unknown chemistry RelType code.");
         if ((existing == null || quality != existing.Quality) &&
-            !all.Any(x => x.Quality == quality))
-            throw new InvalidOperationException("Unverified chemistry Quality code.");
+            !ChemistryRules.Qualities.ContainsKey(quality))
+            throw new InvalidOperationException("Unknown chemistry Quality code.");
     }
 
     public int CreateChemistry(int first, int second, int type, int quality)
@@ -154,7 +154,8 @@ internal sealed partial class DatabaseSession
             string firstName = workers.First(w => w.Id == first).Name;
             string secondName = workers.First(w => w.Id == second).Name;
             string recordName = ChemistryRules.RecordName(
-                firstName, secondName, type, names, schema.Columns[ChemistryName]!.MaxLength);
+                firstName, secondName, type, quality, names,
+                schema.Columns[ChemistryName]!.MaxLength);
             bool auto = schema.Columns["UID"]!.AutoIncrement;
             string[] columns = auto
                 ? new[] { ChemistryName, "Worker1", "Worker2", "RelType", "Quality" }
@@ -203,9 +204,18 @@ internal sealed partial class DatabaseSession
                 if (reader.Read()) throw new InvalidOperationException("Duplicate chemistry UID.");
             }
             EnsureChemistryUnique(tx, old.Worker1, old.Worker2, type, old.Uid);
+            string name = old.RecordName;
+            if (type != old.RelType || quality != old.Quality)
+            {
+                var names = ReadChemistry().Where(x => x.Uid != old.Uid)
+                    .Select(x => x.RecordName);
+                name = ChemistryRules.RecordName(old.Worker1Name, old.Worker2Name,
+                    type, quality, names, schema.Columns[ChemistryName]!.MaxLength);
+            }
             using var update = new OleDbCommand(
-                "UPDATE [tblChemistryForce] SET [RelType]=?, [Quality]=? WHERE [UID]=?",
+                "UPDATE [tblChemistryForce] SET [RecordName]=?, [RelType]=?, [Quality]=? WHERE [UID]=?",
                 _connection, tx);
+            update.Parameters.Add("name", OleDbType.VarWChar).Value = name;
             foreach (var (col, n) in new[] { ("RelType", type), ("Quality", quality), ("UID", old.Uid) })
                 update.Parameters.Add(col, ToOleDbType(schema.Columns[col]!.DataType))
                     .Value = ChemistryNumber(schema.Columns[col]!, n);
