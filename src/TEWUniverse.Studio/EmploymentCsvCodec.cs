@@ -186,6 +186,49 @@ internal static class EmploymentCsvCodec
         return new EmploymentCsvPreview(rows.Count - 1, changes, IsReplacement: true);
     }
 
+    internal static bool IsLegacyFormat(string csv)
+    {
+        var first = csv.Replace("\r", "").Split('\n', 2)[0].TrimStart('\ufeff');
+        return first == Header;
+    }
+
+    /// <summary>
+    /// Allows an already-edited old-format CSV to work as a full-table
+    /// snapshot, disregarding bookkeeping identity/fingerprint columns.
+    /// Explicit legacy Action=Delete rows are omitted from the desired final
+    /// history. The UI must ask permission before using this mode, because
+    /// absent rows will be deleted from tblCV.
+    /// </summary>
+    internal static EmploymentCsvPreview PreviewLegacyReplacement(
+        string csv, IReadOnlyList<WorkerEmploymentEntry> existing,
+        IReadOnlySet<int> workerIds, IReadOnlySet<int> companyIds)
+    {
+        if (string.IsNullOrEmpty(csv) || csv.Length > 20_000_000)
+            throw new InvalidOperationException("CSV file is empty or exceeds 20 MB.");
+        var rows = Parse(csv);
+        if (rows.Count == 0 ||
+            string.Join(",", rows[0]).TrimStart('\ufeff') != Header)
+            throw new InvalidOperationException("The selected file is not an older Employment History CSV.");
+        var simple = new StringBuilder(SimpleHeader).AppendLine();
+        for (int i = 1; i < rows.Count; i++)
+        {
+            var fields = rows[i];
+            if (fields.Count != 13)
+                throw new InvalidOperationException(
+                    $"CSV row {i + 1}: legacy spreadsheet needs 13 columns.");
+            string action = fields[0].Trim();
+            if (action.Equals("Delete", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!action.Equals("Update", StringComparison.OrdinalIgnoreCase) &&
+                !action.Equals("Add", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"CSV row {i + 1}: Action must be Add, Update or Delete.");
+            int[] source = { 1, 2, 4, 5, 6, 7, 8, 9, 10, 11 };
+            simple.AppendLine(string.Join(",", source.Select(index => Escape(fields[index]))));
+        }
+        return PreviewReplacement(simple.ToString(), existing, workerIds, companyIds);
+    }
+
     internal static EmploymentCsvPreview Preview(string csv,
         IReadOnlyList<WorkerEmploymentEntry> existing,
         IReadOnlySet<int> workerIds, IReadOnlySet<int> companyIds)

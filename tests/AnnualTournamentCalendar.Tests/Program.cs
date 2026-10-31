@@ -2006,6 +2006,38 @@ catch (InvalidOperationException e) {
 }
 if (!diagnosticNamesWorker)
     throw new Exception("Malformed advanced CSV lacked a useful row diagnostic.");
+var legacyLines = exportedEmployment.Split(new[] { "\r\n", "\n" },
+    StringSplitOptions.RemoveEmptyEntries);
+if (legacyLines.Length != 3) throw new Exception("Advanced export did not roundtrip.");
+var legacyWithCopiedRow = string.Join(Environment.NewLine, new[] {
+    legacyLines[0],
+    legacyLines[1],
+    legacyLines[2],
+    legacyLines[1].Replace("Update,101,DNA (2022 -?),",
+        "Update,101,DNA (2023 -?),").Replace(
+        ",1/1/2022,1/1/1666,", ",1/1/2023,1/1/1666,")
+}) + Environment.NewLine;
+bool advancedIdentityConflict = false;
+try {
+    EmploymentCsvCodec.Preview(legacyWithCopiedRow, originalEmployment,
+        knownEmploymentWorkers, knownEmploymentCompanies);
+}
+catch (InvalidOperationException e) {
+    advancedIdentityConflict = e.Message.Contains("OriginalRecordName", StringComparison.Ordinal);
+}
+if (!advancedIdentityConflict)
+    throw new Exception("The old advanced patch format should identify duplicated source identities.");
+if (!EmploymentCsvCodec.IsLegacyFormat(legacyWithCopiedRow))
+    throw new Exception("Failed to recognize an old Employment History CSV.");
+var migratedLegacy = EmploymentCsvCodec.PreviewLegacyReplacement(
+    legacyWithCopiedRow, originalEmployment,
+    knownEmploymentWorkers, knownEmploymentCompanies);
+if (!migratedLegacy.IsReplacement || migratedLegacy.Changes.Count != 1 ||
+    !migratedLegacy.Changes[0].IsAdd ||
+    migratedLegacy.Changes[0].Draft.RequestedRecordName != "DNA (2023 -?)")
+    throw new Exception("Old edited CSV could not be imported as full-table replacement.");
+Console.WriteLine("Passed old edited CSV full-replacement migration.");
+
 Console.WriteLine("Passed simple employment CSV add/edit/delete, multiworker names and legacy Delete.");
 
 // Contract form changes must be recognized by typed value rather than

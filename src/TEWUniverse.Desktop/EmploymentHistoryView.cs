@@ -239,11 +239,35 @@ public partial class MainWindow
         {
             if (new FileInfo(picker.FileName).Length > 20_000_000)
                 throw new InvalidOperationException("Employment CSV exceeds 20 MB.");
-            var preview = EmploymentCsvCodec.Preview(
-                File.ReadAllText(picker.FileName),
-                _session.ReadAllWorkerEmployment(),
-                _allWorkers.Select(x => x.Id).ToHashSet(),
-                _session.ReadEmploymentCompanies().Select(x => x.Id).ToHashSet());
+            string csv = File.ReadAllText(picker.FileName);
+            var original = _session.ReadAllWorkerEmployment();
+            var workers = _allWorkers.Select(x => x.Id).ToHashSet();
+            var companies = _session.ReadEmploymentCompanies().Select(x => x.Id).ToHashSet();
+            EmploymentCsvPreview preview;
+            if (EmploymentCsvCodec.IsLegacyFormat(csv))
+            {
+                var mode = MessageBox.Show(this,
+                    "This is an older Employment History CSV with Action, " +
+                    "OriginalRecordName and SourceFingerprint columns.\n\n" +
+                    "YES: Treat the visible CSV rows as the entire history, like " +
+                    "the Championship importer. Edited rows update records; added " +
+                    "rows create records; missing rows and Action=Delete rows remove " +
+                    "records. Original-name and fingerprint columns are ignored.\n\n" +
+                    "NO: Apply only the older Add, Update and Delete actions. " +
+                    "Each update must still have a distinct original identity.\n\n" +
+                    "CANCEL: Do not import.",
+                    "Old Employment CSV: Choose Import Method",
+                    MessageBoxButton.YesNoCancel, MessageBoxImage.Question,
+                    MessageBoxResult.Cancel);
+                if (mode == MessageBoxResult.Cancel) return;
+                preview = mode == MessageBoxResult.Yes
+                    ? EmploymentCsvCodec.PreviewLegacyReplacement(
+                        csv, original, workers, companies)
+                    : EmploymentCsvCodec.Preview(csv, original, workers, companies);
+            }
+            else
+                preview = EmploymentCsvCodec.Preview(
+                    csv, original, workers, companies);
             if (preview.Changes.Count == 0)
             {
                 MessageBox.Show(this, "This CSV has no new or changed employment periods.",
