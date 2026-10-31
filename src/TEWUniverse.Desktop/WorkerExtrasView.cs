@@ -815,7 +815,7 @@ public partial class MainWindow
                 createNew ? "Add Employment History" : "Save Employment History")) return;
 
             string key = _session.SaveWorkerEmployment(owner.Id,
-                createNew ? null : selected!.RecordName, draft);
+                createNew ? null : selected, draft);
             _lastSaved = DateTime.Now;
             if (_activeModule == "Employment History")
                 ReloadEmploymentHistory(owner.Id, key, draft.FedUid, draft.FromDate);
@@ -843,7 +843,7 @@ public partial class MainWindow
             "Remove Employment History")) return;
         try
         {
-            _session.DeleteWorkerEmployment(owner.Id, selected.RecordName);
+            _session.DeleteWorkerEmployment(owner.Id, selected);
             _lastSaved = DateTime.Now;
             if (_activeModule == "Employment History") ReloadEmploymentHistory();
             else RefreshWorkerExtraTab("Employment");
