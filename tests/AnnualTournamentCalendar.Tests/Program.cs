@@ -2091,6 +2091,71 @@ var handshakeLegacy = EmploymentCsvCodec.Export(handshakeEntries);
 if (EmploymentCsvCodec.Preview(handshakeLegacy,
         handshakeEntries, handshakeWorkers, handshakeCompanies).Changes.Count != 0)
     throw new Exception("Advanced CSV could not distinguish same-name periods by fingerprint.");
+// FedUID=0 denotes a company that does NOT exist in tblFed. It is a
+// legitimate employment-history entry so the worker's full career can be
+// tracked without creating a company in the scenario.
+var unlistedEmployment = new WorkerEmploymentEntry("UWA (1998-1998)",
+    378, 0, "UWA", new DateTime(1998, 5, 1),
+    new DateTime(1998, 5, 31), false, false, false, false);
+var unlistedRoster = new[] { unlistedEmployment };
+var unlistedCsv = EmploymentCsvCodec.ExportSimple(unlistedRoster);
+var unlistedWorkers = new HashSet<int> { 378 };
+var linkedCompaniesOnly = new HashSet<int> { 5, 12 };
+if (EmploymentCsvCodec.Preview(unlistedCsv, unlistedRoster,
+        unlistedWorkers, linkedCompaniesOnly).Changes.Count != 0)
+    throw new Exception("FedUID 0 was rejected when reading an unlisted company.");
+var unlistedAddedCsv = unlistedCsv +
+    "378,Other Indies (2000-2000),0,OI,2/1/2000,2/28/2000,False,False,False,False"
+    + Environment.NewLine;
+var unlistedAdd = EmploymentCsvCodec.Preview(unlistedAddedCsv,
+    unlistedRoster, unlistedWorkers, linkedCompaniesOnly);
+if (unlistedAdd.Changes.Count != 1 ||
+    !unlistedAdd.Changes[0].IsAdd ||
+    unlistedAdd.Changes[0].Draft.FedUid != 0)
+    throw new Exception("Unlisted company UID 0 was not allowed on a new CSV period.");
+var unlistedEditedCsv = unlistedCsv.Replace("UWA (1998-1998)",
+    "UWA Wrestling (1998-1998)");
+var unlistedUpdate = EmploymentCsvCodec.Preview(unlistedEditedCsv,
+    unlistedRoster, unlistedWorkers, linkedCompaniesOnly);
+if (unlistedUpdate.Changes.Count != 1 ||
+    unlistedUpdate.Changes[0].IsAdd ||
+    unlistedUpdate.Changes[0].IsDelete ||
+    unlistedUpdate.Changes[0].Original?.FedUid != 0)
+    throw new Exception("Could not edit an existing unlisted company period.");
+var unlistedRemove = EmploymentCsvCodec.Preview(
+    EmploymentCsvCodec.SimpleHeader + Environment.NewLine,
+    unlistedRoster, unlistedWorkers, linkedCompaniesOnly);
+if (unlistedRemove.Changes.Count != 1 ||
+    !unlistedRemove.Changes[0].IsDelete)
+    throw new Exception("Could not remove an unlisted-company period.");
+var unlistedAdvanced = EmploymentCsvCodec.Export(unlistedRoster);
+if (EmploymentCsvCodec.Preview(unlistedAdvanced, unlistedRoster,
+        unlistedWorkers, linkedCompaniesOnly).Changes.Count != 0)
+    throw new Exception("Advanced employment CSV rejected existing UID 0.");
+
+foreach (var invalidUid in new[] { -1, 99999 })
+{
+    var invalid = unlistedCsv.Replace(",0,UWA,", $",{invalidUid},UWA,");
+    bool rejected = false;
+    try {
+        EmploymentCsvCodec.Preview(invalid, unlistedRoster,
+            unlistedWorkers, linkedCompaniesOnly);
+    }
+    catch (InvalidOperationException) { rejected = true; }
+    if (!rejected)
+        throw new Exception("Invalid positive/negative company UID was accepted: " +
+            invalidUid);
+}
+var unlistedRepair = RecordNameRepairPlanner.Employment(new[] {
+    new EmploymentRecordNameRow(378, 0, "UWA",
+        new DateTime(1998, 5, 1), new DateTime(1998, 5, 31), "Old UWA Name")
+}, 378);
+if (unlistedRepair.Changes.Count != 1 ||
+    unlistedRepair.Warnings.Count != 0 ||
+    unlistedRepair.Changes[0].NewName != "UWA (1998-1998)")
+    throw new Exception("Record Name repair rejected an unlisted UID-0 company.");
+Console.WriteLine("Passed unlisted-company FedUID 0 in history CSV and record-name repair.");
+
 Console.WriteLine("Passed month-level handshake employment period identity tests.");
 
 Console.WriteLine("Passed simple employment CSV add/edit/delete, multiworker names and legacy Delete.");

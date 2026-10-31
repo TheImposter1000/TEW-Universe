@@ -28,6 +28,7 @@ public partial class MainWindow
 
     private DataGrid _employmentGrid = null!;
     private ComboBox _employmentCompany = null!;
+    private CheckBox _employmentUnlisted = null!;
     private TextBox _employmentRecordName = null!;
     private TextBlock _employmentNameHint = null!;
     private bool _employmentNameAutomatic = true;
@@ -271,12 +272,21 @@ public partial class MainWindow
         _employmentCompany.SelectionChanged += EmploymentCompanyChanged;
         _employmentCompany.DisplayMemberPath = nameof(EmploymentCompanyChoice.Name);
         TextSearch.SetTextPath(_employmentCompany, nameof(EmploymentCompanyChoice.Name));
-        AddExtraField(employmentEditor, ExtraLabel("Company"), _employmentCompany);
+        AddExtraField(employmentEditor, ExtraLabel("Company (optional for unlisted promotions)"), _employmentCompany);
+        _employmentUnlisted = new CheckBox {
+            Content = "Unlisted historical company (FedUID 0)",
+            Foreground = ExtraColor("#E8F5FF"),
+            Margin = new Thickness(0, 0, 0, 11),
+            ToolTip = "The company is not in tblFed. Only its initials and dates are needed."
+        };
+        _employmentUnlisted.Checked += EmploymentUnlistedChanged;
+        _employmentUnlisted.Unchecked += EmploymentUnlistedChanged;
+        employmentEditor.Children.Add(_employmentUnlisted);
         _employmentInitials = ExtraTextBox();
         _employmentInitials.TextChanged += EmploymentInitialsChanged;
         AddExtraField(employmentEditor, ExtraLabel("Historical company initials"), _employmentInitials);
         _employmentCompanyMatch = new TextBlock {
-            Text = "Selecting a company fills its initials. Typing unique company initials selects the company.",
+            Text = "Select a company, or enter initials and dates without one to store FedUID 0.",
             Foreground = ExtraColor("#93B4D5"), FontSize = 11,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -6, 0, 11)
         };
@@ -402,10 +412,30 @@ public partial class MainWindow
         RefreshDirty();
     }
 
+    private void EmploymentUnlistedChanged(object sender, RoutedEventArgs e)
+    {
+        if (_settingWorkerExtraForm || _employmentCompany == null ||
+            _employmentInitials == null) return;
+        bool unlisted = _employmentUnlisted.IsChecked == true;
+        _syncingEmploymentCompany = true;
+        try
+        {
+            if (unlisted) _employmentCompany.SelectedItem = null;
+            _employmentCompany.IsEnabled = !unlisted;
+        }
+        finally { _syncingEmploymentCompany = false; }
+        _employmentCompanyMatch.Text = unlisted
+            ? "Unlisted company (FedUID 0). The initials and dates are saved " +
+              "without a tblFed company record."
+            : "Select a company, or enter unmatched initials for an unlisted company.";
+        RefreshDirty();
+    }
+
     private void EmploymentCompanyChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_settingWorkerExtraForm || _syncingEmploymentCompany ||
-            _employmentInitials == null) return;
+            _employmentInitials == null ||
+            _employmentUnlisted.IsChecked == true) return;
         if (_employmentCompany.SelectedItem is not EmploymentCompanyChoice company)
             return;
 
@@ -424,6 +454,14 @@ public partial class MainWindow
     {
         if (_settingWorkerExtraForm || _syncingEmploymentCompany) return;
         string typed = _employmentInitials.Text.Trim();
+        if (_employmentUnlisted.IsChecked == true)
+        {
+            _employmentCompanyMatch.Text =
+                "Unlisted company (FedUID 0). These initials do not require a tblFed record.";
+            RefreshAutomaticEmploymentName();
+            RefreshDirty();
+            return;
+        }
         var unique = EmploymentCompanyLookup.FindUniqueByInitials(
             typed, _employmentCompanies);
         int matches = EmploymentCompanyLookup.CountMatches(
@@ -454,7 +492,7 @@ public partial class MainWindow
             : unique != null ? "Matched company: " + unique.Name + "."
             : matches > 1
                 ? "Multiple companies use these initials. Select the intended company by name."
-                : "No company has these initials. Select a company from the list.";
+                : "No matching company. This will save as an unlisted company (FedUID 0).";
         RefreshAutomaticEmploymentName();
         RefreshDirty();
     }
@@ -473,13 +511,15 @@ public partial class MainWindow
             _attributeHidden.IsChecked = _attributePermanent.IsChecked = false;
             _employmentCompanies.Clear();
             _employmentCompany.ItemsSource = null;
+            _employmentUnlisted.IsChecked = false;
+            _employmentCompany.IsEnabled = true;
             _employmentNameAutomatic = true;
             _employmentRecordName.Text = "";
             _employmentNameHint.Text = "Record names use company initials and both employment dates. " +
                 "Example: NCW (2016-2020) or DNA (2022 -?).";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
-            _employmentCompanyMatch.Text = "Select a company or type its initials.";
+            _employmentCompanyMatch.Text = "Select a company or use initials only for FedUID 0.";
             _employmentLoan.IsChecked = _employmentTrade.IsChecked =
                 _employmentTour.IsChecked = _employmentDevelopmental.IsChecked = false;
             _attributeSave.IsEnabled = _attributeDelete.IsEnabled = false;
@@ -621,13 +661,17 @@ public partial class MainWindow
                   "Example: NCW (2016-2020) or DNA (2022 -?)."
                 : "Existing record name is preserved until you choose Generate name or edit it.";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
-            _employmentCompany.SelectedItem = item == null ? null :
+            _employmentUnlisted.IsChecked = item?.FedUid == 0;
+            _employmentCompany.IsEnabled = item?.FedUid != 0;
+            _employmentCompany.SelectedItem = item == null || item.FedUid == 0 ? null :
                 _employmentCompanies.FirstOrDefault(c => c.Id == item.FedUid);
             _employmentInitials.Text = item?.Initials ?? "";
             _employmentCompanyMatch.Text = item == null
-                ? "Select a company or type its initials."
-                : "Company: " + (_employmentCompany.SelectedItem as EmploymentCompanyChoice)?.Name +
-                  ". Historical initials: " + (item?.Initials ?? "") + ".";
+                ? "Select a company or enter initials for FedUID 0."
+                : item.FedUid == 0
+                    ? "Unlisted company (FedUID 0). Historical initials: " + item.Initials + "."
+                    : "Company: " + (_employmentCompany.SelectedItem as EmploymentCompanyChoice)?.Name +
+                      ". Historical initials: " + item.Initials + ".";
             _employmentFrom.Text = item is null ? "" : StudioDateFormat.Format(item.FromDate);
             _employmentUntil.Text = item is null ? "" : StudioDateFormat.Format(item.UntilDate);
             _employmentLoan.IsChecked = item?.Loan ?? false;
@@ -671,14 +715,16 @@ public partial class MainWindow
             var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
             var company = _employmentCompany.SelectedItem as EmploymentCompanyChoice;
             if (item == null)
-                return company != null || _employmentRecordName.Text.Trim().Length > 0 ||
+                return company != null || _employmentUnlisted.IsChecked == true ||
+                    _employmentRecordName.Text.Trim().Length > 0 ||
                     _employmentInitials.Text.Trim().Length > 0 ||
                     _employmentFrom.Text.Trim().Length > 0 ||
                     _employmentUntil.Text.Trim().Length > 0 ||
                     _employmentLoan.IsChecked == true || _employmentTrade.IsChecked == true ||
                     _employmentTour.IsChecked == true ||
                     _employmentDevelopmental.IsChecked == true;
-            return company?.Id != item.FedUid ||
+            return (_employmentUnlisted.IsChecked == true ? 0 : company?.Id ?? 0)
+                != item.FedUid ||
                 !_employmentRecordName.Text.Trim().Equals(item.RecordName, StringComparison.Ordinal) ||
                 !_employmentInitials.Text.Trim().Equals(item.Initials, StringComparison.Ordinal) ||
                 !_employmentFrom.Text.Trim().Equals(StudioDateFormat.Format(item.FromDate), StringComparison.Ordinal) ||
@@ -774,15 +820,23 @@ public partial class MainWindow
 
     private WorkerEmploymentDraft EmploymentDraft()
     {
-        if (_employmentCompany.SelectedItem is not EmploymentCompanyChoice company)
+        int companyId = _employmentUnlisted.IsChecked == true
+            ? 0 : (_employmentCompany.SelectedItem as EmploymentCompanyChoice)?.Id ?? 0;
+        // A blank selection is a legitimate unlisted company, with historical
+        // initials as its identity. Selecting a company continues to use tblFed.
+        // Ambiguous initials should not silently be stored as an unlisted company.
+        if (companyId == 0 && _employmentUnlisted.IsChecked != true &&
+            EmploymentCompanyLookup.CountMatches(
+                _employmentInitials.Text, _employmentCompanies) > 0)
             throw new InvalidOperationException(
-                "Select an existing company from the list. Typing an unmatched company name is not enough.");
+                "These initials match an existing company. Select the intended " +
+                "company, or check Unlisted historical company to store FedUID 0.");
         if (!StudioDateFormat.TryParse(_employmentFrom.Text, out DateTime from) ||
             !StudioDateFormat.TryParse(_employmentUntil.Text, out DateTime until))
             throw new InvalidOperationException(
                 "Enter valid employment From / Until dates, such as 5/12/1998 or May 12th 1998.");
         return new WorkerEmploymentDraft(
-            company.Id, _employmentInitials.Text.Trim(), from, until,
+            companyId, _employmentInitials.Text.Trim(), from, until,
             _employmentLoan.IsChecked == true, _employmentTrade.IsChecked == true,
             _employmentTour.IsChecked == true, _employmentDevelopmental.IsChecked == true,
             _employmentRecordName.Text.Trim(), _employmentNameAutomatic);
@@ -802,7 +856,14 @@ public partial class MainWindow
             if (!createNew && selected == null)
                 throw new InvalidOperationException("Select an existing employment period first.");
             var draft = EmploymentDraft();
-            string company = _employmentCompanies.First(x => x.Id == draft.FedUid).Name;
+            if (!createNew && selected != null && selected.FedUid > 0 &&
+                draft.FedUid == 0 && _employmentUnlisted.IsChecked != true)
+                throw new InvalidOperationException(
+                    "The original linked company is not selected. Choose the " +
+                    "company or explicitly check Unlisted company to change it to UID 0.");
+            string company = draft.FedUid == 0
+                ? draft.Initials + " (unlisted company, UID 0)"
+                : _employmentCompanies.First(x => x.Id == draft.FedUid).Name;
             if (!ConfirmExtraWrite(
                 (createNew ? "Add a new" : "Update this") +
                 $" historical employment period for {owner.Name} at {company}?\n" +

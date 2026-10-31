@@ -53,8 +53,11 @@ internal sealed partial class DatabaseSession
 
     private void CheckLinkedCompany(int companyId)
     {
-        if (companyId <= 0)
-            throw new InvalidOperationException("Choose a linked existing company for this employment period.");
+        // FedUID 0 is TEW's historical/unlisted-company marker. No
+        // tblFed record is required; initials identify the promotion.
+        if (companyId == 0) return;
+        if (companyId < 0)
+            throw new InvalidOperationException("Employment company UID cannot be negative.");
         using var cmd = new OleDbCommand(
             "SELECT COUNT(*) FROM [tblFed] WHERE [UID]=?", _connection);
         cmd.Parameters.Add("company", OleDbType.Integer).Value = companyId;

@@ -124,7 +124,7 @@ internal static class RecordNameRepairPlanner
                 continue;
             }
             if (string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
-                row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
+                row.FedUid < 0 || string.IsNullOrWhiteSpace(row.Initials) ||
                 row.Initials.Any(char.IsControl) ||
                 row.From.Year is < 1800 or > 2100 ||
                 (!StudioDateFormat.IsOngoingEndDate(row.Until) &&

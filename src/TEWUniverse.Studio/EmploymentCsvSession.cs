@@ -27,8 +27,11 @@ internal sealed partial class DatabaseSession
         {
             var d = change.Draft;
             int worker = change.WorkerUid;
-            if (!workerIds.Contains(worker) || !companyIds.Contains(d.FedUid))
-                throw new InvalidOperationException("CSV references a missing worker or company.");
+            if (!workerIds.Contains(worker) || d.FedUid < 0 ||
+                (d.FedUid != 0 && !companyIds.Contains(d.FedUid)))
+                throw new InvalidOperationException(
+                    "CSV references a missing worker or an invalid company. " +
+                    "FedUID 0 is valid for unlisted historical promotions.");
             bool ongoing = StudioDateFormat.IsOngoingEndDate(d.UntilDate);
             if (d.FromDate.Year is < 1800 or > 2100 ||
                 (!ongoing && (d.UntilDate.Year is < 1800 or > 2100 ||

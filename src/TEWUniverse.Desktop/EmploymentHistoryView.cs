@@ -148,7 +148,9 @@ public partial class MainWindow
             var workerNames = _allWorkers.ToDictionary(w => w.Id, w => w.Name);
             _allEmploymentRows = records.Select(e => new EmploymentDisplay(e,
                 companyNames.TryGetValue(e.FedUid, out var company)
-                    ? company : e.Initials + " (UID " + e.FedUid + ")",
+                    ? company : e.FedUid == 0
+                        ? e.Initials + " (unlisted company)"
+                        : e.Initials + " (UID " + e.FedUid + ")",
                 workerNames.TryGetValue(e.WorkerUid, out var worker)
                     ? worker : "Unknown worker " + e.WorkerUid)).ToList();
             _settingWorkerExtraForm = true;

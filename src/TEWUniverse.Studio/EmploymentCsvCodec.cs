@@ -87,9 +87,11 @@ internal static class EmploymentCsvCodec
         string recordName, IReadOnlySet<int> companies)
     {
         if (!int.TryParse(fields[companyIndex].Trim(), NumberStyles.Integer,
-                CultureInfo.InvariantCulture, out int company) || !companies.Contains(company))
+                CultureInfo.InvariantCulture, out int company) ||
+            company < 0 || (company != 0 && !companies.Contains(company)))
             throw new InvalidOperationException(
-                $"CSV row {rowNumber}: CompanyUID '{fields[companyIndex]}' does not match a company in this database.");
+                $"CSV row {rowNumber}: CompanyUID '{fields[companyIndex]}' is invalid. " +
+                "Use 0 for an unlisted historical company, or a positive UID from tblFed.");
         if (!StudioDateFormat.TryParse(fields[fromIndex], out var start) ||
             !StudioDateFormat.TryParse(fields[untilIndex], out var end) ||
             start.Year is < 1800 or > 2100 ||
@@ -320,8 +322,10 @@ internal static class EmploymentCsvCodec
                 !workerIds.Contains(worker))
                 throw new InvalidOperationException($"CSV row {rowNo + 1}: unknown WorkerUID.");
             if (!int.TryParse(r[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out int company) ||
-                !companyIds.Contains(company))
-                throw new InvalidOperationException($"CSV row {rowNo + 1}: unknown CompanyUID.");
+                (company < 0 || (company != 0 && !companyIds.Contains(company))))
+                throw new InvalidOperationException(
+                    $"CSV row {rowNo + 1}: CompanyUID must be 0 for an unlisted " +
+                    "company or an existing positive company UID.");
             if (!StudioDateFormat.TryParse(r[6], out var start) ||
                 !StudioDateFormat.TryParse(r[7], out var end) ||
                 start.Year is < 1800 or > 2100 ||
