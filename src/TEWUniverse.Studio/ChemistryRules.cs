@@ -3,11 +3,44 @@ using System.Globalization;
 namespace TEWUniverse.Studio;
 
 /// <summary>
-/// Preset chemistry is unordered by worker pair, but a pair can carry
-/// distinct RelType values. TEW's code meanings must not be guessed.
+/// Verified TEW IX forced chemistry codes and readable RecordName conventions.
+/// Values stored in tblChemistryForce remain the original numeric codes.
 /// </summary>
 internal static class ChemistryRules
 {
+    internal static readonly int[] KnownCodes = { 1, 2, 3, 4, 5 };
+
+    internal static bool KnownType(int code) => code is >= 1 and <= 5;
+    internal static bool KnownQuality(int code) => code is >= 1 and <= 5;
+
+    internal static string TypeLabel(int code) => code switch
+    {
+        1 => "Fighting Against", 2 => "Teaming With",
+        3 => "Managing", 4 => "Commentating With", 5 => "Booking",
+        _ => "Code " + code.ToString(CultureInfo.InvariantCulture)
+    };
+
+    internal static string QualityLabel(int code) => code switch
+    {
+        1 => "Great", 2 => "Good", 3 => "Neutral",
+        4 => "Poor", 5 => "Awful",
+        _ => "Code " + code.ToString(CultureInfo.InvariantCulture)
+    };
+
+    internal static string TypeAbbreviation(int code) => code switch
+    {
+        1 => "FA", 2 => "TW", 3 => "MW", 4 => "CW", 5 => "BW",
+        _ => throw new InvalidOperationException("Unknown chemistry type code: " + code)
+    };
+
+    // GT is the specified shorthand for Great. The other quality
+    // abbreviations distinguish Good, Neutral, Poor and Awful.
+    internal static string QualityAbbreviation(int code) => code switch
+    {
+        1 => "GT", 2 => "GD", 3 => "NT", 4 => "PR", 5 => "AW",
+        _ => throw new InvalidOperationException("Unknown chemistry quality code: " + code)
+    };
+
     internal static (int First, int Second) Pair(int a, int b) =>
         a <= b ? (a, b) : (b, a);
 
@@ -25,31 +58,43 @@ internal static class ChemistryRules
     internal static void ValidateObserved(int type, int quality,
         IReadOnlyCollection<int> observedTypes, IReadOnlyCollection<int> observedQualities)
     {
-        if (!observedTypes.Contains(type) || !observedQualities.Contains(quality))
+        // Known codes are explicitly confirmed; they need not have appeared
+        // in the current scenario before the first preset is created.
+        if (!KnownType(type) || !KnownQuality(quality))
             throw new InvalidOperationException(
-                "Choose a type and quality code already present in tblChemistryForce. " +
-                "Unverified TEW IX numeric meanings cannot be invented.");
+                "Choose a confirmed chemistry type and quality (codes 1 through 5).");
+    }
+
+    internal static string CompactWorkerName(string name)
+    {
+        string full = (name ?? "").Trim();
+        if (full.Length == 0 || full.Any(char.IsControl))
+            throw new InvalidOperationException("Both workers must have valid names.");
+
+        var tokens = full.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 1) return tokens[0];
+        // Preserve compound family names and suffixes, e.g. J.Van Dam.
+        char initial = char.ToUpperInvariant(tokens[0][0]);
+        return initial + "." + string.Join(" ", tokens.Skip(1));
     }
 
     internal static string RecordName(string first, string second, int relationType,
-        IEnumerable<string> existing, int maxLength)
+        int quality, IEnumerable<string> existing, int maxLength)
     {
-        string left = (first ?? "").Trim(), right = (second ?? "").Trim();
-        if (left.Length == 0 || right.Length == 0 ||
-            left.Any(char.IsControl) || right.Any(char.IsControl))
-            throw new InvalidOperationException("Both workers need valid names.");
-        string suffix = " Chemistry " + relationType.ToString(CultureInfo.InvariantCulture);
-        string stem = left + " / " + right;
+        string stem = TypeAbbreviation(relationType) + "-" +
+            QualityAbbreviation(quality) + ": " +
+            CompactWorkerName(first) + " / " + CompactWorkerName(second);
         var reserved = new HashSet<string>(existing,
             StringComparer.OrdinalIgnoreCase);
-        for (int count = 1; count < 1000000; count++)
+
+        for (int number = 1; number < 1000000; number++)
         {
-            string extra = count == 1 ? "" : " #" + count.ToString(CultureInfo.InvariantCulture);
-            int allowance = maxLength > 0 ? maxLength - suffix.Length - extra.Length : stem.Length;
-            if (allowance < 1)
-                throw new InvalidOperationException("The chemistry RecordName field is too short.");
-            string candidate = (stem.Length > allowance ? stem[..allowance].TrimEnd() : stem) +
-                suffix + extra;
+            string candidate = number == 1 ? stem :
+                stem + " #" + number.ToString(CultureInfo.InvariantCulture);
+            if (maxLength > 0 && candidate.Length > maxLength)
+                throw new InvalidOperationException(
+                    "The chemistry RecordName exceeds the MDB text limit (" +
+                    maxLength + " characters). Choose shorter worker names.");
             if (!reserved.Contains(candidate)) return candidate;
         }
         throw new InvalidOperationException("Could not allocate a unique chemistry RecordName.");

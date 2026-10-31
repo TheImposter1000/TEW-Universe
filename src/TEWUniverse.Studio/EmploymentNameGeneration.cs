@@ -15,15 +15,15 @@ internal sealed record EmploymentNameGenerationResult(
 internal static class EmploymentNameGeneration
 {
     internal static EmploymentNameGenerationResult Validate(
-        string? initials, string? fromText, string? untilText)
+        string? companyName, string? fromText, string? untilText)
     {
-        string shortName = (initials ?? "").Trim();
-        if (shortName.Length == 0)
+        string label = (companyName ?? "").Trim();
+        if (label.Length == 0)
             return new(null,
-                "Company initials are missing. Select a company with saved initials or enter historical initials.",
+                "Select a company with a name, or enter initials for an unlisted historical company.",
                 EmploymentNameField.Initials);
-        if (shortName.Any(char.IsControl))
-            return new(null, "Company initials cannot contain control characters.",
+        if (label.Any(char.IsControl))
+            return new(null, "Company name cannot contain control characters.",
                 EmploymentNameField.Initials);
 
         string from = (fromText ?? "").Trim();
@@ -56,7 +56,7 @@ internal static class EmploymentNameGeneration
                 "The Until date cannot be earlier than the From date, unless it is 01/01/1666 (ongoing).",
                 EmploymentNameField.Until);
 
-        return new(StudioRecordNames.Employment(shortName, start, end),
+        return new(StudioRecordNames.Employment(label, start, end),
             null, EmploymentNameField.None);
     }
 }

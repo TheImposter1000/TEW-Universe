@@ -1097,17 +1097,17 @@ if (StudioRecordNames.TitleHistory("BCW Championship", 1) != "BCW Championship00
     StudioRecordNames.TitleHistory("BCW Championship", 17) != "BCW Championship017" ||
     StudioRecordNames.TitleHistory("BCW Championship", 1000) != "BCW Championship1000" ||
     StudioRecordNames.Employment("pwa", new DateTime(2015, 6, 20),
-        new DateTime(2021, 12, 12)) != "PWA (2015-2021)" ||
+        new DateTime(2021, 12, 12)) != "PWA (2015 - 2021)" ||
     StudioRecordNames.Employment(" NCW ", new DateTime(2008, 10, 25),
-        new DateTime(2012, 8, 18)) != "NCW (2008-2012)" ||
+        new DateTime(2012, 8, 18)) != "NCW (2008 - 2012)" ||
     StudioRecordNames.Employment("NCW", new DateTime(2016, 5, 1),
-        new DateTime(2020, 4, 1)) != "NCW (2016-2020)" ||
+        new DateTime(2020, 4, 1)) != "NCW (2016 - 2020)" ||
     StudioRecordNames.Employment("DNA", new DateTime(2022, 1, 1),
-        StudioDateFormat.OngoingEndDate) != "DNA (2022 -?)" ||
-    StudioRecordNames.WithCollisionSuffix("PWA (2015-2021)", 2)
-        != "PWA (2015-2021) #2" ||
+        StudioDateFormat.OngoingEndDate) != "DNA (2022 - )" ||
+    StudioRecordNames.WithCollisionSuffix("PWA (2015 - 2021)", 2)
+        != "PWA (2015 - 2021) #2" ||
     StudioRecordNames.Employment("dna", new DateTime(1998, 5, 12),
-        StudioDateFormat.OngoingEndDate) != "DNA (1998 -?)")
+        StudioDateFormat.OngoingEndDate) != "DNA (1998 - )")
     throw new Exception("Championship or employment record-name format regressed.");
 
 bool invalidRecordNameRejected = false;
@@ -1206,7 +1206,7 @@ var cv = new[]
     new EmploymentRecordNameRow(4963, 22, "NCW",
         new DateTime(2008, 10, 25), new DateTime(2012, 8, 18), "TUSCV0002"),
     new EmploymentRecordNameRow(77, 11, "PWA",
-        new DateTime(2015, 1, 1), new DateTime(2021, 12, 12), "PWA (2015-2021)"),
+        new DateTime(2015, 1, 1), new DateTime(2021, 12, 12), "PWA (2015 - 2021)"),
     new EmploymentRecordNameRow(4963, 11, "PWA",
         new DateTime(2015, 4, 1), new DateTime(2021, 11, 1), "TUSCV0003")
 };
@@ -1214,13 +1214,13 @@ var brendanCv = RecordNameRepairPlanner.Employment(cv, 4963);
 if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 3 ||
     brendanCv.Warnings.Count != 0 ||
     brendanCv.Changes.Any(x => x.OwnerUid != 4963) ||
-    brendanCv.Changes.Count(x => x.NewName == "PWA (2015-2021)") != 2 ||
+    brendanCv.Changes.Count(x => x.NewName == "PWA (2015 - 2021)") != 2 ||
     brendanCv.Changes.Any(x => x.NewName.Contains('#')))
     throw new Exception("Multiple different employment periods in the same year were rejected.");
 var wholeCv = RecordNameRepairPlanner.Employment(cv, null);
 if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 3 ||
     wholeCv.Warnings.Count != 0 ||
-    wholeCv.Changes.Count(x => x.NewName == "PWA (2015-2021)") != 2 ||
+    wholeCv.Changes.Count(x => x.NewName == "PWA (2015 - 2021)") != 2 ||
     wholeCv.Changes.Any(x => x.OwnerUid == 77))
     throw new Exception("Full-history rename must allow repeated year-range names.");
 
@@ -1236,22 +1236,22 @@ var sharedCareerPlan = RecordNameRepairPlanner.Employment(sharedCareer, null);
 if (sharedCareerPlan.ScannedCount != 2 ||
     sharedCareerPlan.Changes.Count != 2 ||
     sharedCareerPlan.Warnings.Count != 0 ||
-    sharedCareerPlan.Changes.Any(x => x.NewName != "DNA (2022 -?)") ||
+    sharedCareerPlan.Changes.Any(x => x.NewName != "DNA (2022 - )") ||
     sharedCareerPlan.Changes.Select(x => x.OwnerUid).Distinct().Count() != 2)
     throw new Exception("Separate workers' identical employment years were incorrectly treated as a collision.");
 
 var oneOfShared = RecordNameRepairPlanner.Employment(new[] {
-    sharedCareer[0] with { OldName = "DNA (2022 -?)" },
+    sharedCareer[0] with { OldName = "DNA (2022 - )" },
     sharedCareer[1]
 }, 202);
 if (oneOfShared.Changes.Count != 1 ||
-    oneOfShared.Changes[0].NewName != "DNA (2022 -?)" ||
+    oneOfShared.Changes[0].NewName != "DNA (2022 - )" ||
     oneOfShared.Warnings.Count != 0)
     throw new Exception("An unrelated worker's record name blocked a valid targeted repair.");
 
 var identicalNamesAcrossWorkers = RecordNameRepairPlanner.Employment(new[] {
-    sharedCareer[0] with { OldName = "DNA (2022 -?)" },
-    sharedCareer[1] with { OldName = "DNA (2022 -?)" }
+    sharedCareer[0] with { OldName = "DNA (2022 - )" },
+    sharedCareer[1] with { OldName = "DNA (2022 - )" }
 }, null);
 if (identicalNamesAcrossWorkers.Changes.Count != 0 ||
     identicalNamesAcrossWorkers.Warnings.Count != 0)
@@ -1265,7 +1265,7 @@ var sameWorkerSeparateMonths = RecordNameRepairPlanner.Employment(new[] {
 }, 101);
 if (sameWorkerSeparateMonths.Changes.Count != 2 ||
     sameWorkerSeparateMonths.Warnings.Count != 0 ||
-    sameWorkerSeparateMonths.Changes.Any(c => c.NewName != "DNA (2022-2022)"))
+    sameWorkerSeparateMonths.Changes.Any(c => c.NewName != "DNA (2022 - 2022)"))
     throw new Exception("Same-worker, same-year handshake stints must both be renameable.");
 var exactAmbiguousRepair = RecordNameRepairPlanner.Employment(new[] {
     sharedCareer[0] with { OldName = "DuplicateExact" },
@@ -1290,7 +1290,7 @@ var ongoingPeriod = RecordNameRepairPlanner.Employment(new[]
         new DateTime(1998, 5, 12), StudioDateFormat.OngoingEndDate, "OldOngoing")
 }, 90);
 if (ongoingPeriod.Changes.Count != 1 ||
-    ongoingPeriod.Changes[0].NewName != "DNA (1998 -?)" ||
+    ongoingPeriod.Changes[0].NewName != "DNA (1998 - )" ||
     ongoingPeriod.Warnings.Count != 0)
     throw new Exception("Ongoing employment was incorrectly rejected in record-name repair.");
 
@@ -1822,11 +1822,11 @@ bool unverifiedChemRejected = false;
 try { ChemistryRules.ValidateObserved(999, 5, new[] { 1, 2 }, new[] { 3, 5 }); }
 catch (InvalidOperationException) { unverifiedChemRejected = true; }
 if (!unverifiedChemRejected) throw new Exception("Invented chemistry type was accepted.");
-if (ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2,
-        Array.Empty<string>(), 80) != "Jayden Cole / Zoey Luxe Chemistry 2" ||
-    ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2,
-        new[] { "Jayden Cole / Zoey Luxe Chemistry 2" }, 80) !=
-        "Jayden Cole / Zoey Luxe Chemistry 2 #2")
+if (ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2, 5,
+        Array.Empty<string>(), 80) != "TW-AW: J.Cole / Z.Luxe" ||
+    ChemistryRules.RecordName("Jayden Cole", "Zoey Luxe", 2, 5,
+        new[] { "TW-AW: J.Cole / Z.Luxe" }, 80) !=
+        "TW-AW: J.Cole / Z.Luxe #2")
     throw new Exception("Human-readable chemistry names or collision handling regressed.");
 Console.WriteLine("Passed chemistry worker, duplicate-pair, observed-code and record-name tests.");
 
@@ -1858,15 +1858,15 @@ Console.WriteLine("Passed company initials lookup, case/whitespace, missing and 
 var validEmploymentName = EmploymentNameGeneration.Validate(
     " dna ", "5/12/1998", "May 12th 2002");
 if (!validEmploymentName.IsValid ||
-    validEmploymentName.RecordName != "DNA (1998-2002)" ||
+    validEmploymentName.RecordName != "DNA (1998 - 2002)" ||
     EmploymentNameGeneration.Validate("DNA", "May 12th 1998", "6/30/2002")
-        .RecordName != "DNA (1998-2002)" ||
+        .RecordName != "DNA (1998 - 2002)" ||
     !StudioDateFormat.IsOngoingEndDate(new DateTime(1666, 1, 1)) ||
     StudioDateFormat.IsOngoingEndDate(new DateTime(1666, 1, 2)) ||
     EmploymentNameGeneration.Validate("DNA", "May 12th 1998", "01/01/1666")
-        .RecordName != "DNA (1998 -?)" ||
+        .RecordName != "DNA (1998 - )" ||
     EmploymentNameGeneration.Validate("DNA", "5/12/1998", "1/1/1666")
-        .RecordName != "DNA (1998 -?)")
+        .RecordName != "DNA (1998 - )")
     throw new Exception("Employment name generation rejects valid numeric/written dates.");
 
 foreach (var (initials, fromDate, untilDate, field) in new[] {
@@ -1887,19 +1887,19 @@ foreach (var (initials, fromDate, untilDate, field) in new[] {
             field + " input.");
 }
 if (EmploymentNameGeneration.Validate("DNA", "1/1/2022", "01/01/1666")
-        .RecordName != "DNA (2022 -?)" ||
+        .RecordName != "DNA (2022 - )" ||
     EmploymentNameGeneration.Validate("NCW", "1/1/2016", "12/31/2020")
-        .RecordName != "NCW (2016-2020)")
+        .RecordName != "NCW (2016 - 2020)")
     throw new Exception("Requested TEW employment Record Name spelling regressed.");
 Console.WriteLine("Passed contextual employment name generation and ongoing-sentinel validation.");
 
 // Whole-table employment CSV must round-trip actual values, allow multiple
 // workers with the same name and dates, and reject stale or foreign identities.
 var originalEmployment = new[] {
-    new WorkerEmploymentEntry("DNA (2022 -?)", 101, 5, "DNA",
+    new WorkerEmploymentEntry("DNA (2022 - )", 101, 5, "DNA",
         new DateTime(2022, 1, 1), StudioDateFormat.OngoingEndDate,
         false, false, false, false),
-    new WorkerEmploymentEntry("DNA (2022 -?)", 202, 5, "DNA",
+    new WorkerEmploymentEntry("DNA (2022 - )", 202, 5, "DNA",
         new DateTime(2022, 1, 1), StudioDateFormat.OngoingEndDate,
         false, false, false, false)
 };
@@ -1910,8 +1910,8 @@ if (EmploymentCsvCodec.Preview(exportedEmployment,
         originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies).Changes.Count != 0)
     throw new Exception("Unchanged employment CSV was treated as edits.");
 var editedEmployment = exportedEmployment.Replace(
-    "DNA (2022 -?),DNA (2022 -?),5,DNA",
-    "DNA (2022 -?),DNA (2022 -?),9,NPW");
+    "DNA (2022 - ),DNA (2022 - ),5,DNA",
+    "DNA (2022 - ),DNA (2022 - ),9,NPW");
 var previewEmployment = EmploymentCsvCodec.Preview(editedEmployment,
     originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
 if (previewEmployment.Changes.Count != 2 ||
@@ -1925,7 +1925,7 @@ var previewAdd = EmploymentCsvCodec.Preview(addEmployment,
     originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
 if (previewAdd.Changes.Count != 1 ||
     !previewAdd.Changes[0].IsAdd ||
-    previewAdd.Changes[0].Draft.RequestedRecordName != "DNA (2022 -?)")
+    previewAdd.Changes[0].Draft.RequestedRecordName != "DNA (2022 - )")
     throw new Exception("Employment CSV Add action failed.");
 bool rejectedForeignWorker = false;
 try { EmploymentCsvCodec.Preview(addEmployment.Replace(
@@ -1934,8 +1934,8 @@ catch (InvalidOperationException) { rejectedForeignWorker = true; }
 if (!rejectedForeignWorker)
     throw new Exception("Employment CSV accepted a missing worker reference.");
 var editedInitials = exportedEmployment.Replace(
-    "DNA (2022 -?),DNA (2022 -?),5,DNA",
-    "DNA (2022 -?),DNA (2022 -?),5,DNA_changed");
+    "DNA (2022 - ),DNA (2022 - ),5,DNA",
+    "DNA (2022 - ),DNA (2022 - ),5,DNA_changed");
 if (EmploymentCsvCodec.Preview(editedInitials,
         originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies).Changes.Count != 2)
     throw new Exception("Editable historical initials were rejected during CSV preview.");
@@ -1967,7 +1967,7 @@ if (simpleLines.Length != 3) throw new Exception("Unexpected employment CSV expo
 var simpleEdited = string.Join(Environment.NewLine, new[] {
     simpleLines[0],
     simpleLines[1].Replace(",5,DNA,", ",9,NPW,"),
-    "303,DNA (2022 -?),5,DNA,1/1/2022,1/1/1666,False,False,False,False"
+    "303,DNA (2022 - ),5,DNA,1/1/2022,1/1/1666,False,False,False,False"
 }) + Environment.NewLine;
 var replacementPreview = EmploymentCsvCodec.Preview(simpleEdited,
     originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
@@ -2020,7 +2020,7 @@ var legacyWithCopiedRow = string.Join(Environment.NewLine, new[] {
     legacyLines[0],
     legacyLines[1],
     legacyLines[2],
-    legacyLines[1].Replace("Update,101,DNA (2022 -?),",
+    legacyLines[1].Replace("Update,101,DNA (2022 - ),",
         "Update,101,DNA (2023 -?),").Replace(
         ",1/1/2022,1/1/1666,", ",1/1/2023,1/1/1666,")
 }) + Environment.NewLine;
@@ -2094,7 +2094,7 @@ if (EmploymentCsvCodec.Preview(handshakeLegacy,
 // FedUID=0 denotes a company that does NOT exist in tblFed. It is a
 // legitimate employment-history entry so the worker's full career can be
 // tracked without creating a company in the scenario.
-var unlistedEmployment = new WorkerEmploymentEntry("UWA (1998-1998)",
+var unlistedEmployment = new WorkerEmploymentEntry("UWA (1998 - 1998)",
     378, 0, "UWA", new DateTime(1998, 5, 1),
     new DateTime(1998, 5, 31), false, false, false, false);
 var unlistedRoster = new[] { unlistedEmployment };
@@ -2105,7 +2105,7 @@ if (EmploymentCsvCodec.Preview(unlistedCsv, unlistedRoster,
         unlistedWorkers, linkedCompaniesOnly).Changes.Count != 0)
     throw new Exception("FedUID 0 was rejected when reading an unlisted company.");
 var unlistedAddedCsv = unlistedCsv +
-    "378,Other Indies (2000-2000),0,OI,2/1/2000,2/28/2000,False,False,False,False"
+    "378,Other Indies (2000 - 2000),0,OI,2/1/2000,2/28/2000,False,False,False,False"
     + Environment.NewLine;
 var unlistedAdd = EmploymentCsvCodec.Preview(unlistedAddedCsv,
     unlistedRoster, unlistedWorkers, linkedCompaniesOnly);
@@ -2113,8 +2113,8 @@ if (unlistedAdd.Changes.Count != 1 ||
     !unlistedAdd.Changes[0].IsAdd ||
     unlistedAdd.Changes[0].Draft.FedUid != 0)
     throw new Exception("Unlisted company UID 0 was not allowed on a new CSV period.");
-var unlistedEditedCsv = unlistedCsv.Replace("UWA (1998-1998)",
-    "UWA Wrestling (1998-1998)");
+var unlistedEditedCsv = unlistedCsv.Replace("UWA (1998 - 1998)",
+    "UWA Wrestling (1998 - 1998)");
 var unlistedUpdate = EmploymentCsvCodec.Preview(unlistedEditedCsv,
     unlistedRoster, unlistedWorkers, linkedCompaniesOnly);
 if (unlistedUpdate.Changes.Count != 1 ||
@@ -2152,7 +2152,7 @@ var unlistedRepair = RecordNameRepairPlanner.Employment(new[] {
 }, 378);
 if (unlistedRepair.Changes.Count != 1 ||
     unlistedRepair.Warnings.Count != 0 ||
-    unlistedRepair.Changes[0].NewName != "UWA (1998-1998)")
+    unlistedRepair.Changes[0].NewName != "UWA (1998 - 1998)")
     throw new Exception("Record Name repair rejected an unlisted UID-0 company.");
 
     // An existing historical row can be incomplete. Deleting it requires

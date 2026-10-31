@@ -61,6 +61,7 @@ internal sealed partial class DatabaseSession
         if (selectedWorkerUid.HasValue) CheckLinkedWorker(selectedWorkerUid.Value);
         ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID", "FedUID",
             "Initials", "CVFromDate", "CVUntilDate");
+        var companyNames = ReadEmploymentCompanies().ToDictionary(x => x.Id, x => x.Name);
         var history = new List<EmploymentRecordNameRow>();
         using (var command = new OleDbCommand(
             "SELECT [RecordName],[WorkerUID],[FedUID],[Initials]," +
@@ -76,7 +77,10 @@ internal sealed partial class DatabaseSession
                     reader.GetValue(4) is DateTime start ? start : new DateTime(1666, 1, 1),
                     reader.GetValue(5) is DateTime end ? end : new DateTime(1666, 1, 1),
                     reader.IsDBNull(0) ? "" :
-                        Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture) ?? ""));
+                        Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture) ?? "",
+                    companyNames.TryGetValue(
+                        Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
+                        out string? companyName) ? companyName : null));
         }
         return RecordNameRepairPlanner.Employment(history, selectedWorkerUid);
     }
