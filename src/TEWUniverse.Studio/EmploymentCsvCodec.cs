@@ -65,9 +65,6 @@ internal static class EmploymentCsvCodec
         var rows = Parse(csv);
         if (rows.Count == 0 || string.Join(",", rows[0]) != Header)
             throw new InvalidOperationException("CSV headers must match an exported Employment History CSV.");
-        var index = existing.GroupBy(r => (r.WorkerUid, r.RecordName),
-            EqualityComparer<(int, string)>.Default)
-            .ToDictionary(g => g.Key, g => g.First());
         var changes = new List<EmploymentCsvChange>();
         var seenSource = new HashSet<(int, string)>();
         for (int rowNo = 1; rowNo < rows.Count; rowNo++)
