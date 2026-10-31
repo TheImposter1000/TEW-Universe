@@ -14,7 +14,7 @@ internal sealed record EmploymentCsvChange(
     WorkerEmploymentDraft Draft, string ExpectedFingerprint, bool IsDelete = false);
 internal sealed record EmploymentCsvPreview(
     int ExportedRows, IReadOnlyList<EmploymentCsvChange> Changes,
-    bool IsReplacement = false);
+    bool IsReplacement = false, bool RebuildFromSnapshot = false);
 
 internal static class EmploymentCsvCodec
 {
@@ -106,10 +106,14 @@ internal static class EmploymentCsvCodec
                 $"CSV row {rowNumber}: invalid {SimpleHeader.Split(',')[6 + n - flagStart]} value '{v}'.");
         }
         string initials = fields[initialsIndex].Trim();
-        if (initials.Length == 0 || initials.Any(char.IsControl))
-            throw new InvalidOperationException(
-                $"CSV row {rowNumber}: enter valid company initials.");
         string name = recordName.Trim();
+        // Many historical TEW tblCV rows legitimately have empty Initials;
+        // their explicit company/year RecordName is still a usable identifier.
+        // Require initials only when a new name must be generated.
+        if (initials.Any(char.IsControl) ||
+            initials.Length == 0 && name.Length == 0)
+            throw new InvalidOperationException(
+                $"CSV row {rowNumber}: enter company initials or a RecordName.");
         if (name.Length == 0)
             name = StudioRecordNames.Employment(initials, start, end);
         if (name.Any(char.IsControl))
@@ -139,6 +143,47 @@ internal static class EmploymentCsvCodec
             string.Join(",", rows[0]).TrimStart('\ufeff') != SimpleHeader)
             throw new InvalidOperationException(
                 "Expected a standard Employment History CSV. Export All CSV again for the current format.");
+        // Historical MDBs can contain multiple rows with the same worker and
+        // RecordName. Those rows cannot be addressed by the legacy name key.
+        // In that situation, validate the desired snapshot and use a single
+        // transactional table rebuild rather than guessing which old row to edit.
+        bool ambiguousStoredNames = existing
+            .GroupBy(x => (x.WorkerUid, x.RecordName.ToUpperInvariant()))
+            .Any(x => x.Count() > 1);
+        if (ambiguousStoredNames)
+        {
+            var desiredNames = new HashSet<(int, string)>();
+            var rebuildChanges = new List<EmploymentCsvChange>();
+            for (int i = 1; i < rows.Count; i++)
+            {
+                var fields = rows[i];
+                int rowNo = i + 1;
+                if (fields.Count != 10)
+                    throw new InvalidOperationException(
+                        $"CSV row {rowNo}: expected 10 columns, received {fields.Count}.");
+                if (!int.TryParse(fields[0].Trim(), NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int worker) || !workerIds.Contains(worker))
+                    throw new InvalidOperationException(
+                        $"CSV row {rowNo}: WorkerUID '{fields[0]}' does not match an existing worker.");
+                var draft = ParseDraft(fields, rowNo, 2, 3, 4, 5, 6, fields[1], companyIds);
+                string name = draft.RequestedRecordName!;
+                if (!desiredNames.Add((worker, name.ToUpperInvariant())))
+                    throw new InvalidOperationException(
+                        $"CSV row {rowNo}: worker {worker} has repeated RecordName '{name}'.");
+                rebuildChanges.Add(new EmploymentCsvChange(true, worker, "", draft, ""));
+            }
+            foreach (var old in existing)
+                rebuildChanges.Add(new EmploymentCsvChange(
+                    false, old.WorkerUid, old.RecordName,
+                    new WorkerEmploymentDraft(old.FedUid, old.Initials,
+                        old.FromDate, old.UntilDate, old.Loan, old.Trade,
+                        old.Tour, old.Developmental, old.RecordName),
+                    Fingerprint(old), IsDelete: true));
+            return new EmploymentCsvPreview(
+                rows.Count - 1, rebuildChanges,
+                IsReplacement: true, RebuildFromSnapshot: true);
+        }
+
         var oldIndex = new Dictionary<(int, string), WorkerEmploymentEntry>();
         foreach (var entry in existing)
             if (!oldIndex.TryAdd((entry.WorkerUid, entry.RecordName.ToUpperInvariant()), entry))

@@ -8,6 +8,8 @@ internal sealed partial class DatabaseSession
 {
     public int ApplyEmploymentCsv(EmploymentCsvPreview preview)
     {
+        if (preview.RebuildFromSnapshot)
+            return RebuildEmploymentCsvFromSnapshot(preview);
         if (preview.Changes.Count == 0) return 0;
         var schema = ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID",
             "FedUID", "Initials", "CVFromDate", "CVUntilDate",
@@ -33,7 +35,9 @@ internal sealed partial class DatabaseSession
             if (d.FromDate.Year is < 1800 or > 2100 ||
                 (!ongoing && (d.UntilDate.Year is < 1800 or > 2100 ||
                              d.UntilDate < d.FromDate)) ||
-                string.IsNullOrWhiteSpace(d.Initials) || d.Initials.Any(char.IsControl))
+                (string.IsNullOrWhiteSpace(d.Initials) &&
+                 string.IsNullOrWhiteSpace(d.RequestedRecordName)) ||
+                d.Initials.Any(char.IsControl))
                 throw new InvalidOperationException("CSV contains invalid employment dates or initials.");
             string newName = string.IsNullOrWhiteSpace(d.RequestedRecordName)
                 ? StudioRecordNames.Employment(d.Initials, d.FromDate, d.UntilDate)
@@ -157,6 +161,102 @@ internal sealed partial class DatabaseSession
             tx.Commit();
             _openedStamp = GetStamp(PathOnDisk);
             return replacements.Count + deletions.Count;
+        }
+        catch { try { tx.Rollback(); } catch { } throw; }
+    }
+
+    // Recovery for databases that already contain ambiguous duplicate
+    // (WorkerUID, RecordName) values. Rebuild the requested complete snapshot
+    // in one transaction; never update or delete by the ambiguous old key.
+    private int RebuildEmploymentCsvFromSnapshot(EmploymentCsvPreview preview)
+    {
+        if (!preview.IsReplacement)
+            throw new InvalidOperationException("A complete employment snapshot is required.");
+        var schema = ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID",
+            "FedUID", "Initials", "CVFromDate", "CVUntilDate",
+            "Loan", "Trade", "Tour", "Developmental");
+        var originals = ReadAllWorkerEmployment();
+        var expected = preview.Changes.Where(x => x.IsDelete)
+            .GroupBy(x => x.ExpectedFingerprint, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
+        var actual = originals.GroupBy(EmploymentCsvCodec.Fingerprint,
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
+        if (expected.Count != actual.Count ||
+            expected.Any(x => !actual.TryGetValue(x.Key, out int n) || n != x.Value))
+            throw new InvalidOperationException(
+                "Stored employment history changed since the CSV preview. Export again.");
+
+        var workerIds = ListWorkers().Select(x => x.Id).ToHashSet();
+        var companyIds = ReadEmploymentCompanies().Select(x => x.Id).ToHashSet();
+        var target = preview.Changes.Where(x => x.IsAdd).ToList();
+        if (target.Count != preview.ExportedRows ||
+            preview.Changes.Count != target.Count + originals.Count)
+            throw new InvalidOperationException("Employment snapshot counts do not match.");
+        var usedNames = new HashSet<(int, string)>();
+        var usedPeriods = new HashSet<(int, int, DateTime, DateTime)>();
+        int nameLimit = schema.Columns["RecordName"]!.MaxLength;
+        int initialsLimit = schema.Columns["Initials"]!.MaxLength;
+        foreach (var change in target)
+        {
+            var d = change.Draft;
+            string name = d.RequestedRecordName?.Trim() ?? "";
+            if (!workerIds.Contains(change.WorkerUid) || !companyIds.Contains(d.FedUid))
+                throw new InvalidOperationException("CSV references a missing worker or company.");
+            bool ongoing = StudioDateFormat.IsOngoingEndDate(d.UntilDate);
+            if (d.FromDate.Year is < 1800 or > 2100 ||
+                (!ongoing && (d.UntilDate.Year is < 1800 or > 2100 ||
+                              d.UntilDate < d.FromDate)) ||
+                d.Initials.Any(char.IsControl) ||
+                initialsLimit > 0 && d.Initials.Length > initialsLimit ||
+                name.Length == 0 || name.Any(char.IsControl) ||
+                nameLimit > 0 && name.Length > nameLimit)
+                throw new InvalidOperationException("Invalid employment dates, names or initials.");
+            if (!usedNames.Add((change.WorkerUid, name.ToUpperInvariant())))
+                throw new InvalidOperationException(
+                    $"Worker {change.WorkerUid} has repeated RecordName '{name}'.");
+            if (!usedPeriods.Add((change.WorkerUid, d.FedUid,
+                    d.FromDate.Date, d.UntilDate.Date)))
+                throw new InvalidOperationException(
+                    $"Worker {change.WorkerUid} has duplicate company periods with identical dates.");
+        }
+        foreach (DataColumn col in schema.Columns)
+            if (col.ColumnName != "RecordName" &&
+                col.ColumnName != "WorkerUID" && col.ColumnName != "FedUID" &&
+                col.ColumnName != "Initials" && col.ColumnName != "CVFromDate" &&
+                col.ColumnName != "CVUntilDate" && col.ColumnName != "Loan" &&
+                col.ColumnName != "Trade" && col.ColumnName != "Tour" &&
+                col.ColumnName != "Developmental" && !col.AutoIncrement &&
+                !col.AllowDBNull && col.DefaultValue is DBNull)
+                throw new InvalidOperationException(
+                    "Unsupported required tblCV field: " + col.ColumnName);
+
+        EnsureUnchanged();
+        using var tx = _connection.BeginTransaction();
+        try
+        {
+            using (var clear = new OleDbCommand("DELETE FROM [tblCV]", _connection, tx))
+                if (clear.ExecuteNonQuery() != originals.Count)
+                    throw new InvalidOperationException(
+                        "Employment source changed during replacement.");
+            string[] insertColumns = { "RecordName", "WorkerUID", "FedUID",
+                "Initials", "CVFromDate", "CVUntilDate",
+                "Loan", "Trade", "Tour", "Developmental" };
+            string insertSql = "INSERT INTO [tblCV] (" +
+                string.Join(",", insertColumns.Select(x => "[" + x + "]")) +
+                ") VALUES (" + string.Join(",", insertColumns.Select(_ => "?")) + ")";
+            foreach (var change in target)
+            {
+                using var cmd = new OleDbCommand(insertSql, _connection, tx);
+                BindEmploymentCsv(cmd, change, change.Draft.RequestedRecordName!.Trim(),
+                    true, schema);
+                if (cmd.ExecuteNonQuery() != 1)
+                    throw new InvalidOperationException(
+                        "An employment snapshot row could not be inserted.");
+            }
+            tx.Commit();
+            _openedStamp = GetStamp(PathOnDisk);
+            return preview.Changes.Count;
         }
         catch { try { tx.Rollback(); } catch { } throw; }
     }
