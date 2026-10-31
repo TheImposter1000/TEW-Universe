@@ -8,8 +8,8 @@ internal sealed record TitleRecordNameRow(
     int Uid, int BeltUid, int BeltOrder, string TitleName, string OldName);
 
 internal sealed record EmploymentRecordNameRow(
-    int WorkerUid, int FedUid, string Initials, string CompanyName,
-    DateTime From, DateTime Until, string OldName);
+    int WorkerUid, int FedUid, string Initials,
+    DateTime From, DateTime Until, string OldName, string? CompanyName = null);
 
 internal sealed record RecordNameRepair(
     string Table, int? Uid, int OwnerUid, int? ReferenceUid, int? Order,
@@ -116,6 +116,8 @@ internal static class RecordNameRepairPlanner
 
         foreach (var row in targets)
         {
+            string name = string.IsNullOrWhiteSpace(row.CompanyName)
+                ? row.Initials : row.CompanyName;
             if (ambiguous.Contains(row))
             {
                 warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
@@ -124,8 +126,8 @@ internal static class RecordNameRepairPlanner
                 continue;
             }
             if (string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
-                row.FedUid < 0 || string.IsNullOrWhiteSpace(row.CompanyName) ||
-                row.CompanyName.Any(char.IsControl) ||
+                row.FedUid < 0 || string.IsNullOrWhiteSpace(name) ||
+                name.Any(char.IsControl) ||
                 row.From.Year is < 1800 or > 2100 ||
                 (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
                  (row.Until.Year is < 1800 or > 2100 || row.Until < row.From)))
@@ -135,13 +137,13 @@ internal static class RecordNameRepairPlanner
                 continue;
             }
             string desired = StudioRecordNames.Employment(
-                row.CompanyName, row.From, row.Until);
+                name, row.From, row.Until);
             if (string.Equals(row.OldName, desired, StringComparison.Ordinal))
                 continue;
             changes.Add(new RecordNameRepair(
                 "tblCV", null, row.WorkerUid, row.FedUid, null,
                 row.From, row.Until, row.OldName, desired,
-                $"Worker {row.WorkerUid} • {row.CompanyName} • " +
+                $"Worker {row.WorkerUid} • {name} • " +
                 (StudioDateFormat.IsOngoingEndDate(row.Until)
                     ? $"{row.From.Year} - " : $"{row.From.Year} - {row.Until.Year}")));
         }
