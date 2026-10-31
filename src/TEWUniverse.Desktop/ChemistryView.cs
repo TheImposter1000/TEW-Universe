@@ -9,13 +9,15 @@ namespace TEWUniverse.Desktop;
 
 /// <summary>
 /// Preset chemistry editor backed by real tblChemistryForce records.
-/// Raw RelType / Quality codes are not given invented TEW IX labels.
+/// The five confirmed RelType and Quality values have readable labels.
 /// </summary>
 public partial class MainWindow
 {
-    private sealed record ChemistryChoice(int Code)
+    private sealed record ChemistryChoice(int Code, bool IsType)
     {
-        public override string ToString() => "Code " + Code.ToString(CultureInfo.InvariantCulture);
+        public override string ToString() => "Code " +
+            Code.ToString(CultureInfo.InvariantCulture) + " · " +
+            (IsType ? ChemistryRules.TypeLabel(Code) : ChemistryRules.QualityLabel(Code));
     }
 
     private DataGrid _chemGrid = null!;
@@ -165,11 +167,10 @@ public partial class MainWindow
         editor.Children.Add(_chemQuality);
 
         editor.Children.Add(new TextBlock {
-            Text = "Type and quality codes are taken from chemistry presets already " +
-                   "stored in this database. Their TEW IX meanings have not been verified, " +
-                   "so the editor shows the real code rather than guessing a label. " +
-                   "If the table has no presets, adding new ones remains unavailable " +
-                   "until the code mappings are confirmed.",
+            Text = "Verified types: Fighting Against (FA), Teaming With (TW), " +
+                   "Managing (MW), Commentating With (CW), Booking (BW). " +
+                   "Qualities: Great (GT), Good (GD), Neutral (NT), Poor (PR), Awful (AW). " +
+                   "Record names use TYPE-QUALITY: F.Lastname / F.Lastname.",
             Foreground = ChemistryBrush("#E3C38A"),
             TextWrapping = TextWrapping.Wrap, FontSize = 12,
             Margin = new Thickness(0, 12, 0, 18)
@@ -267,12 +268,12 @@ public partial class MainWindow
     }
 
     private void FillChemistryChoices(ComboBox picker,
-        IEnumerable<int> codes, int? selection)
+        IEnumerable<int> codes, int? selection, bool isType)
     {
-        var choices = codes.Distinct().OrderBy(x => x)
-            .Select(x => new ChemistryChoice(x)).ToList();
+        var choices = ChemistryRules.KnownCodes.Concat(codes).Distinct().OrderBy(x => x)
+            .Select(x => new ChemistryChoice(x, isType)).ToList();
         if (selection.HasValue && choices.All(x => x.Code != selection.Value))
-            choices.Add(new ChemistryChoice(selection.Value));
+            choices.Add(new ChemistryChoice(selection.Value, isType));
         picker.ItemsSource = choices;
         picker.SelectedItem = selection.HasValue
             ? choices.FirstOrDefault(x => x.Code == selection.Value) : null;
@@ -287,7 +288,7 @@ public partial class MainWindow
             _selectedChemistry = record;
             _chemHeading.Text = record == null ? "Create Preset Chemistry" : "Edit Preset Chemistry";
             _chemDetail.Text = record == null
-                ? "Select two existing workers and verified type / quality codes."
+                ? "Select two workers, chemistry type and quality. Names are generated automatically."
                 : $"Chemistry UID {record.Uid} • {record.RecordName}. " +
                   "Worker identities are protected when editing.";
             _chemFirst.SelectedItem = record == null ? null :
@@ -297,9 +298,9 @@ public partial class MainWindow
             _chemFirst.IsEnabled = record == null;
             _chemSecond.IsEnabled = record == null;
             FillChemistryChoices(_chemType, _chemistryRecords.Select(x => x.RelType),
-                record?.RelType);
+                record?.RelType, true);
             FillChemistryChoices(_chemQuality, _chemistryRecords.Select(x => x.Quality),
-                record?.Quality);
+                record?.Quality, false);
             _chemSave.Content = record == null ? "Create Chemistry" : "Save Chemistry";
             _chemDelete.IsEnabled = record != null;
         }
@@ -333,7 +334,7 @@ public partial class MainWindow
             if (_chemType.SelectedItem is not ChemistryChoice type ||
                 _chemQuality.SelectedItem is not ChemistryChoice quality)
                 throw new InvalidOperationException(
-                    "Choose verified chemistry type and quality codes.");
+                    "Choose a chemistry type and quality.");
             if (_selectedChemistry is { } original)
             {
                 if (!HasPendingChemistryEdits())
@@ -343,8 +344,9 @@ public partial class MainWindow
                 }
                 if (MessageBox.Show(this,
                     $"Update chemistry for {original.PairLabel}?\n\n" +
-                    $"RelType code: {type.Code}\nQuality code: {quality.Code}\n\n" +
-                    "The worker pair and record identity will not change.",
+                    $"Type: {ChemistryRules.TypeLabel(type.Code)} (code {type.Code})\n" +
+                    $"Quality: {ChemistryRules.QualityLabel(quality.Code)} (code {quality.Code})\n\n" +
+                    "The record name will reflect the updated type and quality.",
                     "Confirm Chemistry Update", MessageBoxButton.YesNo,
                     MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 if (!OfferOptionalBackupBeforeWrite("updating preset chemistry")) return;
@@ -365,8 +367,9 @@ public partial class MainWindow
                     _chemistryRecords.Select(x => x.Quality).ToArray());
                 if (MessageBox.Show(this,
                     $"Create preset chemistry for {first.Name} / {second.Name}?\n\n" +
-                    $"RelType code: {type.Code}\nQuality code: {quality.Code}\n\n" +
-                    "This adds one tblChemistryForce record to the active MDB.",
+                    $"Type: {ChemistryRules.TypeLabel(type.Code)} (code {type.Code})\n" +
+                    $"Quality: {ChemistryRules.QualityLabel(quality.Code)} (code {quality.Code})\n\n" +
+                    "A readable record name will be generated in tblChemistryForce.",
                     "Confirm New Chemistry", MessageBoxButton.YesNo,
                     MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 if (!OfferOptionalBackupBeforeWrite("creating preset chemistry")) return;
