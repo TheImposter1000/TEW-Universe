@@ -188,6 +188,8 @@ internal sealed partial class DatabaseSession
     public void UpdateChemistry(ChemistryEntry old, int type, int quality)
     {
         DataTable schema = VerifiedChemistrySchema();
+        var existingNames = ReadChemistry().Where(x => x.Uid != old.Uid)
+            .Select(x => x.RecordName).ToArray();
         ValidateChemistryCodeChoice(old, type, quality, ReadChemistry());
         EnsureUnchanged();
         using var tx = _connection.BeginTransaction();
@@ -205,13 +207,11 @@ internal sealed partial class DatabaseSession
             }
             EnsureChemistryUnique(tx, old.Worker1, old.Worker2, type, old.Uid);
             string name = old.RecordName;
-            if (type != old.RelType || quality != old.Quality)
-            {
-                var names = ReadChemistry().Where(x => x.Uid != old.Uid)
-                    .Select(x => x.RecordName);
+            if ((type != old.RelType || quality != old.Quality) &&
+                ChemistryRules.Types.ContainsKey(type) &&
+                ChemistryRules.Qualities.ContainsKey(quality))
                 name = ChemistryRules.RecordName(old.Worker1Name, old.Worker2Name,
-                    type, quality, names, schema.Columns[ChemistryName]!.MaxLength);
-            }
+                    type, quality, existingNames, schema.Columns[ChemistryName]!.MaxLength);
             using var update = new OleDbCommand(
                 "UPDATE [tblChemistryForce] SET [RecordName]=?, [RelType]=?, [Quality]=? WHERE [UID]=?",
                 _connection, tx);
