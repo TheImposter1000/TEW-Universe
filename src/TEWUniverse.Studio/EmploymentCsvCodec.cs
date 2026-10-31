@@ -187,6 +187,7 @@ internal static class EmploymentCsvCodec
                 "Expected an Employment History CSV exported with the current header.");
 
         var unmatched = existing.ToList();
+        var retainedUnchanged = new List<WorkerEmploymentEntry>();
         var desired = new List<WorkerEmploymentEntry>();
         for (int i = 1; i < rows.Count; i++)
         {
@@ -205,6 +206,7 @@ internal static class EmploymentCsvCodec
                 old.WorkerUid == worker && MatchesExistingCsvRow(old, r));
             if (exact >= 0)
             {
+                retainedUnchanged.Add(unmatched[exact]);
                 unmatched.RemoveAt(exact);
                 continue;
             }
@@ -221,7 +223,10 @@ internal static class EmploymentCsvCodec
         {
             int alreadyStored = existing.Count(x =>
                 Fingerprint(x) == group.Key);
-            if (group.Count() > 1 && group.Count() > alreadyStored)
+            int retained = retainedUnchanged.Count(x =>
+                Fingerprint(x) == group.Key);
+            int totalRequested = retained + group.Count();
+            if (totalRequested > 1 && totalRequested > alreadyStored)
                 throw new InvalidOperationException(
                     $"Worker {group.First().WorkerUid}: CSV introduces identical " +
                     "employment rows (same company, exact dates, name and flags). " +
