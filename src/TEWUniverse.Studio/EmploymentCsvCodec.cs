@@ -454,6 +454,76 @@ internal static class EmploymentCsvCodec
         return new EmploymentCsvPreview(rows.Count - 1, changes);
     }
 
+    /// <summary>
+    /// Preflight the final database write using the same rules for the simple
+    /// and legacy CSV formats. Deleting an existing row only requires its
+    /// original fingerprint / full-row identity: an obsolete record with an
+    /// empty Initials field or historical out-of-range date must remain
+    /// deletable without having to invent replacement data for it.
+    /// </summary>
+    internal static string? ValidateForWrite(
+        EmploymentCsvChange change, IReadOnlySet<int> workerIds,
+        IReadOnlySet<int> companyIds, int recordNameLimit, int initialsLimit)
+    {
+        string identity = $"WorkerUID {change.WorkerUid}, " +
+            $"RecordName '{(change.IsAdd ? change.Draft.RequestedRecordName :
+                change.OriginalName)}'";
+        if (change.IsDelete)
+        {
+            if (change.IsAdd)
+                throw new InvalidOperationException(
+                    $"{identity}: an Add operation cannot also be Delete.");
+            return null;
+        }
+
+        var d = change.Draft;
+        if (!workerIds.Contains(change.WorkerUid))
+            throw new InvalidOperationException(
+                $"{identity}: WorkerUID does not exist in this scenario.");
+        if (d.FedUid < 0 || (d.FedUid != 0 && !companyIds.Contains(d.FedUid)))
+            throw new InvalidOperationException(
+                $"{identity}: CompanyUID {d.FedUid} is invalid. " +
+                "Use 0 for an unlisted historical company or a registered positive UID.");
+
+        if (d.FromDate.Year is < 1800 or > 2100)
+            throw new InvalidOperationException(
+                $"{identity}: From date '{StudioDateFormat.Format(d.FromDate)}' " +
+                "must be between 1800 and 2100. 01/01/1666 is valid only for Until.");
+        if (!StudioDateFormat.IsOngoingEndDate(d.UntilDate) &&
+            d.UntilDate.Year is < 1800 or > 2100)
+            throw new InvalidOperationException(
+                $"{identity}: Until date '{StudioDateFormat.Format(d.UntilDate)}' " +
+                "must be between 1800 and 2100, or 01/01/1666 for ongoing employment.");
+        if (!StudioDateFormat.IsOngoingEndDate(d.UntilDate) &&
+            d.UntilDate.Date < d.FromDate.Date)
+            throw new InvalidOperationException(
+                $"{identity}: Until date '{StudioDateFormat.Format(d.UntilDate)}' " +
+                $"precedes From date '{StudioDateFormat.Format(d.FromDate)}'.");
+        if (string.IsNullOrWhiteSpace(d.Initials))
+            throw new InvalidOperationException(
+                $"{identity}: Initials is blank. Enter the historical company initials " +
+                "(including when CompanyUID is 0).");
+        if (d.Initials.Any(char.IsControl))
+            throw new InvalidOperationException(
+                $"{identity}: Initials contains an invalid control character.");
+        if (initialsLimit > 0 && d.Initials.Length > initialsLimit)
+            throw new InvalidOperationException(
+                $"{identity}: Initials has {d.Initials.Length} characters; " +
+                $"the MDB limit is {initialsLimit}.");
+
+        string name = string.IsNullOrWhiteSpace(d.RequestedRecordName)
+            ? StudioRecordNames.Employment(d.Initials, d.FromDate, d.UntilDate)
+            : d.RequestedRecordName.Trim();
+        if (name.Length == 0 || name.Any(char.IsControl))
+            throw new InvalidOperationException(
+                $"{identity}: RecordName cannot be blank or contain control characters.");
+        if (recordNameLimit > 0 && name.Length > recordNameLimit)
+            throw new InvalidOperationException(
+                $"{identity}: RecordName has {name.Length} characters; " +
+                $"the MDB limit is {recordNameLimit}.");
+        return name;
+    }
+
     private static List<List<string>> Parse(string csv)
     {
         var rows = new List<List<string>>();
