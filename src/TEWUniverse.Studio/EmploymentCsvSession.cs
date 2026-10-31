@@ -98,10 +98,30 @@ internal sealed partial class DatabaseSession
                 throw new InvalidOperationException(
                     "Unsupported required tblCV field: " + col.ColumnName);
 
-        // tblCV has no verified row UID. If a requested edit targets one of
-        // several physically identical rows, rebuild that worker's complete
-        // history in the same transaction instead of selecting an arbitrary row.
-        // Only the exact ten-column schema is safe to round-trip in this way.
+        // A row can be readable from Access but not match the original-row
+        // UPDATE predicate (for example, legacy NULL fields normalized for
+        // display). Probe with the SAME predicate used for staging and deletion.
+        // Reconcile such workers by WorkerUID, preserving the raw MDB values
+        // of their unchanged historical rows.
+        EnsureUnchanged();
+        foreach (var change in preview.Changes.Where(x => !x.IsAdd &&
+            !duplicateWorkers.Contains(x.WorkerUid)))
+        {
+            var original = originals.First(x => x.WorkerUid == change.WorkerUid &&
+                EmploymentCsvCodec.Fingerprint(x).Equals(change.ExpectedFingerprint,
+                    StringComparison.OrdinalIgnoreCase));
+            using var probe = new OleDbCommand(
+                "SELECT COUNT(*) FROM [tblCV] WHERE " + EmploymentRecordPredicate.Sql,
+                _connection);
+            EmploymentRecordPredicate.Bind(probe, original, schema);
+            int matches = Convert.ToInt32(probe.ExecuteScalar(), CultureInfo.InvariantCulture);
+            if (matches != 1)
+                duplicateWorkers.Add(change.WorkerUid);
+        }
+
+        // tblCV has no verified unique row UID. An unmatchable original is
+        // reconciled by its worker only, inside the same rollback-safe transaction.
+        // Refuse this path for layouts with any unverified extra columns.
         if (duplicateWorkers.Count > 0)
         {
             var supported = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -114,47 +134,13 @@ internal sealed partial class DatabaseSession
                     "rebuild indistinguishable employment rows without preserving them.");
         }
 
-        EnsureUnchanged();
         using var tx = _connection.BeginTransaction();
         try
         {
-            // For workers with indistinguishable originals, replace their entire
-            // tblCV history atomically. Every other worker stays untouched.
+            // Repair only workers for whom full-row SQL cannot uniquely locate
+            // the original. Preserve their unchanged raw database values.
             foreach (int worker in duplicateWorkers)
-            {
-                using (var removeWorker = new OleDbCommand(
-                    "DELETE FROM [tblCV] WHERE [WorkerUID]=?", _connection, tx))
-                {
-                    removeWorker.Parameters.Add("worker", OleDbType.Integer).Value = worker;
-                    int deleted = removeWorker.ExecuteNonQuery();
-                    int expected = originals.Count(x => x.WorkerUid == worker);
-                    if (deleted != expected)
-                        throw new InvalidOperationException(
-                            $"Worker {worker}: employment history changed during import.");
-                }
-                foreach (var row in resulting.Where(x => x.WorkerUid == worker))
-                {
-                    using var insert = new OleDbCommand(
-                        "INSERT INTO [tblCV] ([RecordName],[WorkerUID],[FedUID],[Initials]," +
-                        "[CVFromDate],[CVUntilDate],[Loan],[Trade],[Tour],[Developmental]) " +
-                        "VALUES (?,?,?,?,?,?,?,?,?,?)", _connection, tx);
-                    var values = new Dictionary<string, object> {
-                        ["RecordName"] = row.RecordName, ["WorkerUID"] = row.WorkerUid,
-                        ["FedUID"] = row.FedUid, ["Initials"] = row.Initials,
-                        ["CVFromDate"] = row.FromDate, ["CVUntilDate"] = row.UntilDate,
-                        ["Loan"] = row.Loan, ["Trade"] = row.Trade,
-                        ["Tour"] = row.Tour, ["Developmental"] = row.Developmental
-                    };
-                    foreach (string col in new[] { "RecordName", "WorkerUID", "FedUID",
-                        "Initials", "CVFromDate", "CVUntilDate", "Loan", "Trade",
-                        "Tour", "Developmental" })
-                        insert.Parameters.Add(col, ToOleDbType(schema.Columns[col]!.DataType))
-                            .Value = values[col];
-                    if (insert.ExecuteNonQuery() != 1)
-                        throw new InvalidOperationException(
-                            $"Worker {worker}: an employment period could not be restored.");
-                }
-            }
+                ReconcileEmploymentWorker(worker, originals, replacements, deletions, schema, tx);
 
             // Delete explicitly requested rows first. The original row's
             // fingerprint and worker/name identity were verified above;
@@ -228,6 +214,119 @@ internal sealed partial class DatabaseSession
             return replacements.Count + deletions.Count;
         }
         catch { try { tx.Rollback(); } catch { } throw; }
+    }
+
+    /// <summary>
+    /// tblCV has no verified unique row UID. Reconcile one worker's history
+    /// using the WorkerUID predicate, not fragile comparisons on legacy NULLs.
+    /// Original rows not edited by the CSV retain their raw MDB values,
+    /// including actual NULLs, exact timestamps, and stored Boolean values.
+    /// This executes inside the caller's all-or-nothing transaction.
+    /// </summary>
+    private void ReconcileEmploymentWorker(int worker,
+        IReadOnlyList<WorkerEmploymentEntry> snapshot,
+        IReadOnlyList<(EmploymentCsvChange Change, string FinalName)> replacements,
+        IReadOnlyList<EmploymentCsvChange> deletions,
+        DataTable schema, OleDbTransaction tx)
+    {
+        string[] cols = { "RecordName", "WorkerUID", "FedUID", "Initials",
+            "CVFromDate", "CVUntilDate", "Loan", "Trade", "Tour", "Developmental" };
+        var existing = new List<(WorkerEmploymentEntry Entry, object[] Values)>();
+        using (var select = new OleDbCommand(
+            "SELECT " + string.Join(",", cols.Select(x => "[" + x + "]")) +
+            " FROM [tblCV] WHERE [WorkerUID]=? ORDER BY [CVFromDate]",
+            _connection, tx))
+        {
+            select.Parameters.Add("worker", OleDbType.Integer).Value = worker;
+            using var reader = select.ExecuteReader();
+            while (reader?.Read() == true)
+            {
+                var raw = new object[cols.Length];
+                reader.GetValues(raw);
+                existing.Add((new WorkerEmploymentEntry(
+                    FieldText(raw[0]),
+                    Convert.ToInt32(raw[1], CultureInfo.InvariantCulture),
+                    Convert.ToInt32(raw[2], CultureInfo.InvariantCulture),
+                    FieldText(raw[3]),
+                    raw[4] is DateTime start ? start : StudioDateFormat.OngoingEndDate,
+                    raw[5] is DateTime end ? end : StudioDateFormat.OngoingEndDate,
+                    Flag(raw[6]), Flag(raw[7]), Flag(raw[8]), Flag(raw[9])), raw));
+            }
+        }
+
+        // Before deleting anything, confirm the worker's current set of
+        // original rows is exactly what the CSV plan validated, including
+        // multiplicity of physically identical periods.
+        var expected = snapshot.Where(x => x.WorkerUid == worker)
+            .GroupBy(EmploymentCsvCodec.Fingerprint)
+            .ToDictionary(x => x.Key, x => x.Count());
+        var actual = existing.GroupBy(x => EmploymentCsvCodec.Fingerprint(x.Entry))
+            .ToDictionary(x => x.Key, x => x.Count());
+        if (expected.Count != actual.Count ||
+            expected.Any(x => actual.GetValueOrDefault(x.Key) != x.Value))
+            throw new InvalidOperationException(
+                $"Worker {worker}: stored employment history changed after preview. " +
+                "Nothing was imported.");
+
+        var remaining = existing.ToList();
+        var inserts = new List<object[]>();
+
+        void ConsumeOriginal(EmploymentCsvChange change)
+        {
+            int index = remaining.FindIndex(row =>
+                row.Entry.WorkerUid == change.WorkerUid &&
+                string.Equals(row.Entry.RecordName, change.OriginalName,
+                    StringComparison.OrdinalIgnoreCase) &&
+                EmploymentCsvCodec.Fingerprint(row.Entry).Equals(
+                    change.ExpectedFingerprint, StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+                throw new InvalidOperationException(
+                    $"Worker {worker}, '{change.OriginalName}': original period " +
+                    "was already consumed or no longer exists. Import cancelled.");
+            remaining.RemoveAt(index);
+        }
+
+        static object[] NewValues(EmploymentCsvChange change, string name)
+        {
+            var d = change.Draft;
+            return new object[] { name, change.WorkerUid, d.FedUid, d.Initials,
+                d.FromDate.Date, d.UntilDate.Date, d.Loan, d.Trade, d.Tour,
+                d.Developmental };
+        }
+
+        foreach (var change in deletions.Where(x => x.WorkerUid == worker))
+            ConsumeOriginal(change);
+        foreach (var (change, name) in replacements.Where(x => x.Change.WorkerUid == worker))
+        {
+            if (!change.IsAdd)
+                ConsumeOriginal(change);
+            inserts.Add(NewValues(change, name));
+        }
+
+        var finalRows = remaining.Select(x => x.Values).Concat(inserts).ToList();
+        using (var remove = new OleDbCommand(
+            "DELETE FROM [tblCV] WHERE [WorkerUID]=?", _connection, tx))
+        {
+            remove.Parameters.Add("worker", OleDbType.Integer).Value = worker;
+            if (remove.ExecuteNonQuery() != existing.Count)
+                throw new InvalidOperationException(
+                    $"Worker {worker}: employment periods changed while reconciling.");
+        }
+        foreach (var values in finalRows)
+        {
+            using var insert = new OleDbCommand(
+                "INSERT INTO [tblCV] (" +
+                string.Join(",", cols.Select(x => "[" + x + "]")) +
+                ") VALUES (" + string.Join(",", cols.Select(_ => "?")) + ")",
+                _connection, tx);
+            for (int i = 0; i < cols.Length; i++)
+                insert.Parameters.Add(cols[i],
+                    ToOleDbType(schema.Columns[cols[i]]!.DataType)).Value = values[i];
+            if (insert.ExecuteNonQuery() != 1)
+                throw new InvalidOperationException(
+                    $"Worker {worker}: an employment period could not be restored. " +
+                    "The entire import will be rolled back.");
+        }
     }
 
     private static void BindEmploymentCsv(OleDbCommand cmd,
