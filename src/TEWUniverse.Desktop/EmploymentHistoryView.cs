@@ -246,7 +246,7 @@ public partial class MainWindow
             EmploymentCsvPreview preview;
             if (EmploymentCsvCodec.IsLegacyFormat(csv))
             {
-                var mode = MessageBox.Show(this,
+                var legacyImportChoice = MessageBox.Show(this,
                     "This is an older Employment History CSV with Action, " +
                     "OriginalRecordName and SourceFingerprint columns.\n\n" +
                     "YES: Treat the visible CSV rows as the entire history, like " +
@@ -259,8 +259,8 @@ public partial class MainWindow
                     "Old Employment CSV: Choose Import Method",
                     MessageBoxButton.YesNoCancel, MessageBoxImage.Question,
                     MessageBoxResult.Cancel);
-                if (mode == MessageBoxResult.Cancel) return;
-                preview = mode == MessageBoxResult.Yes
+                if (legacyImportChoice == MessageBoxResult.Cancel) return;
+                preview = legacyImportChoice == MessageBoxResult.Yes
                     ? EmploymentCsvCodec.PreviewLegacyReplacement(
                         csv, original, workers, companies)
                     : EmploymentCsvCodec.Preview(csv, original, workers, companies);
