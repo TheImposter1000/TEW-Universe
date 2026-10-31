@@ -216,6 +216,16 @@ internal static class EmploymentCsvCodec
                     old.FedUid == row.FedUid &&
                     string.Equals(old.RecordName, row.RecordName,
                         StringComparison.OrdinalIgnoreCase)).ToList();
+            if (candidates.Count != 1)
+                candidates = unmatched.Where(old =>
+                    old.WorkerUid == row.WorkerUid &&
+                    string.Equals(old.RecordName, row.RecordName,
+                        StringComparison.OrdinalIgnoreCase)).ToList();
+            if (candidates.Count != 1)
+                candidates = unmatched.Where(old =>
+                    old.WorkerUid == row.WorkerUid &&
+                    old.FromDate.Date == row.FromDate.Date &&
+                    old.UntilDate.Date == row.UntilDate.Date).ToList();
             if (candidates.Count == 1)
             {
                 var original = candidates[0];
