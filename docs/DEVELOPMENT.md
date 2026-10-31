@@ -170,7 +170,9 @@ The `UID` primary key, internal `Recordname`, unsupported/binary or calculated f
 
 This functionality writes to the selected active MDB. A backup is recommended but never a prerequisite; validate changes through TEW IX's Data Check where applicable.
 
-## Standalone tblCV editor, CSV and worker-role selection
+## Standalone tblCV editor, CSV and worker-role selection**Legacy employment rows and deletion:** `EmploymentCsvCodec.ValidateForWrite` separates deletion from creation/update validation. An existing incomplete record is deletable based on its verified original row and fingerprint without checking its obsolete fields against modern creation rules. `PreviewReplacement` matches unedited exported rows first, preserving historical blank initials, old date markers and orphaned company IDs without attempting to rewrite them. The legacy advanced CSV `Action=Delete` path also bypasses editable source fields. New/updated rows still require nonempty initials, supported dates and valid company UID, with precise WorkerUID/RecordName/field diagnostics generated before any MDB writes. Regression tests cover both forms, ongoing 1666 and invalid creation inputs.
+
+
 
 `EmploymentHistoryView.cs` hosts the actual `tblCV` editor as a separate main navigation module. It uses `DatabaseSession.ReadAllWorkerEmployment` to read all linked worker periods in one query, with a worker/period search and an explicit worker selector for new rows. `WorkerExtrasView.cs` retains the verified single-row editing pipeline, but resolves the relevant worker from the selected historical row or the new-period worker selector. `WorkerUID` stays part of the record identity; two workers may have identical `RecordName` values and same employer dates. `01/01/1666` remains the stored ongoing Until date.
 

@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Employment History CSV no longer rejects valid imports with a generic "CSV contains invalid employment dates or initials" error when a deleted legacy record has old blank initials or out-of-range dates. Full-table CSV retains unchanged legacy rows without forcing new-record validation, and both standard and advanced Action=Delete validate the original fingerprint instead of replacement fields. New/updated records still require correct initials and dates, with worker, record and offending-field diagnostics. Atomic rollback, explicit delete confirmations and optional backups remain intact.
+
           FIX: Employment History accepts FedUID / CompanyUID 0 for unlisted historical promotions without a tblFed record. The editor supports initials-only entry with full dates, plus an explicit Unlisted company checkbox to override matching existing initials. Standard and legacy CSV import, transactional save/delete and existing RecordName repair support zero. Positive company UIDs must reference tblFed; negative values remain invalid.
 
           FIX: Employment History allows multiple contracts and handshake stints for the same worker and company within one year, even with exactly the same RecordName. CSV import matches full original periods rather than assuming worker/name is unique; Add, Update and Delete use complete original row identities and still require exactly one affected Access row. Batch RecordName repair allows repeated year-range names while skipping physically indistinguishable sources. Completely identical new records remain disallowed for safety, and optional backup/transactional safeguards remain.

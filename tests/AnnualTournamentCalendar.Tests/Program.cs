@@ -2154,6 +2154,96 @@ if (unlistedRepair.Changes.Count != 1 ||
     unlistedRepair.Warnings.Count != 0 ||
     unlistedRepair.Changes[0].NewName != "UWA (1998-1998)")
     throw new Exception("Record Name repair rejected an unlisted UID-0 company.");
+
+    // An existing historical row can be incomplete. Deleting it requires
+    // only its original verified identity, not NEW-record initials/date rules.
+    var incompleteHistorical = new WorkerEmploymentEntry(
+        "Old promotion 1666", 378, 0, "",
+        new DateTime(1666, 1, 1), new DateTime(1666, 1, 1),
+        false, false, false, false);
+    var incompleteDeletion = new EmploymentCsvChange(false, 378,
+        incompleteHistorical.RecordName,
+        new WorkerEmploymentDraft(0, "", incompleteHistorical.FromDate,
+            incompleteHistorical.UntilDate, false, false, false, false,
+            incompleteHistorical.RecordName),
+        EmploymentCsvCodec.Fingerprint(incompleteHistorical),
+        IsDelete: true, Original: incompleteHistorical);
+    if (EmploymentCsvCodec.ValidateForWrite(incompleteDeletion,
+            new HashSet<int>(), new HashSet<int>(), 100, 20) != null)
+        throw new Exception("Deletion must not validate obsolete original initials or dates.");
+
+    var oldSimpleCsv = EmploymentCsvCodec.ExportSimple(new[] { incompleteHistorical });
+    var previewOldUnchanged = EmploymentCsvCodec.Preview(oldSimpleCsv,
+        new[] { incompleteHistorical }, unlistedWorkers, linkedCompaniesOnly);
+    if (previewOldUnchanged.Changes.Count != 0)
+        throw new Exception("An unchanged legacy employment row cannot be imported.");
+
+    var previewOldDeleted = EmploymentCsvCodec.Preview(
+        EmploymentCsvCodec.SimpleHeader + Environment.NewLine,
+        new[] { incompleteHistorical }, unlistedWorkers, linkedCompaniesOnly);
+    if (previewOldDeleted.Changes.Count != 1 ||
+        !previewOldDeleted.Changes[0].IsDelete ||
+        EmploymentCsvCodec.ValidateForWrite(previewOldDeleted.Changes[0],
+            unlistedWorkers, linkedCompaniesOnly, 100, 20) != null)
+        throw new Exception("Legacy incomplete employment rows cannot be deleted safely.");
+
+    var oldAdvancedCsv = EmploymentCsvCodec.Export(new[] { incompleteHistorical });
+    var legacyDeleteCsv = oldAdvancedCsv.Replace(
+        "Update,378,", "Delete,378,");
+    var previewLegacyDelete = EmploymentCsvCodec.Preview(legacyDeleteCsv,
+        new[] { incompleteHistorical }, unlistedWorkers, linkedCompaniesOnly);
+    if (previewLegacyDelete.Changes.Count != 1 ||
+        !previewLegacyDelete.Changes[0].IsDelete)
+        throw new Exception("Legacy advanced CSV Delete requires valid replacement fields.");
+
+    var invalidNewDraft = new WorkerEmploymentDraft(
+        0, "", new DateTime(2022, 3, 1), new DateTime(2022, 3, 31),
+        false, false, false, false, "UWA (2022-2022)");
+    var invalidNewChange = new EmploymentCsvChange(true, 378, "",
+        invalidNewDraft, "");
+    bool gotSpecificInitials = false;
+    try {
+        EmploymentCsvCodec.ValidateForWrite(invalidNewChange,
+            unlistedWorkers, linkedCompaniesOnly, 100, 20);
+    }
+    catch (InvalidOperationException e) {
+        gotSpecificInitials = e.Message.Contains("WorkerUID 378") &&
+            e.Message.Contains("RecordName") &&
+            e.Message.Contains("Initials");
+    }
+    if (!gotSpecificInitials)
+        throw new Exception("A newly created row with blank initials lacked a targeted error.");
+
+    var invalidStart = invalidNewChange with {
+        Draft = invalidNewDraft with {
+            Initials = "UWA",
+            FromDate = new DateTime(1666, 1, 1)
+        }
+    };
+    bool gotSpecificDate = false;
+    try {
+        EmploymentCsvCodec.ValidateForWrite(invalidStart,
+            unlistedWorkers, linkedCompaniesOnly, 100, 20);
+    }
+    catch (InvalidOperationException e) {
+        gotSpecificDate = e.Message.Contains("WorkerUID 378") &&
+            e.Message.Contains("From date") && e.Message.Contains("1666");
+    }
+    if (!gotSpecificDate)
+        throw new Exception("An invalid employment From date lacked a specific diagnostic.");
+
+    var validOngoing = invalidNewChange with {
+        Draft = invalidNewDraft with {
+            Initials = "UWA",
+            UntilDate = StudioDateFormat.OngoingEndDate
+        }
+    };
+    if (EmploymentCsvCodec.ValidateForWrite(validOngoing,
+            unlistedWorkers, linkedCompaniesOnly, 100, 20) != "UWA (2022-2022)")
+        throw new Exception("Ongoing end-date sentinel failed write validation.");
+
+    Console.WriteLine("Passed consistent employment CSV write validation and legacy deletion.");
+
 Console.WriteLine("Passed unlisted-company FedUID 0 in history CSV and record-name repair.");
 
 Console.WriteLine("Passed month-level handshake employment period identity tests.");

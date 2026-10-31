@@ -145,6 +145,35 @@ internal static class EmploymentCsvCodec
         new(row.FedUid, row.Initials, row.FromDate, row.UntilDate, row.Loan,
             row.Trade, row.Tour, row.Developmental, row.RecordName);
 
+    // Keep legacy rows that are ALREADY present byte-for-byte (or with the
+    // same parsed dates/flags) without forcing them through NEW-record rules.
+    // Some TEW IX scenarios contain historical blank initials or missing
+    // dates; an unedited export must not require inventing that information.
+    private static bool MatchesExistingCsvRow(
+        WorkerEmploymentEntry old, IReadOnlyList<string> row)
+    {
+        if (!int.TryParse(row[2].Trim(), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out int company) ||
+            old.FedUid != company ||
+            !string.Equals(old.RecordName, row[1], StringComparison.Ordinal) ||
+            old.Initials != row[3] ||
+            !StudioDateFormat.TryParse(row[4], out var from) ||
+            !StudioDateFormat.TryParse(row[5], out var until) ||
+            old.FromDate.Date != from.Date || old.UntilDate.Date != until.Date)
+            return false;
+
+        bool? ReadFlag(string raw)
+        {
+            raw = raw.Trim();
+            if (bool.TryParse(raw, out bool flag)) return flag;
+            return raw switch { "1" or "-1" => true, "0" => false, _ => null };
+        }
+        return ReadFlag(row[6]) == old.Loan &&
+               ReadFlag(row[7]) == old.Trade &&
+               ReadFlag(row[8]) == old.Tour &&
+               ReadFlag(row[9]) == old.Developmental;
+    }
+
     internal static EmploymentCsvPreview PreviewReplacement(
         string csv, IReadOnlyList<WorkerEmploymentEntry> existing,
         IReadOnlySet<int> workerIds, IReadOnlySet<int> companyIds)
@@ -157,6 +186,7 @@ internal static class EmploymentCsvCodec
             throw new InvalidOperationException(
                 "Expected an Employment History CSV exported with the current header.");
 
+        var unmatched = existing.ToList();
         var desired = new List<WorkerEmploymentEntry>();
         for (int i = 1; i < rows.Count; i++)
         {
@@ -169,6 +199,15 @@ internal static class EmploymentCsvCodec
                 !workerIds.Contains(worker))
                 throw new InvalidOperationException(
                     $"CSV row {rowNo}: WorkerUID '{r[0]}' does not identify a worker.");
+            // A retained, unedited row needs no new validation and no write.
+            // Consume only one matching old record, preserving duplicates.
+            int exact = unmatched.FindIndex(old =>
+                old.WorkerUid == worker && MatchesExistingCsvRow(old, r));
+            if (exact >= 0)
+            {
+                unmatched.RemoveAt(exact);
+                continue;
+            }
             var d = ParseDraft(r, rowNo, 2, 3, 4, 5, 6, r[1], companyIds);
             desired.Add(new WorkerEmploymentEntry(d.RequestedRecordName!, worker,
                 d.FedUid, d.Initials, d.FromDate, d.UntilDate,
@@ -192,20 +231,11 @@ internal static class EmploymentCsvCodec
         // RecordName is display text, not a unique identifier. Match complete
         // unchanged rows first; separate handshake stints in the same year
         // are valid even when they have identical display names.
-        var unmatched = existing.ToList();
-        var outstanding = new List<WorkerEmploymentEntry>();
-        foreach (var row in desired)
-        {
-            int index = unmatched.FindIndex(old => SameRow(old, row));
-            if (index >= 0) unmatched.RemoveAt(index);
-            else outstanding.Add(row);
-        }
-
         var changes = new List<EmploymentCsvChange>();
         // Prefer exact period (worker, company, full dates), so changing flags
         // or historical initials does not delete and recreate the period.
         // A date/name change can also be paired if exactly one old row remains.
-        foreach (var row in outstanding)
+        foreach (var row in desired)
         {
             var candidates = unmatched
                 .Where(old => old.WorkerUid == row.WorkerUid &&
@@ -321,6 +351,34 @@ internal static class EmploymentCsvCodec
             if (!int.TryParse(r[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int worker) ||
                 !workerIds.Contains(worker))
                 throw new InvalidOperationException($"CSV row {rowNo + 1}: unknown WorkerUID.");
+            if (delete)
+            {
+                // Deletions identify a previously saved record by its
+                // original key and fingerprint. The editable CSV values
+                // (dates, initials, company, flags) are irrelevant, and
+                // may legitimately be incomplete in old scenario data.
+                string oldNameToDelete = r[3].Trim();
+                var oldMatches = existing.Where(x =>
+                    x.WorkerUid == worker &&
+                    string.Equals(x.RecordName, oldNameToDelete,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    Fingerprint(x).Equals(r[12], StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (oldMatches.Count != 1)
+                    throw new InvalidOperationException(
+                        $"CSV row {rowNo + 1}: worker {worker}, " +
+                        $"OriginalRecordName '{oldNameToDelete}' does not match " +
+                        "exactly one saved period. Export a fresh CSV.");
+                var old = oldMatches[0];
+                if (!seenSource.Add(Fingerprint(old)))
+                    throw new InvalidOperationException(
+                        $"CSV row {rowNo + 1}: worker {worker}, " +
+                        $"OriginalRecordName '{oldNameToDelete}' is referenced " +
+                        "more than once.");
+                changes.Add(new EmploymentCsvChange(false, worker, old.RecordName,
+                    AsDraft(old), Fingerprint(old), IsDelete: true, Original: old));
+                continue;
+            }
             if (!int.TryParse(r[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out int company) ||
                 (company < 0 || (company != 0 && !companyIds.Contains(company))))
                 throw new InvalidOperationException(
@@ -347,7 +405,13 @@ internal static class EmploymentCsvCodec
                     $"CSV row {rowNo + 1}: OriginalRecordName is blank for WorkerUID {worker}. " +
                     "For a new period, set Action to Add and clear SourceFingerprint, " +
                     "or export a fresh standard CSV to add and remove rows directly.");
-            var draft = new WorkerEmploymentDraft(company, r[5].Trim(),
+            string initials = r[5].Trim();
+            if (initials.Length == 0 || initials.Any(char.IsControl))
+                throw new InvalidOperationException(
+                    $"CSV row {rowNo + 1}: WorkerUID {worker}, " +
+                    $"RecordName '{name}': Initials is blank or invalid. " +
+                    "Enter company initials even when CompanyUID is 0.");
+            var draft = new WorkerEmploymentDraft(company, initials,
                 start, end, Flag(8), Flag(9), Flag(10), Flag(11), name, name.Length == 0);
             string generated = name.Length == 0
                 ? StudioRecordNames.Employment(draft.Initials, start, end) : name;

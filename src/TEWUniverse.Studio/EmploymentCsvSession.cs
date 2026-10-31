@@ -27,25 +27,12 @@ internal sealed partial class DatabaseSession
         {
             var d = change.Draft;
             int worker = change.WorkerUid;
-            if (!workerIds.Contains(worker) || d.FedUid < 0 ||
-                (d.FedUid != 0 && !companyIds.Contains(d.FedUid)))
-                throw new InvalidOperationException(
-                    "CSV references a missing worker or an invalid company. " +
-                    "FedUID 0 is valid for unlisted historical promotions.");
-            bool ongoing = StudioDateFormat.IsOngoingEndDate(d.UntilDate);
-            if (d.FromDate.Year is < 1800 or > 2100 ||
-                (!ongoing && (d.UntilDate.Year is < 1800 or > 2100 ||
-                             d.UntilDate < d.FromDate)) ||
-                string.IsNullOrWhiteSpace(d.Initials) || d.Initials.Any(char.IsControl))
-                throw new InvalidOperationException("CSV contains invalid employment dates or initials.");
-            string newName = string.IsNullOrWhiteSpace(d.RequestedRecordName)
-                ? StudioRecordNames.Employment(d.Initials, d.FromDate, d.UntilDate)
-                : d.RequestedRecordName.Trim();
-            if (newName.Length == 0 || newName.Any(char.IsControl) ||
-                limit > 0 && newName.Length > limit ||
-                schema.Columns["Initials"]!.MaxLength > 0 &&
-                    d.Initials.Length > schema.Columns["Initials"]!.MaxLength)
-                throw new InvalidOperationException("CSV employment name or initials exceeds the MDB's limits.");
+            // Deletions never need replacement values: a legacy original
+            // can have missing initials or an out-of-range historical date.
+            // Only source fingerprint and full-row identity govern deletion.
+            string? newName = EmploymentCsvCodec.ValidateForWrite(
+                change, workerIds, companyIds, limit,
+                schema.Columns["Initials"]!.MaxLength);
             if (!change.IsAdd)
             {
                 var matches = originals.Where(row =>
@@ -74,9 +61,9 @@ internal sealed partial class DatabaseSession
             else if (change.OriginalName.Length != 0)
                 throw new InvalidOperationException("An Add row cannot specify an old RecordName.");
 
-            resulting.Add(new WorkerEmploymentEntry(newName, worker, d.FedUid, d.Initials,
+            resulting.Add(new WorkerEmploymentEntry(newName!, worker, d.FedUid, d.Initials,
                 d.FromDate, d.UntilDate, d.Loan, d.Trade, d.Tour, d.Developmental));
-            replacements.Add((change, newName));
+            replacements.Add((change, newName!));
         }
 
         // Existing indistinguishable rows can remain untouched. Never

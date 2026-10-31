@@ -8,7 +8,9 @@ The centralized `TewCodeLabels` catalog translates **403 verified numeric codes*
 
 Known values appear as readable names in worker profile fields, worker header and Quick Facts, gender/nationality/region roster filters, plus existing-tag-team and new-tag-team type selections. Editors still keep and save the corresponding **original numeric code**, and filters still match the original stored values. Any unknown/unmapped code remains visible as `Code N` rather than being guessed, and other unverified TEW IX numeric categories remain unchanged. The label catalog is presentation-only and performs **no MDB migration or write**.
 
-## Standalone Employment History and worker types
+## Standalone Employment History and worker types**Employment CSV imports with older records:** Old TEW IX history can contain empty Initials or dates outside the current new-entry range. An unedited row is preserved without rewriting it, and a row removed from the full-table CSV can be deleted using its verified original record identity even when its old values would not qualify as a new entry. Legacy Action=Delete behaves the same way. Newly added or edited periods must still have real initials and valid dates; a rejected write names the WorkerUID, RecordName and specific invalid field instead of displaying the generic "CSV contains invalid employment dates or initials" message. This does not invent missing data or bypass transactional safeguards.
+
+
 
 **Employment History** is now its own main navigation section, separate from the Workers profile. It reads the whole `tblCV` table, shows each worker's saved company periods, searches across workers, companies and dates, and supports new periods, updates and removal using the original worker-linked records. The worker selector is mandatory for new periods; selecting a saved period restores its linked worker. Dates retain the TEW IX ongoing sentinel `01/01/1666`. The worker's profile remains separate from historical employment.
 
