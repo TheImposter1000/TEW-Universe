@@ -116,8 +116,7 @@ internal static class RecordNameRepairPlanner
 
         foreach (var row in targets)
         {
-            string name = string.IsNullOrWhiteSpace(row.CompanyName)
-                ? row.Initials : row.CompanyName;
+            string name = row.Initials;
             if (ambiguous.Contains(row))
             {
                 warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
@@ -133,7 +132,7 @@ internal static class RecordNameRepairPlanner
                  (row.Until.Year is < 1800 or > 2100 || row.Until < row.From)))
             {
                 warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
-                    "missing company name, dates, or a valid record identity; left unchanged.");
+                    "missing company initials, dates, or a valid record identity; left unchanged.");
                 continue;
             }
             string desired = StudioRecordNames.Employment(
