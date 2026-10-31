@@ -11,7 +11,8 @@ namespace TEWUniverse.Studio;
 /// </summary>
 internal sealed record EmploymentCsvChange(
     bool IsAdd, int WorkerUid, string OriginalName,
-    WorkerEmploymentDraft Draft, string ExpectedFingerprint, bool IsDelete = false);
+    WorkerEmploymentDraft Draft, string ExpectedFingerprint, bool IsDelete = false,
+    WorkerEmploymentEntry? Original = null);
 internal sealed record EmploymentCsvPreview(
     int ExportedRows, IReadOnlyList<EmploymentCsvChange> Changes,
     bool IsReplacement = false);
@@ -128,6 +129,20 @@ internal static class EmploymentCsvCodec
         old.Loan == draft.Loan && old.Trade == draft.Trade &&
         old.Tour == draft.Tour && old.Developmental == draft.Developmental;
 
+    private static bool SameRow(WorkerEmploymentEntry original, WorkerEmploymentEntry desired) =>
+        original.WorkerUid == desired.WorkerUid &&
+        original.FedUid == desired.FedUid &&
+        original.FromDate.Date == desired.FromDate.Date &&
+        original.UntilDate.Date == desired.UntilDate.Date &&
+        string.Equals(original.RecordName, desired.RecordName, StringComparison.OrdinalIgnoreCase) &&
+        original.Initials == desired.Initials && original.Loan == desired.Loan &&
+        original.Trade == desired.Trade && original.Tour == desired.Tour &&
+        original.Developmental == desired.Developmental;
+
+    private static WorkerEmploymentDraft AsDraft(WorkerEmploymentEntry row) =>
+        new(row.FedUid, row.Initials, row.FromDate, row.UntilDate, row.Loan,
+            row.Trade, row.Tour, row.Developmental, row.RecordName);
+
     internal static EmploymentCsvPreview PreviewReplacement(
         string csv, IReadOnlyList<WorkerEmploymentEntry> existing,
         IReadOnlySet<int> workerIds, IReadOnlySet<int> companyIds)
@@ -138,52 +153,87 @@ internal static class EmploymentCsvCodec
         if (rows.Count == 0 ||
             string.Join(",", rows[0]).TrimStart('\ufeff') != SimpleHeader)
             throw new InvalidOperationException(
-                "Expected a standard Employment History CSV. Export All CSV again for the current format.");
-        var oldIndex = new Dictionary<(int, string), WorkerEmploymentEntry>();
-        foreach (var entry in existing)
-            if (!oldIndex.TryAdd((entry.WorkerUid, entry.RecordName.ToUpperInvariant()), entry))
-                throw new InvalidOperationException(
-                    $"Worker {entry.WorkerUid} has duplicate stored RecordName '{entry.RecordName}'. " +
-                    "Resolve these ambiguous records before using full-table replacement.");
-        var seen = new HashSet<(int, string)>();
-        var changes = new List<EmploymentCsvChange>();
+                "Expected an Employment History CSV exported with the current header.");
+
+        var desired = new List<WorkerEmploymentEntry>();
         for (int i = 1; i < rows.Count; i++)
         {
-            var r = rows[i];
-            int rowNo = i + 1;
+            var r = rows[i]; int rowNo = i + 1;
             if (r.Count != 10)
-                throw new InvalidOperationException($"CSV row {rowNo}: expected 10 columns, received {r.Count}.");
+                throw new InvalidOperationException(
+                    $"CSV row {rowNo}: expected 10 columns, received {r.Count}.");
             if (!int.TryParse(r[0].Trim(), NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out int worker) || !workerIds.Contains(worker))
+                    CultureInfo.InvariantCulture, out int worker) ||
+                !workerIds.Contains(worker))
                 throw new InvalidOperationException(
-                    $"CSV row {rowNo}: WorkerUID '{r[0]}' does not match an existing worker.");
-            var draft = ParseDraft(r, rowNo, 2, 3, 4, 5, 6, r[1], companyIds);
-            string newName = draft.RequestedRecordName!;
-            var key = (worker, newName.ToUpperInvariant());
-            if (!seen.Add(key))
+                    $"CSV row {rowNo}: WorkerUID '{r[0]}' does not identify a worker.");
+            var d = ParseDraft(r, rowNo, 2, 3, 4, 5, 6, r[1], companyIds);
+            desired.Add(new WorkerEmploymentEntry(d.RequestedRecordName!, worker,
+                d.FedUid, d.Initials, d.FromDate, d.UntilDate,
+                d.Loan, d.Trade, d.Tour, d.Developmental));
+        }
+
+        // Do not introduce an additional physically indistinguishable row:
+        // such a row could not later be edited or deleted safely. Existing
+        // exact duplicates remain readable and are not treated as corruption.
+        foreach (var group in desired.GroupBy(Fingerprint))
+        {
+            int alreadyStored = existing.Count(x =>
+                Fingerprint(x) == group.Key);
+            if (group.Count() > 1 && group.Count() > alreadyStored)
                 throw new InvalidOperationException(
-                    $"CSV row {rowNo}: worker {worker} has repeated RecordName '{newName}'. " +
-                    "Two different workers may share a name, but one worker cannot have duplicate Record Names.");
-            if (oldIndex.TryGetValue(key, out var original))
+                    $"Worker {group.First().WorkerUid}: CSV introduces identical " +
+                    "employment rows (same company, exact dates, name and flags). " +
+                    "Separate handshake stints must have distinct date ranges.");
+        }
+
+        // RecordName is display text, not a unique identifier. Match complete
+        // unchanged rows first; separate handshake stints in the same year
+        // are valid even when they have identical display names.
+        var unmatched = existing.ToList();
+        var outstanding = new List<WorkerEmploymentEntry>();
+        foreach (var row in desired)
+        {
+            int index = unmatched.FindIndex(old => SameRow(old, row));
+            if (index >= 0) unmatched.RemoveAt(index);
+            else outstanding.Add(row);
+        }
+
+        var changes = new List<EmploymentCsvChange>();
+        // Prefer exact period (worker, company, full dates), so changing flags
+        // or historical initials does not delete and recreate the period.
+        // A date/name change can also be paired if exactly one old row remains.
+        foreach (var row in outstanding)
+        {
+            var candidates = unmatched
+                .Where(old => old.WorkerUid == row.WorkerUid &&
+                    old.FedUid == row.FedUid &&
+                    old.FromDate.Date == row.FromDate.Date &&
+                    old.UntilDate.Date == row.UntilDate.Date).ToList();
+            if (candidates.Count != 1)
+                candidates = unmatched.Where(old =>
+                    old.WorkerUid == row.WorkerUid &&
+                    old.FedUid == row.FedUid &&
+                    string.Equals(old.RecordName, row.RecordName,
+                        StringComparison.OrdinalIgnoreCase)).ToList();
+            if (candidates.Count == 1)
             {
-                if (!Equal(original, draft))
-                    changes.Add(new EmploymentCsvChange(false, worker, original.RecordName,
-                        draft, Fingerprint(original)));
+                var original = candidates[0];
+                unmatched.Remove(original);
+                changes.Add(new EmploymentCsvChange(false, row.WorkerUid,
+                    original.RecordName, AsDraft(row), Fingerprint(original),
+                    Original: original));
             }
             else
-                changes.Add(new EmploymentCsvChange(true, worker, "", draft, ""));
+                changes.Add(new EmploymentCsvChange(true, row.WorkerUid, "",
+                    AsDraft(row), ""));
         }
-        foreach (var pair in oldIndex)
-            if (!seen.Contains(pair.Key))
-            {
-                var old = pair.Value;
-                changes.Add(new EmploymentCsvChange(false, old.WorkerUid,
-                    old.RecordName, new WorkerEmploymentDraft(
-                        old.FedUid, old.Initials, old.FromDate, old.UntilDate,
-                        old.Loan, old.Trade, old.Tour, old.Developmental,
-                        old.RecordName), Fingerprint(old), IsDelete: true));
-            }
-        return new EmploymentCsvPreview(rows.Count - 1, changes, IsReplacement: true);
+        foreach (var old in unmatched)
+            changes.Add(new EmploymentCsvChange(false, old.WorkerUid,
+                old.RecordName, AsDraft(old), Fingerprint(old), IsDelete: true,
+                Original: old));
+        return new EmploymentCsvPreview(rows.Count - 1, changes,
+            IsReplacement: true);
     }
 
     internal static bool IsLegacyFormat(string csv)
@@ -245,7 +295,7 @@ internal static class EmploymentCsvCodec
             throw new InvalidOperationException(
                 "Unrecognized Employment History CSV columns. Use Export All CSV for the straightforward table format.");
         var changes = new List<EmploymentCsvChange>();
-        var seenSource = new HashSet<(int, string)>();
+        var seenSource = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int rowNo = 1; rowNo < rows.Count; rowNo++)
         {
             var r = rows[rowNo];
@@ -283,12 +333,6 @@ internal static class EmploymentCsvCodec
                     $"CSV row {rowNo + 1}: OriginalRecordName is blank for WorkerUID {worker}. " +
                     "For a new period, set Action to Add and clear SourceFingerprint, " +
                     "or export a fresh standard CSV to add and remove rows directly.");
-            if (!add && !seenSource.Add((worker, oldName.ToUpperInvariant())))
-                throw new InvalidOperationException(
-                    $"CSV row {rowNo + 1}: WorkerUID {worker}, OriginalRecordName '{oldName}' " +
-                    "appears more than once as an Update/Delete. " +
-                    "For another new period, set Action=Add and clear OriginalRecordName and SourceFingerprint. " +
-                    "Alternatively use the simpler Export All CSV format.");
             var draft = new WorkerEmploymentDraft(company, r[5].Trim(),
                 start, end, Flag(8), Flag(9), Flag(10), Flag(11), name, name.Length == 0);
             string generated = name.Length == 0
@@ -301,14 +345,23 @@ internal static class EmploymentCsvCodec
                 changes.Add(new EmploymentCsvChange(true, worker, "", draft, ""));
                 continue;
             }
-            var original = existing.FirstOrDefault(x => x.WorkerUid == worker &&
-                string.Equals(x.RecordName, oldName, StringComparison.OrdinalIgnoreCase));
-            if (original == null || !Fingerprint(original).Equals(r[12], StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"CSV row {rowNo + 1}: original record was changed or is missing. Export a new CSV.");
+            var candidates = existing.Where(x => x.WorkerUid == worker &&
+                string.Equals(x.RecordName, oldName, StringComparison.OrdinalIgnoreCase) &&
+                Fingerprint(x).Equals(r[12], StringComparison.OrdinalIgnoreCase)).ToList();
+            if (candidates.Count != 1)
+                throw new InvalidOperationException(
+                    $"CSV row {rowNo + 1}: worker {worker}, record '{oldName}' is not " +
+                    "identified by one original row fingerprint. Re-export or use full-table CSV.");
+            var original = candidates[0];
+            if (!seenSource.Add(Fingerprint(original)))
+                throw new InvalidOperationException(
+                    $"CSV row {rowNo + 1}: original period for worker {worker}, " +
+                    $"'{oldName}' is referenced twice. Use Action=Add for a new period.");
+
             if (delete)
             {
                 changes.Add(new EmploymentCsvChange(false, worker, original.RecordName,
-                    draft, r[12], IsDelete: true));
+                    draft, r[12], IsDelete: true, Original: original));
                 continue;
             }
             if (original.RecordName == generated && original.FedUid == company &&
@@ -318,7 +371,7 @@ internal static class EmploymentCsvCodec
                 original.Developmental == draft.Developmental)
                 continue;
             changes.Add(new EmploymentCsvChange(false, worker, original.RecordName,
-                draft, r[12]));
+                draft, r[12], Original: original));
         }
         return new EmploymentCsvPreview(rows.Count - 1, changes);
     }

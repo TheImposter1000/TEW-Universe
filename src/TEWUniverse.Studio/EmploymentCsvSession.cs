@@ -13,11 +13,11 @@ internal sealed partial class DatabaseSession
             "FedUID", "Initials", "CVFromDate", "CVUntilDate",
             "Loan", "Trade", "Tour", "Developmental");
         var originals = ReadAllWorkerEmployment();
-        var current = originals.ToDictionary(x =>
-            (x.WorkerUid, x.RecordName.ToUpperInvariant()), x => x);
+        // The stored RecordName is not unique, even within one worker.
+        // Changes refer to complete original rows, including full dates.
         var workerIds = ListWorkers().Select(x => x.Id).ToHashSet();
         var companyIds = ReadEmploymentCompanies().Select(x => x.Id).ToHashSet();
-        var sourceKeys = new HashSet<(int, string)>();
+        var sourceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var resulting = originals.ToList();
         var replacements = new List<(EmploymentCsvChange Change, string FinalName)>();
         var deletions = new List<EmploymentCsvChange>();
@@ -45,13 +45,23 @@ internal sealed partial class DatabaseSession
                 throw new InvalidOperationException("CSV employment name or initials exceeds the MDB's limits.");
             if (!change.IsAdd)
             {
-                if (!sourceKeys.Add((worker, change.OriginalName.ToUpperInvariant())) ||
-                    !current.TryGetValue((worker, change.OriginalName.ToUpperInvariant()), out var original) ||
-                    !EmploymentCsvCodec.Fingerprint(original)
-                        .Equals(change.ExpectedFingerprint, StringComparison.OrdinalIgnoreCase))
+                var matches = originals.Where(row =>
+                    row.WorkerUid == worker &&
+                    EmploymentCsvCodec.Fingerprint(row).Equals(
+                        change.ExpectedFingerprint, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(row.RecordName, change.OriginalName,
+                        StringComparison.OrdinalIgnoreCase)).ToList();
+                if (matches.Count != 1 ||
+                    !sourceKeys.Add(change.ExpectedFingerprint))
                     throw new InvalidOperationException(
-                        "CSV source record is missing, duplicated or stale. Export a new file.");
-                resulting.Remove(original);
+                        $"Worker {worker}, '{change.OriginalName}': the original period " +
+                        "is missing, was changed, or is completely identical to another " +
+                        "stored row. Individual changes to indistinguishable exact " +
+                        "duplicates are not safe. Refresh and review the CSV.");
+                var original = matches[0];
+                if (!resulting.Remove(original))
+                    throw new InvalidOperationException(
+                        "The same original employment period was targeted twice.");
                 if (change.IsDelete)
                 {
                     deletions.Add(change);
@@ -66,16 +76,19 @@ internal sealed partial class DatabaseSession
             replacements.Add((change, newName));
         }
 
-        foreach (var group in resulting.GroupBy(x => x.WorkerUid))
+        // Existing indistinguishable rows can remain untouched. Never
+        // introduce MORE copies of a physically identical row, because they
+        // could not be individually selected for a future edit/delete.
+        foreach (var group in resulting.GroupBy(EmploymentCsvCodec.Fingerprint))
         {
-            if (group.Select(x => x.RecordName)
-                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != group.Count())
+            if (group.Count() <= 1) continue;
+            int originalCount = originals.Count(x =>
+                EmploymentCsvCodec.Fingerprint(x) == group.Key);
+            if (group.Count() > originalCount)
                 throw new InvalidOperationException(
-                    $"Worker {group.Key} has duplicate employment Record Names in the CSV result.");
-            if (group.GroupBy(x => (x.FedUid, x.FromDate.Date, x.UntilDate.Date))
-                .Any(x => x.Count() > 1))
-                throw new InvalidOperationException(
-                    $"Worker {group.Key} has duplicate company periods with identical dates.");
+                    $"Worker {group.First().WorkerUid}: this import would create " +
+                    "an identical duplicate of an entire employment period. " +
+                    "Give separate stints distinct From/Until dates.");
         }
 
         foreach (DataColumn col in schema.Columns)
@@ -99,10 +112,12 @@ internal sealed partial class DatabaseSession
             foreach (var change in deletions)
             {
                 using var remove = new OleDbCommand(
-                    "DELETE FROM [tblCV] WHERE [WorkerUID]=? AND [RecordName]=?",
+                    "DELETE FROM [tblCV] WHERE " + EmploymentRecordPredicate.Sql,
                     _connection, tx);
-                remove.Parameters.Add("worker", OleDbType.Integer).Value = change.WorkerUid;
-                remove.Parameters.Add("name", OleDbType.VarWChar).Value = change.OriginalName;
+                EmploymentRecordPredicate.Bind(remove,
+                    originals.Single(x => x.WorkerUid == change.WorkerUid &&
+                        EmploymentCsvCodec.Fingerprint(x).Equals(change.ExpectedFingerprint,
+                            StringComparison.OrdinalIgnoreCase)), schema);
                 if (remove.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException(
                         $"Employment record '{change.OriginalName}' for worker " +
@@ -118,11 +133,13 @@ internal sealed partial class DatabaseSession
                 if (limit > 0 && temporary.Length > limit)
                     throw new InvalidOperationException("RecordName limit is too small to stage updates.");
                 using var cmd = new OleDbCommand(
-                    "UPDATE [tblCV] SET [RecordName]=? WHERE [WorkerUID]=? AND [RecordName]=?",
-                    _connection, tx);
+                    "UPDATE [tblCV] SET [RecordName]=? WHERE " +
+                    EmploymentRecordPredicate.Sql, _connection, tx);
                 cmd.Parameters.Add("name", OleDbType.VarWChar).Value = temporary;
-                cmd.Parameters.Add("worker", OleDbType.Integer).Value = change.WorkerUid;
-                cmd.Parameters.Add("old", OleDbType.VarWChar).Value = change.OriginalName;
+                EmploymentRecordPredicate.Bind(cmd,
+                    originals.Single(x => x.WorkerUid == change.WorkerUid &&
+                        EmploymentCsvCodec.Fingerprint(x).Equals(change.ExpectedFingerprint,
+                            StringComparison.OrdinalIgnoreCase)), schema);
                 if (cmd.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException("An imported record changed while staging.");
                 staged.Add((change, temporary, name));

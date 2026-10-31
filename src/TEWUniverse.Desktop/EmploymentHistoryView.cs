@@ -129,7 +129,8 @@ public partial class MainWindow
         RefreshDirty();
     }
 
-    private void ReloadEmploymentHistory(int? selectedWorker = null, string? selectedName = null)
+    private void ReloadEmploymentHistory(int? selectedWorker = null, string? selectedName = null,
+        int? selectedCompany = null, DateTime? selectedFrom = null)
     {
         if (_employmentGrid == null || _employmentSearch == null) return;
         if (_session == null)
@@ -157,7 +158,7 @@ public partial class MainWindow
                 _employmentWorkerPicker.ItemsSource = _allWorkers;
             }
             finally { _settingWorkerExtraForm = false; }
-            FilterEmploymentHistory(selectedWorker, selectedName);
+            FilterEmploymentHistory(selectedWorker, selectedName, selectedCompany, selectedFrom);
             SetStatus($"Loaded {_allEmploymentRows.Count:N0} employment-history periods.");
         }
         catch (Exception ex)
@@ -168,7 +169,8 @@ public partial class MainWindow
         }
     }
 
-    private void FilterEmploymentHistory(int? workerUid = null, string? name = null)
+    private void FilterEmploymentHistory(int? workerUid = null, string? name = null,
+        int? companyUid = null, DateTime? from = null)
     {
         if (_employmentGrid == null || _employmentSearch == null) return;
         string q = _employmentSearch.Text.Trim();
@@ -190,7 +192,9 @@ public partial class MainWindow
             _employmentGrid.ItemsSource = rows;
             _employmentGrid.SelectedItem = workerUid.HasValue
                 ? rows.FirstOrDefault(x => x.Entry.WorkerUid == workerUid &&
-                    string.Equals(x.Entry.RecordName, name, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(x.Entry.RecordName, name, StringComparison.OrdinalIgnoreCase) &&
+                    (!companyUid.HasValue || x.Entry.FedUid == companyUid) &&
+                    (!from.HasValue || x.Entry.FromDate.Date == from.Value.Date))
                 : null;
             _employmentSummary.Text = $"{rows.Count:N0} of {_allEmploymentRows.Count:N0} historical periods. " +
                 "Record Names are unique within each worker, not across the entire scenario.";

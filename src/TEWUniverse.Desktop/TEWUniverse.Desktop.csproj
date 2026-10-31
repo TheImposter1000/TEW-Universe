@@ -29,6 +29,7 @@
     <Compile Include="..\TEWUniverse.Studio\ChemistryRules.cs" Link="Services\ChemistryRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\ChemistrySession.cs" Link="Services\ChemistrySession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerExtrasSession.cs" Link="Services\WorkerExtrasSession.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\EmploymentRecordPredicate.cs" Link="Services\EmploymentRecordPredicate.cs"/>
     <Compile Include="..\TEWUniverse.Studio\EmploymentCsvCodec.cs" Link="Services\EmploymentCsvCodec.cs"/>
     <Compile Include="..\TEWUniverse.Studio\EmploymentCsvSession.cs" Link="Services\EmploymentCsvSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerTypeSession.cs" Link="Services\WorkerTypeSession.cs"/>

@@ -1211,18 +1211,18 @@ var cv = new[]
         new DateTime(2015, 4, 1), new DateTime(2021, 11, 1), "TUSCV0003")
 };
 var brendanCv = RecordNameRepairPlanner.Employment(cv, 4963);
-if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 1 ||
-    brendanCv.Warnings.Count != 2 ||
+if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 3 ||
+    brendanCv.Warnings.Count != 0 ||
     brendanCv.Changes.Any(x => x.OwnerUid != 4963) ||
-    brendanCv.Changes[0].NewName != "NCW (2008-2012)" ||
+    brendanCv.Changes.Count(x => x.NewName == "PWA (2015-2021)") != 2 ||
     brendanCv.Changes.Any(x => x.NewName.Contains('#')))
-    throw new Exception("Employment repair must keep collisions unchanged without suffixes.");
+    throw new Exception("Multiple different employment periods in the same year were rejected.");
 var wholeCv = RecordNameRepairPlanner.Employment(cv, null);
-if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 1 ||
-    wholeCv.Warnings.Count != 2 ||
-    wholeCv.Changes[0].NewName != "NCW (2008-2012)" ||
+if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 3 ||
+    wholeCv.Warnings.Count != 0 ||
+    wholeCv.Changes.Count(x => x.NewName == "PWA (2015-2021)") != 2 ||
     wholeCv.Changes.Any(x => x.OwnerUid == 77))
-    throw new Exception("Database-wide employment collisions were not handled safely.");
+    throw new Exception("Full-history rename must allow repeated year-range names.");
 
 // Different wrestlers can enter and leave the same company on the same dates.
 // Their employment RecordNames must not conflict just because the labels match.
@@ -1257,16 +1257,23 @@ if (identicalNamesAcrossWorkers.Changes.Count != 0 ||
     identicalNamesAcrossWorkers.Warnings.Count != 0)
     throw new Exception("Identical current RecordNames belonging to distinct workers were rejected.");
 
-bool duplicateNameInOneWorkerRejected = false;
-try {
-    RecordNameRepairPlanner.Employment(new[] {
-        sharedCareer[0] with { OldName = "DNA (2022 -?)" },
-        sharedCareer[0] with { OldName = "DNA (2022 -?)" }
-    }, 101);
-}
-catch (InvalidOperationException) { duplicateNameInOneWorkerRejected = true; }
-if (!duplicateNameInOneWorkerRejected)
-    throw new Exception("Ambiguous duplicate names within one worker were accepted.");
+var sameWorkerSeparateMonths = RecordNameRepairPlanner.Employment(new[] {
+    sharedCareer[0] with { OldName = "OldJanuary",
+        From = new DateTime(2022, 1, 1), Until = new DateTime(2022, 1, 31) },
+    sharedCareer[0] with { OldName = "OldMarch",
+        From = new DateTime(2022, 3, 1), Until = new DateTime(2022, 3, 31) }
+}, 101);
+if (sameWorkerSeparateMonths.Changes.Count != 2 ||
+    sameWorkerSeparateMonths.Warnings.Count != 0 ||
+    sameWorkerSeparateMonths.Changes.Any(c => c.NewName != "DNA (2022-2022)"))
+    throw new Exception("Same-worker, same-year handshake stints must both be renameable.");
+var exactAmbiguousRepair = RecordNameRepairPlanner.Employment(new[] {
+    sharedCareer[0] with { OldName = "DuplicateExact" },
+    sharedCareer[0] with { OldName = "DuplicateExact" }
+}, 101);
+if (exactAmbiguousRepair.Changes.Count != 0 ||
+    exactAmbiguousRepair.Warnings.Count != 2)
+    throw new Exception("Exact indistinguishable repair targets were not safely skipped.");
 
 // Special TEW 1666 sentinel / damaged historical dates cannot be guessed.
 // Such rows should be shown as skipped rather than silently moved.
@@ -1986,7 +1993,7 @@ catch (InvalidOperationException e) {
     refusedDuplicateWithinWorker = e.Message.Contains("worker 101", StringComparison.OrdinalIgnoreCase);
 }
 if (!refusedDuplicateWithinWorker)
-    throw new Exception("Duplicate employment RecordName for the same worker was accepted.");
+    throw new Exception("An additional physically identical employment row was accepted.");
 
 var legacyDeletion = exportedEmployment.Replace(
     "Update,101,", "Delete,101,");
@@ -2023,7 +2030,7 @@ try {
         knownEmploymentWorkers, knownEmploymentCompanies);
 }
 catch (InvalidOperationException e) {
-    advancedIdentityConflict = e.Message.Contains("OriginalRecordName", StringComparison.Ordinal);
+    advancedIdentityConflict = e.Message.Contains("original period", StringComparison.OrdinalIgnoreCase);
 }
 if (!advancedIdentityConflict)
     throw new Exception("The old advanced patch format should identify duplicated source identities.");
@@ -2037,6 +2044,54 @@ if (!migratedLegacy.IsReplacement || migratedLegacy.Changes.Count != 1 ||
     migratedLegacy.Changes[0].Draft.RequestedRecordName != "DNA (2023 -?)")
     throw new Exception("Old edited CSV could not be imported as full-table replacement.");
 Console.WriteLine("Passed old edited CSV full-replacement migration.");
+
+// Worker 378 can hold several distinct handshake deals in the same year,
+// even though every Row has the SAME historical name.
+var handshakeEntries = new[] {
+    new WorkerEmploymentEntry("K-Squared CZCW 22-22", 378, 12, "CZCW",
+        new DateTime(2022, 1, 1), new DateTime(2022, 1, 31),
+        false, false, false, false),
+    new WorkerEmploymentEntry("K-Squared CZCW 22-22", 378, 12, "CZCW",
+        new DateTime(2022, 4, 1), new DateTime(2022, 4, 30),
+        false, false, false, false)
+};
+var handshakeWorkers = new HashSet<int> { 378 };
+var handshakeCompanies = new HashSet<int> { 12 };
+var handshakeCsv = EmploymentCsvCodec.ExportSimple(handshakeEntries);
+var handshakeUnchanged = EmploymentCsvCodec.Preview(handshakeCsv,
+    handshakeEntries, handshakeWorkers, handshakeCompanies);
+if (handshakeUnchanged.Changes.Count != 0)
+    throw new Exception("Identically named but separate handshake stints failed roundtrip.");
+var handshakeEdited = handshakeCsv.Replace(
+    "04/30/2022", "05/15/2022");
+var handshakePreview = EmploymentCsvCodec.Preview(handshakeEdited,
+    handshakeEntries, handshakeWorkers, handshakeCompanies);
+if (handshakePreview.Changes.Count != 1 ||
+    handshakePreview.Changes[0].IsAdd ||
+    handshakePreview.Changes[0].IsDelete ||
+    handshakePreview.Changes[0].Original?.FromDate != new DateTime(2022, 4, 1) ||
+    handshakePreview.Changes[0].Draft.UntilDate != new DateTime(2022, 5, 15))
+    throw new Exception("Changing one month-long stint targeted the other same-name row.");
+var handshakeWithNew = handshakeCsv +
+    "378,K-Squared CZCW 22-22,12,CZCW,07/01/2022,07/31/2022,False,False,False,False"
+    + Environment.NewLine;
+var handshakeAdd = EmploymentCsvCodec.Preview(handshakeWithNew,
+    handshakeEntries, handshakeWorkers, handshakeCompanies);
+if (handshakeAdd.Changes.Count != 1 || !handshakeAdd.Changes[0].IsAdd)
+    throw new Exception("Third same-name handshake stint could not be added.");
+var handshakeRemoved = EmploymentCsvCodec.ExportSimple(
+    handshakeEntries.Take(1));
+var handshakeDelete = EmploymentCsvCodec.Preview(handshakeRemoved,
+    handshakeEntries, handshakeWorkers, handshakeCompanies);
+if (handshakeDelete.Changes.Count != 1 ||
+    !handshakeDelete.Changes[0].IsDelete ||
+    handshakeDelete.Changes[0].Original?.FromDate != new DateTime(2022, 4, 1))
+    throw new Exception("Deleting one same-name stint targeted the wrong month.");
+var handshakeLegacy = EmploymentCsvCodec.Export(handshakeEntries);
+if (EmploymentCsvCodec.Preview(handshakeLegacy,
+        handshakeEntries, handshakeWorkers, handshakeCompanies).Changes.Count != 0)
+    throw new Exception("Advanced CSV could not distinguish same-name periods by fingerprint.");
+Console.WriteLine("Passed month-level handshake employment period identity tests.");
 
 Console.WriteLine("Passed simple employment CSV add/edit/delete, multiworker names and legacy Delete.");
 

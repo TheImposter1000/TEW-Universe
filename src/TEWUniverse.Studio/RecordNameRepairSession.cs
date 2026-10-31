@@ -87,16 +87,18 @@ internal sealed partial class DatabaseSession
             preview.Changes.Count == 0)
             throw new InvalidOperationException("No supported record-name changes were previewed.");
         bool employment = preview.Table == "tblCV";
-        int Scope(RecordNameRepair change) => employment ? change.OwnerUid : 0;
-        bool HasDuplicateInScope(Func<RecordNameRepair, string> getName) =>
-            preview.Changes.GroupBy(Scope).Any(group =>
-                group.Select(getName).Distinct(StringComparer.OrdinalIgnoreCase).Count()
-                != group.Count());
+        bool duplicateSource = employment
+            ? preview.Changes.GroupBy(c => (
+                c.OwnerUid, c.ReferenceUid, c.From, c.Until,
+                Name: c.OldName.ToUpperInvariant())).Any(g => g.Count() > 1)
+            : preview.Changes.Select(c => c.OldName)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != preview.Changes.Count;
         if (preview.Changes.Any(change => change.Table != preview.Table) ||
-            HasDuplicateInScope(change => change.OldName) ||
-            HasDuplicateInScope(change => change.NewName))
+            duplicateSource ||
+            (!employment && preview.Changes.Select(c => c.NewName)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != preview.Changes.Count))
             throw new InvalidOperationException(
-                "Ambiguous or duplicated record identifiers for the same owner in the preview.");
+                "The preview contains ambiguous original records. No changes made.");
 
         // The app can edit a full title history or a worker's CV records.
         // Re-run the plan on the currently loaded data; the exact preview must
@@ -130,46 +132,29 @@ internal sealed partial class DatabaseSession
         using var transaction = _connection.BeginTransaction();
         try
         {
-            // Index existing identifiers by their actual owner. tblCV
-            // permits the same readable history for different workers;
-            // title prehistory retains its existing table-wide rules.
-            var namesByScope = new Dictionary<int, HashSet<string>>();
+            // A tblCV RecordName is not unique. Only title history needs
+            // table-wide name collision prevention. Employment writes use
+            // worker, company, exact date range and old name together.
             var allNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            string lookupSql = employment
-                ? "SELECT [RecordName],[WorkerUID] FROM [tblCV]"
-                : $"SELECT [{nameField}] FROM [{preview.Table}]";
-            using (var command = new OleDbCommand(lookupSql, _connection, transaction))
+            using (var command = new OleDbCommand(
+                $"SELECT [{nameField}] FROM [{preview.Table}]", _connection, transaction))
             using (var reader = command.ExecuteReader())
             {
                 while (reader?.Read() == true)
-                {
-                    if (reader.IsDBNull(0)) continue;
-                    string name = Convert.ToString(reader.GetValue(0),
-                        CultureInfo.InvariantCulture) ?? "";
-                    int owner = employment
-                        ? Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture)
-                        : 0;
-                    if (!namesByScope.TryGetValue(owner, out var names))
-                    {
-                        names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        namesByScope[owner] = names;
-                    }
-                    names.Add(name);
-                    allNames.Add(name);
-                }
+                    if (!reader.IsDBNull(0))
+                        allNames.Add(Convert.ToString(reader.GetValue(0),
+                            CultureInfo.InvariantCulture) ?? "");
             }
-            var changingByScope = preview.Changes.GroupBy(Scope).ToDictionary(
-                g => g.Key, g => g.Select(c => c.OldName)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
-            foreach (var result in preview.Changes)
+            if (!employment)
             {
-                int owner = Scope(result);
-                if (namesByScope.TryGetValue(owner, out var names) &&
-                    names.Contains(result.NewName) &&
-                    !changingByScope[owner].Contains(result.NewName))
-                    throw new InvalidOperationException(
-                        $"Worker/owner {owner} already has Record Name '{result.NewName}'. " +
-                        "No changes made.");
+                var changing = preview.Changes.Select(c => c.OldName)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var result in preview.Changes)
+                    if (allNames.Contains(result.NewName) &&
+                        !changing.Contains(result.NewName))
+                        throw new InvalidOperationException(
+                            $"Title RecordName '{result.NewName}' already belongs to " +
+                            "another record. No changes made.");
             }
 
             // Renames may be a permutation of existing names. Stage all changed

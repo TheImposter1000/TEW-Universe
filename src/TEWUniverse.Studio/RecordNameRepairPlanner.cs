@@ -97,101 +97,54 @@ internal static class RecordNameRepairPlanner
     internal static RecordNameRepairPlan Employment(
         IReadOnlyList<EmploymentRecordNameRow> all, int? selectedWorkerUid)
     {
-        // Employment RecordName is a worker-scoped label. The same readable
-        // name can occur for DIFFERENT workers employed during the same years.
-        // Duplicates within one worker are ambiguous and still fail closed.
-        foreach (var worker in all.GroupBy(row => row.WorkerUid))
-            VerifyExistingNames(worker.Select(row => row.OldName),
-                $"tblCV worker {worker.Key}");
-
+        // Year-level names are labels, not identities. Several handshake
+        // stints for one worker can legitimately share the same RecordName.
+        // WorkerUID + FedUID + full From/Until dates + OldName is used for
+        // the rename predicate; only indistinguishable source rows are skipped.
         var targets = all.Where(row =>
             selectedWorkerUid == null || row.WorkerUid == selectedWorkerUid)
             .OrderBy(row => row.WorkerUid).ThenBy(row => row.From)
             .ThenBy(row => row.Until).ThenBy(row => row.FedUid)
             .ThenBy(row => row.OldName, StringComparer.OrdinalIgnoreCase).ToArray();
-
-        bool Invalid(EmploymentRecordNameRow row) =>
-            string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
-            row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
-            row.Initials.Any(char.IsControl) ||
-            row.From.Year is < 1800 or > 2100 ||
-            (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
-             ((row.Until.Year is < 1800 or > 2100) || row.Until < row.From));
-
         var warnings = new List<string>();
         var changes = new List<RecordNameRepair>();
+        var ambiguous = all.GroupBy(row => (
+                row.WorkerUid, row.FedUid, row.From, row.Until,
+                Name: row.OldName.ToUpperInvariant()))
+            .Where(group => group.Count() > 1)
+            .SelectMany(group => group).ToHashSet();
 
-        // Every worker's records have an independent namespace. Only
-        // same-worker collisions can block a generated identifier.
-        foreach (var worker in targets.GroupBy(row => row.WorkerUid))
+        foreach (var row in targets)
         {
-            var reserved = worker.Where(Invalid)
-                .Select(row => row.OldName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var valid = new List<(EmploymentRecordNameRow Row, string Desired)>();
-            foreach (var row in worker)
+            if (ambiguous.Contains(row))
             {
-                if (Invalid(row))
-                {
-                    warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
-                        "missing initials, dates, or a valid record identity; left unchanged.");
-                    continue;
-                }
-                string desired = StudioRecordNames.Employment(
-                    row.Initials, row.From, row.Until);
-                if (string.Equals(row.OldName, desired, StringComparison.Ordinal))
-                    reserved.Add(row.OldName);
-                else
-                    valid.Add((row, desired));
+                warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
+                    "multiple records have the same company, exact dates and " +
+                    "name. Cannot safely rename one; left unchanged.");
+                continue;
             }
-
-            // No arbitrary winner, suffix, or overwrite when two stints
-            // belonging to THIS worker would acquire the same name.
-            var proposedCounts = valid.GroupBy(x => x.Desired,
-                StringComparer.OrdinalIgnoreCase).ToDictionary(
-                    g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
-            var skipped = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (row, desired) in valid)
-                if (proposedCounts[desired] > 1 || reserved.Contains(desired))
-                    skipped.Add(row.OldName);
-
-            // A skipped record retains its previous name, which could block
-            // another planned rename by the SAME worker. Propagate safely.
-            bool changed;
-            do
+            if (string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
+                row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
+                row.Initials.Any(char.IsControl) ||
+                row.From.Year is < 1800 or > 2100 ||
+                (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
+                 (row.Until.Year is < 1800 or > 2100 || row.Until < row.From)))
             {
-                changed = false;
-                var retained = valid.Where(x => skipped.Contains(x.Row.OldName))
-                    .Select(x => x.Row.OldName)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                foreach (var (row, desired) in valid)
-                    if (!skipped.Contains(row.OldName) &&
-                        retained.Contains(desired))
-                    {
-                        skipped.Add(row.OldName);
-                        changed = true;
-                    }
-            } while (changed);
-
-            foreach (var (row, desired) in valid)
-            {
-                if (skipped.Contains(row.OldName))
-                {
-                    warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
-                        $"Record Name '{desired}' already belongs to another " +
-                        "employment period for this worker. Left unchanged.");
-                    continue;
-                }
-                changes.Add(new RecordNameRepair(
-                    "tblCV", null, row.WorkerUid, row.FedUid, null,
-                    row.From, row.Until, row.OldName, desired,
-                    $"Worker {row.WorkerUid} • {row.Initials} • " +
-                    (StudioDateFormat.IsOngoingEndDate(row.Until)
-                        ? $"{row.From.Year} -?" : $"{row.From.Year}-{row.Until.Year}")));
+                warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
+                    "missing initials, dates, or a valid record identity; left unchanged.");
+                continue;
             }
+            string desired = StudioRecordNames.Employment(
+                row.Initials, row.From, row.Until);
+            if (string.Equals(row.OldName, desired, StringComparison.Ordinal))
+                continue;
+            changes.Add(new RecordNameRepair(
+                "tblCV", null, row.WorkerUid, row.FedUid, null,
+                row.From, row.Until, row.OldName, desired,
+                $"Worker {row.WorkerUid} • {row.Initials} • " +
+                (StudioDateFormat.IsOngoingEndDate(row.Until)
+                    ? $"{row.From.Year} -?" : $"{row.From.Year}-{row.Until.Year}")));
         }
-
         return new RecordNameRepairPlan(
             "tblCV", selectedWorkerUid, targets.Length, changes, warnings);
     }

@@ -360,7 +360,7 @@ internal sealed partial class DatabaseSession
         return result;
     }
 
-    public string SaveWorkerEmployment(int workerId, string? recordName,
+    public string SaveWorkerEmployment(int workerId, WorkerEmploymentEntry? original,
         WorkerEmploymentDraft draft)
     {
         CheckLinkedWorker(workerId);
@@ -414,44 +414,11 @@ internal sealed partial class DatabaseSession
         using var tx = _connection.BeginTransaction();
         try
         {
-            // Prevent an accidental duplicate of the same person's same
-            // company stint. This still permits separate nonoverlapping stints
-            // and never touches other workers' history.
-            using (var duplicate = new OleDbCommand(
-                "SELECT COUNT(*) FROM [tblCV] WHERE [WorkerUID]=? AND [FedUID]=? " +
-                "AND [CVFromDate]=? AND [CVUntilDate]=? AND [RecordName]<>?",
-                _connection, tx))
-            {
-                duplicate.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
-                duplicate.Parameters.Add("fed", OleDbType.Integer).Value = draft.FedUid;
-                duplicate.Parameters.Add("from", OleDbType.DBTimeStamp).Value = draft.FromDate.Date;
-                duplicate.Parameters.Add("until", OleDbType.DBTimeStamp).Value = draft.UntilDate.Date;
-                duplicate.Parameters.Add("name", OleDbType.VarWChar).Value = recordName ?? "";
-                if (Convert.ToInt32(duplicate.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
-                    throw new InvalidOperationException(
-                        "This worker already has a historical period for that company with the same dates.");
-            }
-
-            // A historical RecordName is scoped to a WORKER. Two different
-            // workers can have the same employer and start/end years, and
-            // therefore legitimately generate the same readable label.
-            // Keep uniqueness within this worker; the existing worker-scoped
-            // update/delete predicates continue to identify one record.
+            // A wrestler may have several nonoverlapping handshake stints
+            // with identical display names, including within one calendar year.
+            // The old full row identifies an edit; never assume the name is a key.
             string key = proposedName;
-            using (var collision = new OleDbCommand(
-                "SELECT COUNT(*) FROM [tblCV] WHERE [WorkerUID]=? AND [RecordName]=? " +
-                "AND [RecordName]<>?", _connection, tx))
-            {
-                collision.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
-                collision.Parameters.Add("wanted", OleDbType.VarWChar).Value = key;
-                collision.Parameters.Add("original", OleDbType.VarWChar).Value = recordName ?? "";
-                if (Convert.ToInt32(collision.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
-                    throw new InvalidOperationException(
-                        $"Worker {workerId} already has Employment Record Name '{key}'. " +
-                        "The app will not add '#2' automatically. " +
-                        "Enter a distinct name for this worker or edit their existing period.");
-            }
-            if (string.IsNullOrEmpty(recordName))
+            if (original == null)
             {
                 string[] cols = { "RecordName", "WorkerUID", "FedUID", "Initials",
                     "CVFromDate", "CVUntilDate", "Loan", "Trade", "Tour", "Developmental" };
@@ -471,16 +438,17 @@ internal sealed partial class DatabaseSession
                     "CVFromDate", "CVUntilDate", "Loan", "Trade", "Tour", "Developmental" };
                 using var update = new OleDbCommand(
                     "UPDATE [tblCV] SET " + string.Join(",", cols.Select(c => $"[{c}]=?")) +
-                    " WHERE [RecordName]=? AND [WorkerUID]=?", _connection, tx);
+                    " WHERE " + EmploymentRecordPredicate.Sql, _connection, tx);
                 update.Parameters.Add("newName", OleDbType.VarWChar).Value = key;
                 foreach (string col in cols.Skip(1))
                     update.Parameters.Add(col, ToOleDbType(schema.Columns[col]!.DataType)).Value =
                         values[col];
-                update.Parameters.Add("oldName", OleDbType.VarWChar).Value = recordName;
-                update.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
+                if (original.WorkerUid != workerId)
+                    throw new InvalidOperationException("Selected employment record belongs to another worker.");
+                EmploymentRecordPredicate.Bind(update, original, schema);
                 if (update.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException(
-                        "The selected employment record no longer matches this worker.");
+                        "The selected employment period has changed or is indistinguishable from another row. Refresh before saving.");
             }
             tx.Commit();
             _openedStamp = GetStamp(PathOnDisk);
@@ -493,22 +461,24 @@ internal sealed partial class DatabaseSession
         }
     }
 
-    public void DeleteWorkerEmployment(int workerId, string recordName)
+    public void DeleteWorkerEmployment(int workerId, WorkerEmploymentEntry original)
     {
         CheckLinkedWorker(workerId);
-        if (string.IsNullOrWhiteSpace(recordName))
-            throw new InvalidOperationException("Select an employment record.");
-        ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID");
+        if (original.WorkerUid != workerId)
+            throw new InvalidOperationException("The selected period belongs to another worker.");
+        var schema = ValidateWorkerExtraSchema("tblCV",
+            "RecordName", "WorkerUID", "FedUID", "Initials", "CVFromDate",
+            "CVUntilDate", "Loan", "Trade", "Tour", "Developmental");
         EnsureUnchanged();
         using var tx = _connection.BeginTransaction();
         try
         {
             using var cmd = new OleDbCommand(
-                "DELETE FROM [tblCV] WHERE [RecordName]=? AND [WorkerUID]=?", _connection, tx);
-            cmd.Parameters.Add("name", OleDbType.VarWChar).Value = recordName;
-            cmd.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
+                "DELETE FROM [tblCV] WHERE " + EmploymentRecordPredicate.Sql, _connection, tx);
+            EmploymentRecordPredicate.Bind(cmd, original, schema);
             if (cmd.ExecuteNonQuery() != 1)
-                throw new InvalidOperationException("The selected employment period no longer exists.");
+                throw new InvalidOperationException(
+                    "The selected employment period no longer uniquely matches one row. Refresh the history.");
             tx.Commit();
             _openedStamp = GetStamp(PathOnDisk);
         }

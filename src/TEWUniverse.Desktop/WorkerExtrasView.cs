@@ -818,7 +818,7 @@ public partial class MainWindow
                 createNew ? null : selected!.RecordName, draft);
             _lastSaved = DateTime.Now;
             if (_activeModule == "Employment History")
-                ReloadEmploymentHistory(owner.Id, key);
+                ReloadEmploymentHistory(owner.Id, key, draft.FedUid, draft.FromDate);
             else RefreshWorkerExtraTab("Employment", employmentKey: key);
             SetStatus($"{(createNew ? "Added" : "Updated")} employment period for {owner.Name} at {company}.");
             RefreshDirty();
