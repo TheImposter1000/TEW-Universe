@@ -3,11 +3,37 @@ using System.Globalization;
 namespace TEWUniverse.Studio;
 
 /// <summary>
-/// Preset chemistry is unordered by worker pair, but a pair can carry
-/// distinct RelType values. TEW's code meanings must not be guessed.
+/// Maintainer-verified TEW IX chemistry code labels. Unknown legacy codes
+/// remain readable and are not rewritten automatically.
 /// </summary>
 internal static class ChemistryRules
 {
+    internal static readonly IReadOnlyDictionary<int, (string Label, string Abbreviation)> Types =
+        new Dictionary<int, (string, string)> {
+            [1] = ("Fighting Against", "FA"),
+            [2] = ("Teaming With", "TW"),
+            [3] = ("Managing", "MG"),
+            [4] = ("Commentating With", "CW"),
+            [5] = ("Booking", "BK")
+        };
+
+    internal static readonly IReadOnlyDictionary<int, (string Label, string Abbreviation)> Qualities =
+        new Dictionary<int, (string, string)> {
+            [1] = ("Great", "GT"),
+            [2] = ("Good", "GD"),
+            [3] = ("Neutral", "NT"),
+            [4] = ("Poor", "PR"),
+            [5] = ("Awful", "AW")
+        };
+
+    internal static string TypeLabel(int code) =>
+        Types.TryGetValue(code, out var value) ? value.Label :
+        "Code " + code.ToString(CultureInfo.InvariantCulture);
+
+    internal static string QualityLabel(int code) =>
+        Qualities.TryGetValue(code, out var value) ? value.Label :
+        "Code " + code.ToString(CultureInfo.InvariantCulture);
+
     internal static (int First, int Second) Pair(int a, int b) =>
         a <= b ? (a, b) : (b, a);
 
@@ -25,31 +51,41 @@ internal static class ChemistryRules
     internal static void ValidateObserved(int type, int quality,
         IReadOnlyCollection<int> observedTypes, IReadOnlyCollection<int> observedQualities)
     {
-        if (!observedTypes.Contains(type) || !observedQualities.Contains(quality))
+        if ((!Types.ContainsKey(type) && !observedTypes.Contains(type)) ||
+            (!Qualities.ContainsKey(quality) && !observedQualities.Contains(quality)))
             throw new InvalidOperationException(
-                "Choose a type and quality code already present in tblChemistryForce. " +
-                "Unverified TEW IX numeric meanings cannot be invented.");
+                "Select a verified chemistry type and quality. Unknown historical " +
+                "codes may only be preserved from existing database records.");
     }
 
-    internal static string RecordName(string first, string second, int relationType,
-        IEnumerable<string> existing, int maxLength)
+    private static string WorkerShortName(string full)
     {
-        string left = (first ?? "").Trim(), right = (second ?? "").Trim();
-        if (left.Length == 0 || right.Length == 0 ||
-            left.Any(char.IsControl) || right.Any(char.IsControl))
+        string[] words = (full ?? "").Trim().Split(
+            (char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0 || words.Any(w => w.Any(char.IsControl)))
             throw new InvalidOperationException("Both workers need valid names.");
-        string suffix = " Chemistry " + relationType.ToString(CultureInfo.InvariantCulture);
-        string stem = left + " / " + right;
-        var reserved = new HashSet<string>(existing,
-            StringComparer.OrdinalIgnoreCase);
-        for (int count = 1; count < 1000000; count++)
+        return words.Length == 1 ? words[0] :
+            char.ToUpperInvariant(words[0][0]) + "." + string.Join(" ", words.Skip(1));
+    }
+
+    internal static string RecordName(string first, string second,
+        int relationType, int quality, IEnumerable<string> existing, int maxLength)
+    {
+        if (!Types.TryGetValue(relationType, out var type) ||
+            !Qualities.TryGetValue(quality, out var grade))
+            throw new InvalidOperationException(
+                "Automatic Chemistry RecordName requires a verified type and quality.");
+        string stem = type.Abbreviation + "-" + grade.Abbreviation + ": " +
+            WorkerShortName(first) + " / " + WorkerShortName(second);
+        var reserved = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+        for (int sequence = 1; sequence < 1000000; sequence++)
         {
-            string extra = count == 1 ? "" : " #" + count.ToString(CultureInfo.InvariantCulture);
-            int allowance = maxLength > 0 ? maxLength - suffix.Length - extra.Length : stem.Length;
-            if (allowance < 1)
-                throw new InvalidOperationException("The chemistry RecordName field is too short.");
-            string candidate = (stem.Length > allowance ? stem[..allowance].TrimEnd() : stem) +
-                suffix + extra;
+            string suffix = sequence == 1 ? "" :
+                " #" + sequence.ToString(CultureInfo.InvariantCulture);
+            string candidate = stem + suffix;
+            if (maxLength > 0 && candidate.Length > maxLength)
+                throw new InvalidOperationException(
+                    "The chemistry RecordName text field cannot fit '" + candidate + "'.");
             if (!reserved.Contains(candidate)) return candidate;
         }
         throw new InvalidOperationException("Could not allocate a unique chemistry RecordName.");
