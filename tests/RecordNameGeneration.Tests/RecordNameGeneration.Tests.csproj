@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/TEWUniverse.Studio/StudioDateFormat.cs" Link="StudioDateFormat.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/StudioRecordNames.cs" Link="StudioRecordNames.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/EmploymentNameGeneration.cs" Link="EmploymentNameGeneration.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/ChemistryRules.cs" Link="ChemistryRules.cs" />
+  </ItemGroup>
+</Project>
