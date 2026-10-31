@@ -19,22 +19,18 @@ internal static class StudioRecordNames
 
     /// <summary>
     /// Naming only: employment dates and identity remain unchanged in tblCV.
-    /// Full registered promotion name is used when available; unlisted
-    /// historical promotions retain their recorded initials.
+    /// Employment RecordNames use the recorded company initials for both
+    /// registered and unlisted historical promotions.
     /// </summary>
-    internal static string Employment(string companyName, DateTime from, DateTime until)
+    internal static string Employment(string initials, DateTime from, DateTime until)
     {
-        string company = (companyName ?? "").Trim();
-        // Very short one-token company labels are historical initials.
-        // Keep common acronyms uppercase without altering full names.
-        if (company.Length <= 5 && company.All(char.IsLetterOrDigit))
-            company = company.ToUpperInvariant();
+        string company = (initials ?? "").Trim().ToUpperInvariant();
         bool ongoing = StudioDateFormat.IsOngoingEndDate(until);
         if (company.Length == 0 || company.Any(char.IsControl) ||
             from.Year is < 1800 or > 2100 ||
             (!ongoing && ((until.Year is < 1800 or > 2100) || from.Date > until.Date)))
             throw new InvalidOperationException(
-                "Choose a company name and valid employment dates, or 01/01/1666 for an ongoing Until date.");
+                "Choose valid company initials and employment dates, or 01/01/1666 for an ongoing Until date.");
         return ongoing
             ? $"{company} ({from.Year:D4} - )"
             : $"{company} ({from.Year:D4} - {until.Year:D4})";
