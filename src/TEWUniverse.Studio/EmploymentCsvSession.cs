@@ -35,7 +35,9 @@ internal sealed partial class DatabaseSession
             if (d.FromDate.Year is < 1800 or > 2100 ||
                 (!ongoing && (d.UntilDate.Year is < 1800 or > 2100 ||
                              d.UntilDate < d.FromDate)) ||
-                string.IsNullOrWhiteSpace(d.Initials) || d.Initials.Any(char.IsControl))
+                (string.IsNullOrWhiteSpace(d.Initials) &&
+                 string.IsNullOrWhiteSpace(d.RequestedRecordName)) ||
+                d.Initials.Any(char.IsControl))
                 throw new InvalidOperationException("CSV contains invalid employment dates or initials.");
             string newName = string.IsNullOrWhiteSpace(d.RequestedRecordName)
                 ? StudioRecordNames.Employment(d.Initials, d.FromDate, d.UntilDate)
@@ -205,7 +207,7 @@ internal sealed partial class DatabaseSession
             if (d.FromDate.Year is < 1800 or > 2100 ||
                 (!ongoing && (d.UntilDate.Year is < 1800 or > 2100 ||
                               d.UntilDate < d.FromDate)) ||
-                string.IsNullOrWhiteSpace(d.Initials) || d.Initials.Any(char.IsControl) ||
+                d.Initials.Any(char.IsControl) ||
                 initialsLimit > 0 && d.Initials.Length > initialsLimit ||
                 name.Length == 0 || name.Any(char.IsControl) ||
                 nameLimit > 0 && name.Length > nameLimit)
