@@ -53,9 +53,9 @@ Equal("Code 99", ChemistryRules.QualityLabel(99));
 ChemistryRules.ValidateObserved(5, 5, Array.Empty<int>(), Array.Empty<int>());
 
 var history = new List<EmploymentRecordNameRow> {
-    new(672, 12, "DNA", "Dynamic National Alliance",
-        start, ongoing, "DNA (2022 -?)"),
-    new(673, 0, "OLLIE", "OLLIE",
+    new(672, 12, "DNA",
+        start, ongoing, "DNA (2022 -?)", "Dynamic National Alliance"),
+    new(673, 0, "OLLIE",
         start, end, "OLLIE (2022-2023)")
 };
 var plan = RecordNameRepairPlanner.Employment(history, null);
