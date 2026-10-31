@@ -8,8 +8,8 @@ internal sealed record TitleRecordNameRow(
     int Uid, int BeltUid, int BeltOrder, string TitleName, string OldName);
 
 internal sealed record EmploymentRecordNameRow(
-    int WorkerUid, int FedUid, string Initials, DateTime From, DateTime Until,
-    string OldName);
+    int WorkerUid, int FedUid, string Initials, string CompanyName,
+    DateTime From, DateTime Until, string OldName);
 
 internal sealed record RecordNameRepair(
     string Table, int? Uid, int OwnerUid, int? ReferenceUid, int? Order,
@@ -134,16 +134,18 @@ internal static class RecordNameRepairPlanner
                     "missing initials, dates, or a valid record identity; left unchanged.");
                 continue;
             }
+            string company = row.FedUid > 0 && !string.IsNullOrWhiteSpace(row.CompanyName)
+                ? row.CompanyName : row.Initials;
             string desired = StudioRecordNames.Employment(
-                row.Initials, row.From, row.Until);
+                company, row.From, row.Until);
             if (string.Equals(row.OldName, desired, StringComparison.Ordinal))
                 continue;
             changes.Add(new RecordNameRepair(
                 "tblCV", null, row.WorkerUid, row.FedUid, null,
                 row.From, row.Until, row.OldName, desired,
-                $"Worker {row.WorkerUid} • {row.Initials} • " +
+                $"Worker {row.WorkerUid} • {company} • " +
                 (StudioDateFormat.IsOngoingEndDate(row.Until)
-                    ? $"{row.From.Year} -?" : $"{row.From.Year}-{row.Until.Year}")));
+                    ? $"{row.From.Year} - " : $"{row.From.Year} - {row.Until.Year}")));
         }
         return new RecordNameRepairPlan(
             "tblCV", selectedWorkerUid, targets.Length, changes, warnings);
