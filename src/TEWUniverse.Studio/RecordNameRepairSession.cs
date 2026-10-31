@@ -86,12 +86,17 @@ internal sealed partial class DatabaseSession
         if (preview.Table is not ("tblBeltPreHistory" or "tblCV") ||
             preview.Changes.Count == 0)
             throw new InvalidOperationException("No supported record-name changes were previewed.");
+        bool employment = preview.Table == "tblCV";
+        int Scope(RecordNameRepair change) => employment ? change.OwnerUid : 0;
+        bool HasDuplicateInScope(Func<RecordNameRepair, string> getName) =>
+            preview.Changes.GroupBy(Scope).Any(group =>
+                group.Select(getName).Distinct(StringComparer.OrdinalIgnoreCase).Count()
+                != group.Count());
         if (preview.Changes.Any(change => change.Table != preview.Table) ||
-            preview.Changes.Select(change => change.OldName)
-                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != preview.Changes.Count ||
-            preview.Changes.Select(change => change.NewName)
-                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != preview.Changes.Count)
-            throw new InvalidOperationException("Ambiguous or duplicated record identifiers in the preview.");
+            HasDuplicateInScope(change => change.OldName) ||
+            HasDuplicateInScope(change => change.NewName))
+            throw new InvalidOperationException(
+                "Ambiguous or duplicated record identifiers for the same owner in the preview.");
 
         // The app can edit a full title history or a worker's CV records.
         // Re-run the plan on the currently loaded data; the exact preview must
@@ -125,23 +130,47 @@ internal sealed partial class DatabaseSession
         using var transaction = _connection.BeginTransaction();
         try
         {
-            var namesInDb = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using (var command = new OleDbCommand(
-                $"SELECT [{nameField}] FROM [{preview.Table}]", _connection, transaction))
+            // Index existing identifiers by their actual owner. tblCV
+            // permits the same readable history for different workers;
+            // title prehistory retains its existing table-wide rules.
+            var namesByScope = new Dictionary<int, HashSet<string>>();
+            var allNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string lookupSql = employment
+                ? "SELECT [RecordName],[WorkerUID] FROM [tblCV]"
+                : $"SELECT [{nameField}] FROM [{preview.Table}]";
+            using (var command = new OleDbCommand(lookupSql, _connection, transaction))
             using (var reader = command.ExecuteReader())
             {
                 while (reader?.Read() == true)
-                    if (!reader.IsDBNull(0))
-                        namesInDb.Add(Convert.ToString(reader.GetValue(0),
-                            CultureInfo.InvariantCulture) ?? "");
+                {
+                    if (reader.IsDBNull(0)) continue;
+                    string name = Convert.ToString(reader.GetValue(0),
+                        CultureInfo.InvariantCulture) ?? "";
+                    int owner = employment
+                        ? Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture)
+                        : 0;
+                    if (!namesByScope.TryGetValue(owner, out var names))
+                    {
+                        names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        namesByScope[owner] = names;
+                    }
+                    names.Add(name);
+                    allNames.Add(name);
+                }
             }
-            var changing = preview.Changes.Select(c => c.OldName)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var changingByScope = preview.Changes.GroupBy(Scope).ToDictionary(
+                g => g.Key, g => g.Select(c => c.OldName)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
             foreach (var result in preview.Changes)
-                if (namesInDb.Contains(result.NewName) && !changing.Contains(result.NewName))
+            {
+                int owner = Scope(result);
+                if (namesByScope.TryGetValue(owner, out var names) &&
+                    names.Contains(result.NewName) &&
+                    !changingByScope[owner].Contains(result.NewName))
                     throw new InvalidOperationException(
-                        $"Record Name '{result.NewName}' now belongs to another record. " +
+                        $"Worker/owner {owner} already has Record Name '{result.NewName}'. " +
                         "No changes made.");
+            }
 
             // Renames may be a permutation of existing names. Stage all changed
             // keys under unique temporary names first, then assign final names.
@@ -154,7 +183,7 @@ internal sealed partial class DatabaseSession
                 {
                     temporary = "~RN" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
                 }
-                while (!namesInDb.Add(temporary));
+                while (!allNames.Add(temporary));
                 if (limit > 0 && temporary.Length > limit)
                     throw new InvalidOperationException(
                         "The MDB record-name field is too short for a safe atomic migration.");

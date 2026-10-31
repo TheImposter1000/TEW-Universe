@@ -1224,6 +1224,50 @@ if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 1 ||
     wholeCv.Changes.Any(x => x.OwnerUid == 77))
     throw new Exception("Database-wide employment collisions were not handled safely.");
 
+// Different wrestlers can enter and leave the same company on the same dates.
+// Their employment RecordNames must not conflict just because the labels match.
+var sharedCareer = new[] {
+    new EmploymentRecordNameRow(101, 11, "DNA",
+        new DateTime(2022, 1, 1), StudioDateFormat.OngoingEndDate, "TUS101"),
+    new EmploymentRecordNameRow(202, 11, "DNA",
+        new DateTime(2022, 1, 1), StudioDateFormat.OngoingEndDate, "TUS202")
+};
+var sharedCareerPlan = RecordNameRepairPlanner.Employment(sharedCareer, null);
+if (sharedCareerPlan.ScannedCount != 2 ||
+    sharedCareerPlan.Changes.Count != 2 ||
+    sharedCareerPlan.Warnings.Count != 0 ||
+    sharedCareerPlan.Changes.Any(x => x.NewName != "DNA (2022 -?)") ||
+    sharedCareerPlan.Changes.Select(x => x.OwnerUid).Distinct().Count() != 2)
+    throw new Exception("Separate workers' identical employment years were incorrectly treated as a collision.");
+
+var oneOfShared = RecordNameRepairPlanner.Employment(new[] {
+    sharedCareer[0] with { OldName = "DNA (2022 -?)" },
+    sharedCareer[1]
+}, 202);
+if (oneOfShared.Changes.Count != 1 ||
+    oneOfShared.Changes[0].NewName != "DNA (2022 -?)" ||
+    oneOfShared.Warnings.Count != 0)
+    throw new Exception("An unrelated worker's record name blocked a valid targeted repair.");
+
+var identicalNamesAcrossWorkers = RecordNameRepairPlanner.Employment(new[] {
+    sharedCareer[0] with { OldName = "DNA (2022 -?)" },
+    sharedCareer[1] with { OldName = "DNA (2022 -?)" }
+}, null);
+if (identicalNamesAcrossWorkers.Changes.Count != 0 ||
+    identicalNamesAcrossWorkers.Warnings.Count != 0)
+    throw new Exception("Identical current RecordNames belonging to distinct workers were rejected.");
+
+bool duplicateNameInOneWorkerRejected = false;
+try {
+    RecordNameRepairPlanner.Employment(new[] {
+        sharedCareer[0] with { OldName = "DNA (2022 -?)" },
+        sharedCareer[0] with { OldName = "DNA (2022 -?)" }
+    }, 101);
+}
+catch (InvalidOperationException) { duplicateNameInOneWorkerRejected = true; }
+if (!duplicateNameInOneWorkerRejected)
+    throw new Exception("Ambiguous duplicate names within one worker were accepted.");
+
 // Special TEW 1666 sentinel / damaged historical dates cannot be guessed.
 // Such rows should be shown as skipped rather than silently moved.
 var unknown = RecordNameRepairPlanner.Employment(new[]

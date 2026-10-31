@@ -407,21 +407,24 @@ internal sealed partial class DatabaseSession
                         "This worker already has a historical period for that company with the same dates.");
             }
 
-            // tblCV.RecordName is an identifier, not just a display label.
-            // Keep it unique across the whole table and atomically rename
-            // the existing record when the user edits the Record Name field.
+            // A historical RecordName is scoped to a WORKER. Two different
+            // workers can have the same employer and start/end years, and
+            // therefore legitimately generate the same readable label.
+            // Keep uniqueness within this worker; the existing worker-scoped
+            // update/delete predicates continue to identify one record.
             string key = proposedName;
             using (var collision = new OleDbCommand(
-                "SELECT COUNT(*) FROM [tblCV] WHERE [RecordName]=? " +
+                "SELECT COUNT(*) FROM [tblCV] WHERE [WorkerUID]=? AND [RecordName]=? " +
                 "AND [RecordName]<>?", _connection, tx))
             {
+                collision.Parameters.Add("worker", OleDbType.Integer).Value = workerId;
                 collision.Parameters.Add("wanted", OleDbType.VarWChar).Value = key;
                 collision.Parameters.Add("original", OleDbType.VarWChar).Value = recordName ?? "";
                 if (Convert.ToInt32(collision.ExecuteScalar(), CultureInfo.InvariantCulture) != 0)
                     throw new InvalidOperationException(
-                        $"Employment Record Name '{key}' already exists. " +
+                        $"Worker {workerId} already has Employment Record Name '{key}'. " +
                         "The app will not add '#2' automatically. " +
-                        "Enter a distinct Record Name manually, or edit the existing period.");
+                        "Enter a distinct name for this worker or edit their existing period.");
             }
             if (string.IsNullOrEmpty(recordName))
             {

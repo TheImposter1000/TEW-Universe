@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Employment History generated name uniqueness is now evaluated per worker, NOT across all workers. Separate wrestlers may have identical company dates and the same readable RecordName (for example DNA (2022 -?)). Only duplicate names/periods belonging to the same worker are blocked, and batch repair now uses worker-specific checks and staged writes. Names are not given automatic numeric suffixes.
+
           FIX: Historical employment RecordNames now use DNA (2022 -?) for ongoing positions and NCW (2016-2020) for completed jobs. No #2 suffix is generated automatically. Conflicting names must be edited manually; batch repair skips collisions with warnings.
 
           FIX: TEW IX 01/01/1666 ongoing end dates are recognized. Employment History accepts and saves the 1666 Until code for still-active stints, displays Ongoing, and offers a Still active shortcut. Generated and repaired RecordNames show INITIALS (YYYY -?), not YYYY-1666. Company closing-date sentinel remains an active-company marker; ongoing employment correctly covers finite title reigns. Start/formed dates and tournament title loss sentinels keep their own semantics.
