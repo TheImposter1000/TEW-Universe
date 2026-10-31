@@ -17,18 +17,18 @@ internal static class StudioRecordNames
         return title + sequence.ToString("D3", CultureInfo.InvariantCulture);
     }
 
-    internal static string Employment(string initials, DateTime from, DateTime until)
+    internal static string Employment(string companyName, DateTime from, DateTime until)
     {
-        string company = (initials ?? "").Trim();
+        string company = (companyName ?? "").Trim();
         bool ongoing = StudioDateFormat.IsOngoingEndDate(until);
         if (company.Length == 0 || company.Any(char.IsControl) ||
             from.Year is < 1800 or > 2100 ||
             (!ongoing && ((until.Year is < 1800 or > 2100) || from.Date > until.Date)))
             throw new InvalidOperationException(
-                "Choose initials and valid employment dates, or 01/01/1666 as an ongoing Until date.");
+                "Choose a company name and valid employment dates, or 01/01/1666 as an ongoing Until date.");
         return ongoing
-            ? $"{company.ToUpperInvariant()} ({from.Year:D4} -?)"
-            : $"{company.ToUpperInvariant()} ({from.Year:D4}-{until.Year:D4})";
+            ? $"{company} ({from.Year:D4} - )"
+            : $"{company} ({from.Year:D4} - {until.Year:D4})";
     }
 
     /// <summary>

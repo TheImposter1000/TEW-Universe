@@ -262,8 +262,9 @@ public partial class MainWindow
         recordHeading.Children.Add(ExtraLabel("Record name (editable)"));
         AddExtraField(employmentEditor, recordHeading, _employmentRecordName);
         _employmentNameHint = new TextBlock {
-            Text = "Record names use company initials and both employment dates. " +
-                   "Example: NCW (2016-2020) or DNA (2022 -?). You can edit the generated name.",
+            Text = "Record names use the selected company's full name. " +
+                   "Ongoing: Company Name (Year - ). Historical: Company Name (Year - Year). " +
+                   "Unlisted companies use the historical initials.",
             Foreground = ExtraColor("#93B4D5"), FontSize = 11,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -5, 0, 11)
         };
@@ -358,6 +359,12 @@ public partial class MainWindow
     private void EmploymentNameSourceChanged(object sender, TextChangedEventArgs e) =>
         RefreshAutomaticEmploymentName();
 
+    private string EmploymentAutoNameCompany() =>
+        _employmentUnlisted.IsChecked != true &&
+        _employmentCompany.SelectedItem is EmploymentCompanyChoice company &&
+        !string.IsNullOrWhiteSpace(company.Name)
+            ? company.Name.Trim() : _employmentInitials.Text.Trim();
+
     private void RefreshAutomaticEmploymentName()
     {
         if (_settingWorkerExtraForm || !_employmentNameAutomatic ||
@@ -365,14 +372,14 @@ public partial class MainWindow
             _employmentUntil == null || _employmentInitials == null) return;
 
         var result = EmploymentNameGeneration.Validate(
-            _employmentInitials.Text, _employmentFrom.Text, _employmentUntil.Text);
+            EmploymentAutoNameCompany(), _employmentFrom.Text, _employmentUntil.Text);
         if (!result.IsValid) return;
 
         try
         {
             _settingGeneratedEmploymentName = true;
             _employmentRecordName.Text = result.RecordName!;
-            _employmentNameHint.Text = "Generated from the selected company initials and dates: " +
+            _employmentNameHint.Text = "Generated from company name and employment dates: " +
                 result.RecordName;
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
         }
@@ -384,8 +391,8 @@ public partial class MainWindow
         if (_employmentInitials == null || _employmentFrom == null ||
             _employmentUntil == null) return;
 
-        // The company selector has priority when its stored abbreviation is
-        // available. Do not guess from the company name.
+        // Company names come directly from tblFed; historical initials
+        // remain required and are the fallback for unlisted companies.
         if (string.IsNullOrWhiteSpace(_employmentInitials.Text) &&
             _employmentCompany.SelectedItem is EmploymentCompanyChoice company &&
             !string.IsNullOrWhiteSpace(company.Initials))
@@ -428,6 +435,7 @@ public partial class MainWindow
             ? "Unlisted company (FedUID 0). The initials and dates are saved " +
               "without a tblFed company record."
             : "Select a company, or enter unmatched initials for an unlisted company.";
+        RefreshAutomaticEmploymentName();
         RefreshDirty();
     }
 
@@ -515,8 +523,8 @@ public partial class MainWindow
             _employmentCompany.IsEnabled = true;
             _employmentNameAutomatic = true;
             _employmentRecordName.Text = "";
-            _employmentNameHint.Text = "Record names use company initials and both employment dates. " +
-                "Example: NCW (2016-2020) or DNA (2022 -?).";
+            _employmentNameHint.Text = "Ongoing: Company Name (Year - ). " +
+                "Historical: Company Name (Year - Year).";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
             _employmentCompanyMatch.Text = "Select a company or use initials only for FedUID 0.";
@@ -657,8 +665,7 @@ public partial class MainWindow
             _employmentNameAutomatic = item == null;
             _employmentRecordName.Text = item?.RecordName ?? "";
             _employmentNameHint.Text = item == null
-                ? "Record names use company initials and both employment dates. " +
-                  "Example: NCW (2016-2020) or DNA (2022 -?)."
+                ? "Ongoing: Company Name (Year - ). Historical: Company Name (Year - Year)."
                 : "Existing record name is preserved until you choose Generate name or edit it.";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentUnlisted.IsChecked = item?.FedUid == 0;
@@ -839,7 +846,13 @@ public partial class MainWindow
             companyId, _employmentInitials.Text.Trim(), from, until,
             _employmentLoan.IsChecked == true, _employmentTrade.IsChecked == true,
             _employmentTour.IsChecked == true, _employmentDevelopmental.IsChecked == true,
-            _employmentRecordName.Text.Trim(), _employmentNameAutomatic);
+            _employmentNameAutomatic
+                ? EmploymentNameGeneration.Validate(EmploymentAutoNameCompany(),
+                    _employmentFrom.Text, _employmentUntil.Text).RecordName
+                    ?? throw new InvalidOperationException(
+                        "Cannot generate employment name: check the company and dates.")
+                : _employmentRecordName.Text.Trim(),
+            _employmentNameAutomatic);
     }
 
     private void SaveEmploymentCore(bool createNew)
