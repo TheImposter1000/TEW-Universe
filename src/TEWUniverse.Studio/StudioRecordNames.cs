@@ -25,6 +25,10 @@ internal static class StudioRecordNames
     internal static string Employment(string companyName, DateTime from, DateTime until)
     {
         string company = (companyName ?? "").Trim();
+        // Very short one-token company labels are historical initials.
+        // Keep common acronyms uppercase without altering full names.
+        if (company.Length <= 5 && company.All(char.IsLetterOrDigit))
+            company = company.ToUpperInvariant();
         bool ongoing = StudioDateFormat.IsOngoingEndDate(until);
         if (company.Length == 0 || company.Any(char.IsControl) ||
             from.Year is < 1800 or > 2100 ||
