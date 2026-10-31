@@ -72,6 +72,7 @@ public partial class MainWindow
             _employmentWorkerPicker.IsEnabled = true;
             RefreshDirty();
         });
+        AddAction("Delete Selected", RemoveEmployment_Click);
         AddAction("Export All CSV", ExportEmploymentCsv_Click);
         AddAction("Import CSV", ImportEmploymentCsv_Click);
         AddAction("Refresh", (_, _) => {
@@ -212,7 +213,7 @@ public partial class MainWindow
         {
             // Re-read from the MDB, never export unsaved form edits.
             var data = _session.ReadAllWorkerEmployment();
-            File.WriteAllText(dialog.FileName, EmploymentCsvCodec.Export(data),
+            File.WriteAllText(dialog.FileName, EmploymentCsvCodec.ExportSimple(data),
                 new System.Text.UTF8Encoding(true));
             SetStatus($"Exported {data.Count:N0} employment records to CSV.");
         }
@@ -250,22 +251,38 @@ public partial class MainWindow
                 return;
             }
             int additions = preview.Changes.Count(x => x.IsAdd);
-            int edits = preview.Changes.Count - additions;
+            int deletions = preview.Changes.Count(x => x.IsDelete);
+            int edits = preview.Changes.Count - additions - deletions;
+            string mode = preview.IsReplacement
+                ? "Full-table synchronization: deleted spreadsheet rows will be deleted " +
+                  "from the MDB, and new spreadsheet rows will be inserted."
+                : "Advanced Action CSV: only rows explicitly marked Delete are removed.";
             if (MessageBox.Show(this,
                 $"Reviewed {preview.ExportedRows:N0} CSV records.\n\n" +
-                $"Add {additions:N0} new period(s) and update {edits:N0} existing period(s)?\n\n" +
-                "Every WorkerUID and CompanyUID must exist. Existing records must still " +
-                "match their source fingerprints. The whole import is one transaction: " +
-                "if any operation fails, all CSV writes roll back. No records are deleted.",
+                $"Add: {additions:N0}\nUpdate: {edits:N0}\nDELETE: {deletions:N0}\n\n" +
+                mode + "\n\n" +
+                "All changes use one database transaction. No new workers or companies " +
+                "are created. If any operation fails, every CSV change rolls back.",
                 "Confirm Employment CSV Import", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (deletions > 0 && MessageBox.Show(this,
+                $"Confirm permanent deletion of {deletions:N0} employment history " +
+                "record(s) from the selected TEW database.\n\n" +
+                "This occurs because rows were removed from the full-table CSV " +
+                "or explicitly marked Delete in an advanced CSV.\n\n" +
+                "Only proceed if all of these deletions are intentional.",
+                "FINAL CONFIRMATION: Delete Employment History",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes) return;
             if (!OfferOptionalBackupBeforeWrite("importing the employment CSV")) return;
             int count = _session.ApplyEmploymentCsv(preview);
             _lastSaved = DateTime.Now;
             ReloadEmploymentHistory();
             RefreshDirty();
             SetStatus($"Imported {count:N0} employment CSV changes.");
-            MessageBox.Show(this, $"Saved {count:N0} employment changes.",
+            MessageBox.Show(this,
+                $"Applied {count:N0} changes: {additions:N0} added, " +
+                $"{edits:N0} updated, {deletions:N0} deleted.",
                 "Employment CSV Import Complete");
         }
         catch (Exception ex) { Error(ex); }

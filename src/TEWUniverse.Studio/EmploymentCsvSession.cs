@@ -14,12 +14,13 @@ internal sealed partial class DatabaseSession
             "Loan", "Trade", "Tour", "Developmental");
         var originals = ReadAllWorkerEmployment();
         var current = originals.ToDictionary(x =>
-            (x.WorkerUid, x.RecordName), x => x);
+            (x.WorkerUid, x.RecordName.ToUpperInvariant()), x => x);
         var workerIds = ListWorkers().Select(x => x.Id).ToHashSet();
         var companyIds = ReadEmploymentCompanies().Select(x => x.Id).ToHashSet();
         var sourceKeys = new HashSet<(int, string)>();
         var resulting = originals.ToList();
         var replacements = new List<(EmploymentCsvChange Change, string FinalName)>();
+        var deletions = new List<EmploymentCsvChange>();
         int limit = schema.Columns["RecordName"]!.MaxLength;
 
         foreach (var change in preview.Changes)
@@ -44,13 +45,18 @@ internal sealed partial class DatabaseSession
                 throw new InvalidOperationException("CSV employment name or initials exceeds the MDB's limits.");
             if (!change.IsAdd)
             {
-                if (!sourceKeys.Add((worker, change.OriginalName)) ||
-                    !current.TryGetValue((worker, change.OriginalName), out var original) ||
+                if (!sourceKeys.Add((worker, change.OriginalName.ToUpperInvariant())) ||
+                    !current.TryGetValue((worker, change.OriginalName.ToUpperInvariant()), out var original) ||
                     !EmploymentCsvCodec.Fingerprint(original)
                         .Equals(change.ExpectedFingerprint, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException(
                         "CSV source record is missing, duplicated or stale. Export a new file.");
                 resulting.Remove(original);
+                if (change.IsDelete)
+                {
+                    deletions.Add(change);
+                    continue;
+                }
             }
             else if (change.OriginalName.Length != 0)
                 throw new InvalidOperationException("An Add row cannot specify an old RecordName.");
@@ -87,6 +93,22 @@ internal sealed partial class DatabaseSession
         using var tx = _connection.BeginTransaction();
         try
         {
+            // Delete explicitly requested rows first. The original row's
+            // fingerprint and worker/name identity were verified above;
+            // every delete must affect exactly one record.
+            foreach (var change in deletions)
+            {
+                using var remove = new OleDbCommand(
+                    "DELETE FROM [tblCV] WHERE [WorkerUID]=? AND [RecordName]=?",
+                    _connection, tx);
+                remove.Parameters.Add("worker", OleDbType.Integer).Value = change.WorkerUid;
+                remove.Parameters.Add("name", OleDbType.VarWChar).Value = change.OriginalName;
+                if (remove.ExecuteNonQuery() != 1)
+                    throw new InvalidOperationException(
+                        $"Employment record '{change.OriginalName}' for worker " +
+                        change.WorkerUid + " could not be deleted. Import rolled back.");
+            }
+
             // A renamed row is temporarily moved aside, preventing swaps and
             // same-worker collisions from failing halfway through the import.
             var staged = new List<(EmploymentCsvChange Change, string Temporary, string Final)>();
@@ -134,7 +156,7 @@ internal sealed partial class DatabaseSession
             }
             tx.Commit();
             _openedStamp = GetStamp(PathOnDisk);
-            return replacements.Count;
+            return replacements.Count + deletions.Count;
         }
         catch { try { tx.Rollback(); } catch { } throw; }
     }

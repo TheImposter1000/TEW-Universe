@@ -1944,6 +1944,70 @@ if (!rejectedStaleCsv)
     throw new Exception("Stale employment CSV fingerprints were accepted.");
 Console.WriteLine("Passed whole-table employment CSV round trip, edits, add and worker IDs.");
 
+// Normal Employment History CSV behaves like the championship full-history
+// importer. Editing, adding, or removing spreadsheet rows is authoritative,
+// and identical names from DIFFERENT workers are never treated as duplicates.
+var simpleEmployment = EmploymentCsvCodec.ExportSimple(originalEmployment);
+if (!simpleEmployment.StartsWith(EmploymentCsvCodec.SimpleHeader, StringComparison.Ordinal))
+    throw new Exception("Employment History did not export the simple CSV header.");
+var simpleUnchanged = EmploymentCsvCodec.Preview(simpleEmployment,
+    originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
+if (!simpleUnchanged.IsReplacement || simpleUnchanged.Changes.Count != 0)
+    throw new Exception("Unmodified full-table employment CSV must be unchanged.");
+var simpleLines = simpleEmployment.Split(new[] { "\r\n", "\n" },
+    StringSplitOptions.RemoveEmptyEntries);
+if (simpleLines.Length != 3) throw new Exception("Unexpected employment CSV export row count.");
+var simpleEdited = string.Join(Environment.NewLine, new[] {
+    simpleLines[0],
+    simpleLines[1].Replace(",5,DNA,", ",9,NPW,"),
+    "303,DNA (2022 -?),5,DNA,1/1/2022,1/1/1666,False,False,False,False"
+}) + Environment.NewLine;
+var replacementPreview = EmploymentCsvCodec.Preview(simpleEdited,
+    originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
+if (!replacementPreview.IsReplacement ||
+    replacementPreview.Changes.Count(x => x.IsAdd) != 1 ||
+    replacementPreview.Changes.Count(x => x.IsDelete) != 1 ||
+    replacementPreview.Changes.Count(x => !x.IsAdd && !x.IsDelete) != 1)
+    throw new Exception("Full-history spreadsheet add/edit/delete reconciliation failed.");
+
+var emptyHistoryCsv = EmploymentCsvCodec.SimpleHeader + Environment.NewLine;
+var allDeletePreview = EmploymentCsvCodec.Preview(emptyHistoryCsv,
+    originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
+if (allDeletePreview.Changes.Count != 2 ||
+    allDeletePreview.Changes.Any(x => !x.IsDelete))
+    throw new Exception("Removed spreadsheet rows were not recognized as deletions.");
+
+bool refusedDuplicateWithinWorker = false;
+try {
+    EmploymentCsvCodec.Preview(simpleEmployment + simpleLines[1] + Environment.NewLine,
+        originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
+}
+catch (InvalidOperationException e) {
+    refusedDuplicateWithinWorker = e.Message.Contains("worker 101", StringComparison.OrdinalIgnoreCase);
+}
+if (!refusedDuplicateWithinWorker)
+    throw new Exception("Duplicate employment RecordName for the same worker was accepted.");
+
+var legacyDeletion = exportedEmployment.Replace(
+    "Update,101,", "Delete,101,");
+var legacyDeleted = EmploymentCsvCodec.Preview(legacyDeletion,
+    originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
+if (legacyDeleted.Changes.Count != 1 || !legacyDeleted.Changes[0].IsDelete ||
+    legacyDeleted.Changes[0].WorkerUid != 101)
+    throw new Exception("Advanced Action=Delete employment CSV did not work.");
+
+bool diagnosticNamesWorker = false;
+try {
+    EmploymentCsvCodec.Preview(exportedEmployment + simpleLines[1],
+        originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
+}
+catch (InvalidOperationException e) {
+    diagnosticNamesWorker = e.Message.Contains("row", StringComparison.OrdinalIgnoreCase);
+}
+if (!diagnosticNamesWorker)
+    throw new Exception("Malformed advanced CSV lacked a useful row diagnostic.");
+Console.WriteLine("Passed simple employment CSV add/edit/delete, multiworker names and legacy Delete.");
+
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.
 foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {

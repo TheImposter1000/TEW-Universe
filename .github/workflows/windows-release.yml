@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Employment History now uses the simple full-table CSV setup from championship history. Standard exported CSV contains WorkerUID,RecordName,CompanyUID,Initials,From,Until,Loan,Trade,Tour,Developmental only. Editing rows updates records, adding rows creates employment periods, and removing rows deletes those periods from the MDB after a second explicit deletion confirmation. The preview shows add/update/delete counts. All actions are validated and applied transactionally; backups are optional. Older advanced CSV files still import with Add/Update and now also support Action=Delete. Duplicate original identity errors show the actual worker/name with clear instructions. Added Delete Selected to the toolbar.
+
           FIX: Employment History sidebar now opens its dedicated tblCV editor instead of the "Module not implemented" message. The main navigation dispatches Employment History to its standalone workspace, initializes the search/worker picker/CSV controls at startup and restores the workspace after database refreshes. Removed an invalid nested-grid lookup in workspace initialization. Added a navigation wiring regression test.
 
           NEW: Employment History is a standalone roster-wide tblCV workspace with worker and company search, worker selection, existing period editing, Add/Remove actions, and full-table CSV export/import. The CSV format supports Add and Update rows, verifies original row fingerprints, checks worker/company references, validates dates and record names per worker, and applies all changes in one transaction. Backups remain optional.
