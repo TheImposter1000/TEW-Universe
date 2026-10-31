@@ -32,6 +32,9 @@ jobs:
       - name: Validate database and Data Check rules
         run: dotnet run --project tests/AnnualTournamentCalendar.Tests/AnnualTournamentCalendar.Tests.csproj --configuration Release
 
+      - name: Verify employment and chemistry record naming
+        run: dotnet run --project tests/RecordNameGeneration.Tests/RecordNameGeneration.Tests.csproj --configuration Release
+
       - name: Validate editable dropdown templates
         run: dotnet run --project tests/DropdownTemplate.Tests/DropdownTemplate.Tests.csproj --configuration Release
 
