@@ -34,6 +34,8 @@ jobs:
 
       - name: Validate editable dropdown templates
         run: dotnet run --project tests/DropdownTemplate.Tests/DropdownTemplate.Tests.csproj --configuration Release
+      - name: Validate employment and chemistry record names
+        run: dotnet run --project tests/RecordNaming.Tests/RecordNaming.Tests.csproj --configuration Release
 
       - name: Set version
         shell: pwsh
@@ -93,6 +95,10 @@ jobs:
           $filename = "TEW-Universe-Setup-$env:APP_VERSION.exe"
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
+
+          FIX: Employment Auto-name now uses the registered full company name with spaced year formatting: Company Name (2022 - ) for ongoing and Company Name (2020 - 2022) for historical employment. Unlisted historical companies fall back to their stored initials. Existing names are not rewritten without a confirmed edit or bulk rename.
+
+          NEW: Chemistry Type codes 1-5 have verified labels Fighting Against, Teaming With, Managing, Commentating With and Booking. Chemistry Quality 1-5 is Great, Good, Neutral, Poor and Awful. Names are TYPE-QUALITY: F.Lastname / F.Lastname, for example FA-GT: J.Cole / C.Potter, with GT/GD/NT/PR/AW quality shorthand. Changing the type or quality updates the readable RecordName, without changing UID or worker references.
 
           FIX: Employment History CSV no longer rejects valid imports with a generic "CSV contains invalid employment dates or initials" error when a deleted legacy record has old blank initials or out-of-range dates. Full-table CSV retains unchanged legacy rows without forcing new-record validation, and both standard and advanced Action=Delete validate the original fingerprint instead of replacement fields. New/updated records still require correct initials and dates, with worker, record and offending-field diagnostics. Atomic rollback, explicit delete confirmations and optional backups remain intact.
 
