@@ -8,8 +8,8 @@ internal sealed record TitleRecordNameRow(
     int Uid, int BeltUid, int BeltOrder, string TitleName, string OldName);
 
 internal sealed record EmploymentRecordNameRow(
-    int WorkerUid, int FedUid, string Initials, DateTime From, DateTime Until,
-    string OldName);
+    int WorkerUid, int FedUid, string Initials, string CompanyName,
+    DateTime From, DateTime Until, string OldName);
 
 internal sealed record RecordNameRepair(
     string Table, int? Uid, int OwnerUid, int? ReferenceUid, int? Order,
@@ -124,26 +124,26 @@ internal static class RecordNameRepairPlanner
                 continue;
             }
             if (string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
-                row.FedUid < 0 || string.IsNullOrWhiteSpace(row.Initials) ||
-                row.Initials.Any(char.IsControl) ||
+                row.FedUid < 0 || string.IsNullOrWhiteSpace(row.CompanyName) ||
+                row.CompanyName.Any(char.IsControl) ||
                 row.From.Year is < 1800 or > 2100 ||
                 (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
                  (row.Until.Year is < 1800 or > 2100 || row.Until < row.From)))
             {
                 warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
-                    "missing initials, dates, or a valid record identity; left unchanged.");
+                    "missing company name, dates, or a valid record identity; left unchanged.");
                 continue;
             }
             string desired = StudioRecordNames.Employment(
-                row.Initials, row.From, row.Until);
+                row.CompanyName, row.From, row.Until);
             if (string.Equals(row.OldName, desired, StringComparison.Ordinal))
                 continue;
             changes.Add(new RecordNameRepair(
                 "tblCV", null, row.WorkerUid, row.FedUid, null,
                 row.From, row.Until, row.OldName, desired,
-                $"Worker {row.WorkerUid} • {row.Initials} • " +
+                $"Worker {row.WorkerUid} • {row.CompanyName} • " +
                 (StudioDateFormat.IsOngoingEndDate(row.Until)
-                    ? $"{row.From.Year} -?" : $"{row.From.Year}-{row.Until.Year}")));
+                    ? $"{row.From.Year} - " : $"{row.From.Year} - {row.Until.Year}")));
         }
         return new RecordNameRepairPlan(
             "tblCV", selectedWorkerUid, targets.Length, changes, warnings);
