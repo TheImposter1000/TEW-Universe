@@ -31,6 +31,7 @@ public partial class MainWindow
     private ComboBox _chemQuality = null!;
     private Button _chemSave = null!;
     private Button _chemDelete = null!;
+    private Button _chemNormalizeName = null!;
     private ChemistryEntry? _selectedChemistry;
     private List<ChemistryEntry> _chemistryRecords = new();
     private bool _loadingChemistry;
@@ -179,7 +180,10 @@ public partial class MainWindow
         editor.Children.Add(buttons);
         _chemSave = ChemistryButton("Create Chemistry", SaveChemistry_Click, true);
         _chemDelete = ChemistryButton("Delete Selected", DeleteChemistry_Click);
+        _chemNormalizeName = ChemistryButton("Refresh Record Name",
+            NormalizeChemistryName_Click);
         buttons.Children.Add(_chemSave);
+        buttons.Children.Add(_chemNormalizeName);
         buttons.Children.Add(_chemDelete);
         foreach (var field in new[] { _chemFirst, _chemSecond, _chemType, _chemQuality })
             field.SelectionChanged += (_, _) => {
@@ -303,6 +307,9 @@ public partial class MainWindow
                 record?.Quality, false);
             _chemSave.Content = record == null ? "Create Chemistry" : "Save Chemistry";
             _chemDelete.IsEnabled = record != null;
+            _chemNormalizeName.IsEnabled = record != null &&
+                ChemistryRules.KnownType(record.RelType) &&
+                ChemistryRules.KnownQuality(record.Quality);
         }
         finally { _loadingChemistry = false; }
         UpdateSectionCsvButtons();
@@ -379,6 +386,43 @@ public partial class MainWindow
                 SetStatus("Created chemistry UID " + uid);
             }
             RefreshDirty();
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void NormalizeChemistryName_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session == null || _selectedChemistry is not { } record) return;
+        try
+        {
+            if (!ChemistryRules.KnownType(record.RelType) ||
+                !ChemistryRules.KnownQuality(record.Quality))
+                throw new InvalidOperationException(
+                    "Unknown stored chemistry codes cannot be assigned a guessed record name.");
+
+            string proposed = ChemistryRules.RecordName(record.Worker1Name,
+                record.Worker2Name, record.RelType, record.Quality,
+                _chemistryRecords.Where(x => x.Uid != record.Uid)
+                    .Select(x => x.RecordName), 0);
+            if (string.Equals(proposed, record.RecordName, StringComparison.Ordinal))
+            {
+                MessageBox.Show(this, "This record name already matches the selected chemistry.");
+                return;
+            }
+            if (HasPendingChemistryEdits())
+                throw new InvalidOperationException(
+                    "Save or discard changes to type and quality before refreshing this record name.");
+            if (MessageBox.Show(this,
+                $"Change the stored chemistry name?\\n\\n{record.RecordName}\\n\\nTo:\\n{proposed}\\n\\n" +
+                "The chemistry UID, worker pair, type and quality will be preserved.",
+                "Refresh Chemistry Record Name", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (!OfferOptionalBackupBeforeWrite("refreshing chemistry record name")) return;
+            _session.UpdateChemistry(record, record.RelType, record.Quality);
+            _lastSaved = DateTime.Now;
+            ReloadChemistry(record.Uid);
+            RefreshDirty();
+            SetStatus("Refreshed chemistry record name for UID " + record.Uid);
         }
         catch (Exception ex) { Error(ex); }
     }
