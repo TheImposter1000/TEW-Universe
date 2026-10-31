@@ -262,8 +262,9 @@ public partial class MainWindow
         recordHeading.Children.Add(ExtraLabel("Record name (editable)"));
         AddExtraField(employmentEditor, recordHeading, _employmentRecordName);
         _employmentNameHint = new TextBlock {
-            Text = "Record names use company initials and both employment dates. " +
-                   "Example: NCW (2016-2020) or DNA (2022 -?). You can edit the generated name.",
+            Text = "Record names use the full company name and year range. " +
+                   "Example: Dynamic National Alliance (2022 - ) or " +
+                   "Dynamic National Alliance (2020 - 2022). You can edit the name.",
             Foreground = ExtraColor("#93B4D5"), FontSize = 11,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -5, 0, 11)
         };
@@ -390,8 +391,8 @@ public partial class MainWindow
         if (_employmentInitials == null || _employmentFrom == null ||
             _employmentUntil == null) return;
 
-        // The company selector has priority when its stored abbreviation is
-        // available. Do not guess from the company name.
+        // Use registered company names for display. Historical initials
+        // are still stored separately and identify unlisted promotions.
         if (string.IsNullOrWhiteSpace(_employmentInitials.Text) &&
             _employmentCompany.SelectedItem is EmploymentCompanyChoice company &&
             !string.IsNullOrWhiteSpace(company.Initials))
