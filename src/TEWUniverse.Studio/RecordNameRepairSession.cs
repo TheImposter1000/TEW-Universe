@@ -61,6 +61,7 @@ internal sealed partial class DatabaseSession
         if (selectedWorkerUid.HasValue) CheckLinkedWorker(selectedWorkerUid.Value);
         ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID", "FedUID",
             "Initials", "CVFromDate", "CVUntilDate");
+        var companyNames = ReadEmploymentCompanies().ToDictionary(x => x.Id, x => x.Name);
         var history = new List<EmploymentRecordNameRow>();
         using (var command = new OleDbCommand(
             "SELECT [RecordName],[WorkerUID],[FedUID],[Initials]," +
@@ -73,6 +74,12 @@ internal sealed partial class DatabaseSession
                     Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
                     reader.IsDBNull(3) ? "" :
                         Convert.ToString(reader.GetValue(3), CultureInfo.InvariantCulture) ?? "",
+                    companyNames.TryGetValue(
+                        Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
+                        out string? companyName) && !string.IsNullOrWhiteSpace(companyName)
+                        ? companyName
+                        : (reader.IsDBNull(3) ? "" :
+                            Convert.ToString(reader.GetValue(3), CultureInfo.InvariantCulture) ?? ""),
                     reader.GetValue(4) is DateTime start ? start : new DateTime(1666, 1, 1),
                     reader.GetValue(5) is DateTime end ? end : new DateTime(1666, 1, 1),
                     reader.IsDBNull(0) ? "" :
