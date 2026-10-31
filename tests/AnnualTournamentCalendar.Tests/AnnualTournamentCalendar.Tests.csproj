@@ -34,6 +34,7 @@
     <Compile Include="../../src/TEWUniverse.Desktop/WorkerFilterState.cs" Link="WorkerFilterState.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/WorkerContractChangeRules.cs" Link="WorkerContractChangeRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/EmploymentCompanyLookup.cs" Link="EmploymentCompanyLookup.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/EmploymentNameGeneration.cs" Link="EmploymentNameGeneration.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/ExistingTitleSlotPlanner.cs" Link="ExistingTitleSlotPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/ChampionshipCsvImport.cs" Link="ChampionshipCsvImport.cs" />
     <Compile Include="../../src/TEWUniverse.Desktop/TitleEmploymentValidator.cs" Link="TitleEmploymentValidator.cs" />

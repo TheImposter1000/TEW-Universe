@@ -1778,6 +1778,35 @@ if (EmploymentCompanyLookup.FindUniqueByInitials(
     throw new Exception("Employment company/initials synchronization matched an incorrect company.");
 Console.WriteLine("Passed company initials lookup, case/whitespace, missing and ambiguous company checks.");
 
+// Generate-name validation must identify the actual missing or invalid input,
+// rather than displaying an undifferentiated modal or inventing date values.
+var validEmploymentName = EmploymentNameGeneration.Validate(
+    " dna ", "5/12/1998", "May 12th 2002");
+if (!validEmploymentName.IsValid ||
+    validEmploymentName.RecordName != "DNA (1998-2002)" ||
+    EmploymentNameGeneration.Validate("DNA", "May 12th 1998", "6/30/2002")
+        .RecordName != "DNA (1998-2002)")
+    throw new Exception("Employment name generation rejects valid numeric/written dates.");
+
+foreach (var (initials, fromDate, untilDate, field) in new[] {
+    ("", "5/12/1998", "6/30/2002", EmploymentNameField.Initials),
+    ("DNA", "", "6/30/2002", EmploymentNameField.From),
+    ("DNA", "13/12/1998", "6/30/2002", EmploymentNameField.From),
+    ("DNA", "5/12/1998", "", EmploymentNameField.Until),
+    ("DNA", "5/12/1998", "4/30/1998", EmploymentNameField.Until),
+    ("DNA", "5/12/1998", "2/29/2001", EmploymentNameField.Until),
+    ("DNA", "1/1/1666", "6/30/2002", EmploymentNameField.From),
+    ("DNA", "5/12/1998", "1/1/2201", EmploymentNameField.Until)
+})
+{
+    var invalid = EmploymentNameGeneration.Validate(initials, fromDate, untilDate);
+    if (invalid.IsValid || invalid.Field != field ||
+        string.IsNullOrWhiteSpace(invalid.Error))
+        throw new Exception("Employment name generator did not diagnose invalid " +
+            field + " input.");
+}
+Console.WriteLine("Passed contextual employment name generation validation.");
+
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.
 foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {

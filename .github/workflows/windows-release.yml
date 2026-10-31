@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Employment History Generate name no longer presents an unhelpful generic date/initials popup. Missing or invalid initials, From and Until dates, out-of-range years and reversed date ranges are identified inline with focus on the field that needs attention. The generated name remains INITIALS (YYYY-YYYY), with no missing dates guessed. Selected companies with stored initials can populate a blank initials entry.
+
           IMPROVED: Employment History Company and Historical company initials now sync both ways. Selecting a company fills its verified tblFed initials even if the field is already populated; typing unique initials selects the matching company automatically. Unknown, partial, and ambiguous initials cannot silently save against an unrelated company. Existing historical data is not changed simply by opening a period.
 
           NEW: Chemistry is a standalone editor for TEW IX tblChemistryForce presets, with searchable worker pairs, actual stored type/quality codes, and verified insert, edit and delete actions. Unknown enum meanings are not guessed; new codes must already exist in the scenario. Worker references, duplicate pair/type detection, transactional saves, confirmations and optional backups are preserved. Tools has been removed from visible navigation; its diagnostic engine remains dormant.

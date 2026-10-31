@@ -30,6 +30,7 @@
     <Compile Include="..\TEWUniverse.Studio\ChemistrySession.cs" Link="Services\ChemistrySession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerExtrasSession.cs" Link="Services\WorkerExtrasSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\EmploymentCompanyLookup.cs" Link="Services\EmploymentCompanyLookup.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\EmploymentNameGeneration.cs" Link="Services\EmploymentNameGeneration.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerAttributeValue.cs" Link="Services\WorkerAttributeValue.cs"/>
     <Compile Include="..\TEWUniverse.Studio\WorkerContractSession.cs" Link="Services\WorkerContractSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\AwardsRules.cs" Link="Services\AwardsRules.cs"/>

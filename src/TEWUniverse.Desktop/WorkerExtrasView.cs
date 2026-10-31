@@ -29,6 +29,7 @@ public partial class MainWindow
     private DataGrid _employmentGrid = null!;
     private ComboBox _employmentCompany = null!;
     private TextBox _employmentRecordName = null!;
+    private TextBlock _employmentNameHint = null!;
     private bool _employmentNameAutomatic = true;
     private bool _settingGeneratedEmploymentName;
     private TextBox _employmentInitials = null!;
@@ -258,11 +259,13 @@ public partial class MainWindow
         recordHeading.Children.Add(generateName);
         recordHeading.Children.Add(ExtraLabel("Record name (editable)"));
         AddExtraField(employmentEditor, recordHeading, _employmentRecordName);
-        employmentEditor.Children.Add(new TextBlock {
-            Text = "Example: PWA (2015-2021). Generated from initials and dates; you can edit it.",
+        _employmentNameHint = new TextBlock {
+            Text = "Record names use company initials and both employment dates. " +
+                   "Example: PWA (2015-2021). You can also edit the generated name.",
             Foreground = ExtraColor("#93B4D5"), FontSize = 11,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -5, 0, 11)
-        });
+        };
+        employmentEditor.Children.Add(_employmentNameHint);
         _employmentCompany = ExtraPicker(editable: true);
         _employmentCompany.SelectionChanged += EmploymentCompanyChanged;
         _employmentCompany.DisplayMemberPath = nameof(EmploymentCompanyChoice.Name);
@@ -342,16 +345,19 @@ public partial class MainWindow
     {
         if (_settingWorkerExtraForm || !_employmentNameAutomatic ||
             _employmentRecordName == null || _employmentFrom == null ||
-            _employmentUntil == null || _employmentInitials == null ||
-            string.IsNullOrWhiteSpace(_employmentInitials.Text) ||
-            !StudioDateFormat.TryParse(_employmentFrom.Text, out var start) ||
-            !StudioDateFormat.TryParse(_employmentUntil.Text, out var end) ||
-            end < start) return;
+            _employmentUntil == null || _employmentInitials == null) return;
+
+        var result = EmploymentNameGeneration.Validate(
+            _employmentInitials.Text, _employmentFrom.Text, _employmentUntil.Text);
+        if (!result.IsValid) return;
+
         try
         {
-            var generated = StudioRecordNames.Employment(_employmentInitials.Text, start, end);
             _settingGeneratedEmploymentName = true;
-            _employmentRecordName.Text = generated;
+            _employmentRecordName.Text = result.RecordName!;
+            _employmentNameHint.Text = "Generated from the selected company initials and dates: " +
+                result.RecordName;
+            _employmentNameHint.Foreground = ExtraColor("#93B4D5");
         }
         finally { _settingGeneratedEmploymentName = false; }
     }
@@ -359,22 +365,34 @@ public partial class MainWindow
     private void GenerateEmploymentName_Click(object sender, RoutedEventArgs e)
     {
         if (_employmentInitials == null || _employmentFrom == null ||
-            _employmentUntil == null ||
-            string.IsNullOrWhiteSpace(_employmentInitials.Text) ||
-            !StudioDateFormat.TryParse(_employmentFrom.Text, out var start) ||
-            !StudioDateFormat.TryParse(_employmentUntil.Text, out var end) ||
-            end < start)
+            _employmentUntil == null) return;
+
+        // The company selector has priority when its stored abbreviation is
+        // available. Do not guess from the company name.
+        if (string.IsNullOrWhiteSpace(_employmentInitials.Text) &&
+            _employmentCompany.SelectedItem is EmploymentCompanyChoice company &&
+            !string.IsNullOrWhiteSpace(company.Initials))
+            _employmentInitials.Text = company.Initials;
+
+        var result = EmploymentNameGeneration.Validate(
+            _employmentInitials.Text, _employmentFrom.Text, _employmentUntil.Text);
+        if (!result.IsValid)
         {
-            MessageBox.Show(this, "Enter company initials and valid From / Until " +
-                "dates (5/12/1998 or May 12th 1998) before generating a Record Name.");
+            // No generic modal: identify which input needs attention while
+            // leaving the user's partially completed form untouched.
+            _employmentNameHint.Text = result.Error!;
+            _employmentNameHint.Foreground = ExtraColor("#E5BF78");
+            switch (result.Field)
+            {
+                case EmploymentNameField.Initials: _employmentInitials.Focus(); break;
+                case EmploymentNameField.From: _employmentFrom.Focus(); break;
+                case EmploymentNameField.Until: _employmentUntil.Focus(); break;
+            }
             return;
         }
-        try
-        {
-            _employmentNameAutomatic = true;
-            RefreshAutomaticEmploymentName();
-        }
-        catch (Exception ex) { Error(ex); }
+        _employmentNameAutomatic = true;
+        RefreshAutomaticEmploymentName();
+        RefreshDirty();
     }
 
     private void EmploymentCompanyChanged(object sender, SelectionChangedEventArgs e)
@@ -450,6 +468,9 @@ public partial class MainWindow
             _employmentCompany.ItemsSource = null;
             _employmentNameAutomatic = true;
             _employmentRecordName.Text = "";
+            _employmentNameHint.Text = "Record names use company initials and both employment dates. " +
+                "Example: PWA (2015-2021). You can also edit the generated name.";
+            _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
             _employmentCompanyMatch.Text = "Select a company or type its initials.";
             _employmentLoan.IsChecked = _employmentTrade.IsChecked =
@@ -575,6 +596,11 @@ public partial class MainWindow
             _employmentSave.IsEnabled = _employmentDelete.IsEnabled = item != null;
             _employmentNameAutomatic = item == null;
             _employmentRecordName.Text = item?.RecordName ?? "";
+            _employmentNameHint.Text = item == null
+                ? "Record names use company initials and both employment dates. " +
+                  "Example: PWA (2015-2021). You can also edit the generated name."
+                : "Existing record name is preserved until you choose Generate name or edit it.";
+            _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentCompany.SelectedItem = item == null ? null :
                 _employmentCompanies.FirstOrDefault(c => c.Id == item.FedUid);
             _employmentInitials.Text = item?.Initials ?? "";
