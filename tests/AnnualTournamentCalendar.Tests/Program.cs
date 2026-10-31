@@ -1897,16 +1897,16 @@ var originalEmployment = new[] {
         false, false, false, false)
 };
 var exportedEmployment = EmploymentCsvCodec.Export(originalEmployment);
-var knownWorkers = new HashSet<int> { 101, 202, 303 };
-var knownCompanies = new HashSet<int> { 5, 9 };
+var knownEmploymentWorkers = new HashSet<int> { 101, 202, 303 };
+var knownEmploymentCompanies = new HashSet<int> { 5, 9 };
 if (EmploymentCsvCodec.Preview(exportedEmployment,
-        originalEmployment, knownWorkers, knownCompanies).Changes.Count != 0)
+        originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies).Changes.Count != 0)
     throw new Exception("Unchanged employment CSV was treated as edits.");
 var editedEmployment = exportedEmployment.Replace(
     "DNA (2022 -?),DNA (2022 -?),5,DNA",
     "DNA (2022 -?),DNA (2022 -?),9,NPW");
 var previewEmployment = EmploymentCsvCodec.Preview(editedEmployment,
-    originalEmployment, knownWorkers, knownCompanies);
+    originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
 if (previewEmployment.Changes.Count != 2 ||
     previewEmployment.Changes.Any(x => x.IsAdd || x.Draft.FedUid != 9))
     throw new Exception("CSV import did not preserve distinct worker identities.");
@@ -1915,14 +1915,14 @@ var addEmployment = exportedEmployment + string.Join(",", new[] {
     "False", "False", "False", "False", ""
 }) + Environment.NewLine;
 var previewAdd = EmploymentCsvCodec.Preview(addEmployment,
-    originalEmployment, knownWorkers, knownCompanies);
+    originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies);
 if (previewAdd.Changes.Count != 1 ||
     !previewAdd.Changes[0].IsAdd ||
     previewAdd.Changes[0].Draft.RequestedRecordName != "DNA (2022 -?)")
     throw new Exception("Employment CSV Add action failed.");
 bool rejectedForeignWorker = false;
 try { EmploymentCsvCodec.Preview(addEmployment.Replace(
-    "Add,303,", "Add,999,"), originalEmployment, knownWorkers, knownCompanies); }
+    "Add,303,", "Add,999,"), originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies); }
 catch (InvalidOperationException) { rejectedForeignWorker = true; }
 if (!rejectedForeignWorker)
     throw new Exception("Employment CSV accepted a missing worker reference.");
@@ -1930,14 +1930,14 @@ var editedInitials = exportedEmployment.Replace(
     "DNA (2022 -?),DNA (2022 -?),5,DNA",
     "DNA (2022 -?),DNA (2022 -?),5,DNA_changed");
 if (EmploymentCsvCodec.Preview(editedInitials,
-        originalEmployment, knownWorkers, knownCompanies).Changes.Count != 2)
+        originalEmployment, knownEmploymentWorkers, knownEmploymentCompanies).Changes.Count != 2)
     throw new Exception("Editable historical initials were rejected during CSV preview.");
 bool rejectedStaleCsv = false;
 try {
     var staleSnapshot = originalEmployment.Select(x =>
         x with { Initials = "EXTERNALLY_CHANGED" }).ToArray();
     EmploymentCsvCodec.Preview(exportedEmployment, staleSnapshot,
-        knownWorkers, knownCompanies);
+        knownEmploymentWorkers, knownEmploymentCompanies);
 }
 catch (InvalidOperationException) { rejectedStaleCsv = true; }
 if (!rejectedStaleCsv)
