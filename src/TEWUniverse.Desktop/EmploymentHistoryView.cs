@@ -27,7 +27,7 @@ public partial class MainWindow
     private void InitializeEmploymentHistoryModuleUI()
     {
         // The original tblCV editor is now hosted in its own main workspace.
-        var root = EmploymentHost.Children.OfType<Grid>().First();
+        var root = EmploymentHost;
         var left = root.Children.OfType<DockPanel>().First();
         var header = left.Children.OfType<StackPanel>().First();
         header.Children.Insert(0, ExtraLabel("All worker employment periods", true));

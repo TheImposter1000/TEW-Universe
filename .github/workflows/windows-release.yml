@@ -94,6 +94,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Employment History sidebar now opens its dedicated tblCV editor instead of the "Module not implemented" message. The main navigation dispatches Employment History to its standalone workspace, initializes the search/worker picker/CSV controls at startup and restores the workspace after database refreshes. Removed an invalid nested-grid lookup in workspace initialization. Added a navigation wiring regression test.
+
           NEW: Employment History is a standalone roster-wide tblCV workspace with worker and company search, worker selection, existing period editing, Add/Remove actions, and full-table CSV export/import. The CSV format supports Add and Update rows, verifies original row fingerprints, checks worker/company references, validates dates and record names per worker, and applies all changes in one transaction. Backups remain optional.
 
           NEW: Worker Profile has an Add Worker Type dropdown for actual role flags, allowing multiple roles without deleting others. Existing selected roles can be individually disabled. If the database has a numeric WorkerType/Role field, its dropdown uses only observed numeric codes and does not invent unverified labels.

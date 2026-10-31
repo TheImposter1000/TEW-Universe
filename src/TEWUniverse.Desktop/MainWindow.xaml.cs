@@ -86,6 +86,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeWorkerExtrasUI();
+        InitializeEmploymentHistoryModuleUI();
         InitializeAccomplishmentsUI();
         InitializeWorkerFiltersUI();
         InitializeRelationshipsUI();
@@ -108,6 +109,7 @@ public partial class MainWindow : Window
             (_currentTab == "Contracts" && HasUnappliedContractEdits()) ||
             (_currentTab == "Accomplishments" && HasPendingAccomplishmentEdits()),
         "Relationships" => HasPendingRelationshipEdits(),
+        "Employment History" => HasUnappliedWorkerExtraForm(),
         "Chemistry" => HasPendingChemistryEdits(),
         "Awards" => HasPendingAwardEdits(),
         _ => _existingFields.Any(x => x.Dirty)
@@ -136,7 +138,7 @@ public partial class MainWindow : Window
         UpdateSectionCsvButtons();
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null &&
-            _activeModule is not ("Relationships" or "Chemistry" or "Awards" or "Tools") &&
+            _activeModule is not ("Relationships" or "Employment History" or "Chemistry" or "Awards" or "Tools") &&
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
@@ -633,7 +635,12 @@ public partial class MainWindow : Window
             PhysicalTab, BiographyTab, AttributesTab, ContractsTab, EmploymentTab,
             AccomplishmentsTab })
             button.Style = (Style)FindResource(button.Tag as string == tab ? "BlueButton" : "ActionButton");
-        if (tab is "Attributes" or "Contracts" or "Employment")
+        if (tab == "Employment")
+        {
+            SelectEmploymentHistoryModule();
+            return;
+        }
+        if (tab is "Attributes" or "Contracts")
         {
             RefreshWorkerExtraTab(tab);
             return;
@@ -906,6 +913,7 @@ public partial class MainWindow : Window
             }
             else if (_activeModule == "Awards") ReloadAwards();
             else if (_activeModule == "Chemistry") ReloadChemistry();
+            else if (_activeModule == "Employment History") ReloadEmploymentHistory();
             else if (_activeModule == "Tools")
             {
                 _toolsResults.Clear();
@@ -986,6 +994,11 @@ public partial class MainWindow : Window
     private void FutureNav_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string section) return;
+        if (section == "Employment History")
+        {
+            SelectEmploymentHistoryModule();
+            return;
+        }
         if (section == "Relationships")
         {
             SelectRelationshipsModule();
@@ -1031,6 +1044,8 @@ public partial class MainWindow : Window
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         WorkerDetailPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
         ExistingWorkspace.Visibility = workers ? Visibility.Collapsed : Visibility.Visible;
+        EmploymentWorkspace.Visibility = Visibility.Collapsed;
+        EmploymentNav.Style = (Style)FindResource("NavigationButton");
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
         ChemistryWorkspace.Visibility = Visibility.Collapsed;
         AwardsWorkspace.Visibility = Visibility.Collapsed;

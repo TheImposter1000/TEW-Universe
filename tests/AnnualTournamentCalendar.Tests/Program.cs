@@ -2309,6 +2309,37 @@ HistoricalReignRules.ValidateHolders(
 Console.WriteLine("Passed unknown -1 defence, historical NPC IDs, " +
     "holder-only edits and insert timing regression checks.");
 
+// Guard the standalone Employment History navigation. A prior build exposed
+// the nav button while FutureNav_Click still fell through to the "not
+// implemented" popup, and its UI initializer traversed a nonexistent grid.
+var navigationRoot = new DirectoryInfo(Directory.GetCurrentDirectory());
+while (navigationRoot != null &&
+       !File.Exists(Path.Combine(navigationRoot.FullName, "src",
+           "TEWUniverse.Desktop", "MainWindow.xaml.cs")))
+    navigationRoot = navigationRoot.Parent;
+if (navigationRoot == null)
+    throw new Exception("Cannot locate desktop navigation source for regression check.");
+var navSource = File.ReadAllText(Path.Combine(navigationRoot.FullName,
+    "src", "TEWUniverse.Desktop", "MainWindow.xaml.cs"));
+var historySource = File.ReadAllText(Path.Combine(navigationRoot.FullName,
+    "src", "TEWUniverse.Desktop", "EmploymentHistoryView.cs"));
+var xamlSource = File.ReadAllText(Path.Combine(navigationRoot.FullName,
+    "src", "TEWUniverse.Desktop", "MainWindow.xaml"));
+int navStart = navSource.IndexOf("private void FutureNav_Click", StringComparison.Ordinal);
+int navEnd = navSource.IndexOf("private void SelectModule(", navStart, StringComparison.Ordinal);
+if (navStart < 0 || navEnd <= navStart ||
+    !navSource[navStart..navEnd].Contains(
+        "SelectEmploymentHistoryModule();", StringComparison.Ordinal) ||
+    !navSource.Contains("InitializeEmploymentHistoryModuleUI();",
+        StringComparison.Ordinal) ||
+    !historySource.Contains("var root = EmploymentHost;",
+        StringComparison.Ordinal) ||
+    !xamlSource.Contains("x:Name=\"EmploymentNav\" Tag=\"Employment History\"",
+        StringComparison.Ordinal) ||
+    !xamlSource.Contains("x:Name=\"EmploymentWorkspace\"", StringComparison.Ordinal))
+    throw new Exception("Employment History navigation is not connected to an initialized workspace.");
+Console.WriteLine("Passed standalone Employment History navigation wiring regression check.");
+
 static void Check(int year, int month, int occurrence, DayOfWeek weekday, DateTime expected)
 {
     var actual = AnnualTournamentCalendar.ResolveDate(year, month, occurrence, weekday);
