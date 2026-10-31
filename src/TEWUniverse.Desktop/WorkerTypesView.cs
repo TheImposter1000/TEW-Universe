@@ -56,7 +56,8 @@ public partial class MainWindow
         var codeFields = profile.Where(f => f.Table == "tblWorker" &&
             new[] { "WorkerType", "Worker_Type", "Role", "Type" }
                 .Contains(f.Column, StringComparer.OrdinalIgnoreCase) &&
-            WorkerFieldCatalog.IsNumeric(f.ValueType)).ToList();
+            (f.ValueType == typeof(byte) || f.ValueType == typeof(short) ||
+             f.ValueType == typeof(int) || f.ValueType == typeof(long))).ToList();
         var covered = roles.Select(x => x.Field).Concat(codeFields).ToHashSet();
         if (covered.Count == 0) return covered;
 

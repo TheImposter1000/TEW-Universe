@@ -170,6 +170,14 @@ The `UID` primary key, internal `Recordname`, unsupported/binary or calculated f
 
 This functionality writes to the selected active MDB. A backup is recommended but never a prerequisite; validate changes through TEW IX's Data Check where applicable.
 
+## Standalone tblCV editor, CSV and worker-role selection
+
+`EmploymentHistoryView.cs` hosts the actual `tblCV` editor as a separate main navigation module. It uses `DatabaseSession.ReadAllWorkerEmployment` to read all linked worker periods in one query, with a worker/period search and an explicit worker selector for new rows. `WorkerExtrasView.cs` retains the verified single-row editing pipeline, but resolves the relevant worker from the selected historical row or the new-period worker selector. `WorkerUID` stays part of the record identity; two workers may have identical `RecordName` values and same employer dates. `01/01/1666` remains the stored ongoing Until date.
+
+`EmploymentCsvCodec.cs` exports every period with `Action,WorkerUID,RecordName,OriginalRecordName,CompanyUID,Initials,From,Until,Loan,Trade,Tour,Developmental,SourceFingerprint`. New rows have `Action=Add`, blank old name/fingerprint, and a valid worker and company UID. Exported rows use `Action=Update`; edits preserve the immutable original name and original fingerprint so stale exports can be detected. Date/flag parsing and identifiers are validated before any write. `EmploymentCsvSession.cs` preflights the resulting per-worker names/periods and performs staged updates and inserts under one Access transaction, with rollback upon any error. No implicit deletions or creation of workers/companies; no mandatory backup.
+
+`WorkerTypesView.cs` exposes existing `tblWorker` role flags through a role selector, allowing multiple types per worker and individual role removal. Only fields present in the selected MDB are editable. `WorkerTypeSession.cs` reads observed values from any actual `WorkerType`, `Worker_Type`, `Role` or `Type` integer column; its numeric dropdown displays raw existing codes rather than invented label meanings. Edits are ordinary `FieldDraft` changes saved through the current worker-profile transaction.
+
 ## Championship details and presentation classification
 
 The Titles editor now exposes all additional `tblBelt` columns through an expandable **Additional TEW IX fields** inspector, with protected IDs/references read-only. Basic text/description columns from a strict allowlist are editable when present; the app does not enable arbitrary linked-field editing.

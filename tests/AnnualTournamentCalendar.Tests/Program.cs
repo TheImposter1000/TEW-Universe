@@ -1886,6 +1886,64 @@ if (EmploymentNameGeneration.Validate("DNA", "1/1/2022", "01/01/1666")
     throw new Exception("Requested TEW employment Record Name spelling regressed.");
 Console.WriteLine("Passed contextual employment name generation and ongoing-sentinel validation.");
 
+// Whole-table employment CSV must round-trip actual values, allow multiple
+// workers with the same name and dates, and reject stale or foreign identities.
+var originalEmployment = new[] {
+    new WorkerEmploymentEntry("DNA (2022 -?)", 101, 5, "DNA",
+        new DateTime(2022, 1, 1), StudioDateFormat.OngoingEndDate,
+        false, false, false, false),
+    new WorkerEmploymentEntry("DNA (2022 -?)", 202, 5, "DNA",
+        new DateTime(2022, 1, 1), StudioDateFormat.OngoingEndDate,
+        false, false, false, false)
+};
+var exportedEmployment = EmploymentCsvCodec.Export(originalEmployment);
+var knownWorkers = new HashSet<int> { 101, 202, 303 };
+var knownCompanies = new HashSet<int> { 5, 9 };
+if (EmploymentCsvCodec.Preview(exportedEmployment,
+        originalEmployment, knownWorkers, knownCompanies).Changes.Count != 0)
+    throw new Exception("Unchanged employment CSV was treated as edits.");
+var editedEmployment = exportedEmployment.Replace(
+    "DNA (2022 -?),DNA (2022 -?),5,DNA",
+    "DNA (2022 -?),DNA (2022 -?),9,NPW");
+var previewEmployment = EmploymentCsvCodec.Preview(editedEmployment,
+    originalEmployment, knownWorkers, knownCompanies);
+if (previewEmployment.Changes.Count != 2 ||
+    previewEmployment.Changes.Any(x => x.IsAdd || x.Draft.FedUid != 9))
+    throw new Exception("CSV import did not preserve distinct worker identities.");
+var addEmployment = exportedEmployment + string.Join(",", new[] {
+    "Add", "303", "", "", "5", "DNA", "1/1/2022", "1/1/1666",
+    "False", "False", "False", "False", ""
+}) + Environment.NewLine;
+var previewAdd = EmploymentCsvCodec.Preview(addEmployment,
+    originalEmployment, knownWorkers, knownCompanies);
+if (previewAdd.Changes.Count != 1 ||
+    !previewAdd.Changes[0].IsAdd ||
+    previewAdd.Changes[0].Draft.RequestedRecordName != "DNA (2022 -?)")
+    throw new Exception("Employment CSV Add action failed.");
+bool rejectedForeignWorker = false;
+try { EmploymentCsvCodec.Preview(addEmployment.Replace(
+    "Add,303,", "Add,999,"), originalEmployment, knownWorkers, knownCompanies); }
+catch (InvalidOperationException) { rejectedForeignWorker = true; }
+if (!rejectedForeignWorker)
+    throw new Exception("Employment CSV accepted a missing worker reference.");
+var editedInitials = exportedEmployment.Replace(
+    "DNA (2022 -?),DNA (2022 -?),5,DNA",
+    "DNA (2022 -?),DNA (2022 -?),5,DNA_changed");
+if (EmploymentCsvCodec.Preview(editedInitials,
+        originalEmployment, knownWorkers, knownCompanies).Changes.Count != 2)
+    throw new Exception("Editable historical initials were rejected during CSV preview.");
+bool rejectedStaleCsv = false;
+try {
+    var staleSnapshot = originalEmployment.Select(x =>
+        x with { Initials = "EXTERNALLY_CHANGED" }).ToArray();
+    EmploymentCsvCodec.Preview(exportedEmployment, staleSnapshot,
+        knownWorkers, knownCompanies);
+}
+catch (InvalidOperationException) { rejectedStaleCsv = true; }
+if (!rejectedStaleCsv)
+    throw new Exception("Stale employment CSV fingerprints were accepted.");
+Console.WriteLine("Passed whole-table employment CSV round trip, edits, add and worker IDs.");
+
 // Contract form changes must be recognized by typed value rather than
 // spelling differences or a stale Save Changes toolbar state.
 foreach (var (before, after, type, same) in new (string, string, Type, bool)[] {

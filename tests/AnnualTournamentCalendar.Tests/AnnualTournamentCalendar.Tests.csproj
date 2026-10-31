@@ -12,6 +12,7 @@
     <Compile Include="../../src/TEWUniverse.Studio/CompanyFieldRules.cs" Link="CompanyFieldRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/CompanyCsvCodec.cs" Link="CompanyCsvCodec.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/StudioSectionCsvCodec.cs" Link="StudioSectionCsvCodec.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/EmploymentCsvCodec.cs" Link="EmploymentCsvCodec.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/WorkerRosterFilterEngine.cs" Link="WorkerRosterFilterEngine.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/TewCodeLabels.cs" Link="TewCodeLabels.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/HistoricalReignRules.cs" Link="HistoricalReignRules.cs" />

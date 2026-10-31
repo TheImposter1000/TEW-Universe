@@ -15,6 +15,8 @@ public partial class MainWindow
 {
     private ComboBox _employmentWorkerPicker = null!;
     private TextBox _employmentSearch = null!;
+    private string _employmentAppliedSearch = "";
+    private bool _resettingEmploymentSearch;
     private List<EmploymentDisplay> _allEmploymentRows = new();
 
     private WorkerItem? EmploymentWorker =>
@@ -35,7 +37,17 @@ public partial class MainWindow
             ToolTip = "Find a worker, company, initials, date or RecordName",
             Margin = new Thickness(0, 0, 0, 10)
         };
-        _employmentSearch.TextChanged += (_, _) => FilterEmploymentHistory();
+        _employmentSearch.TextChanged += (_, _) => {
+            if (_resettingEmploymentSearch) return;
+            if (_activeModule == "Employment History" && HasUnappliedWorkerExtraForm())
+            {
+                _resettingEmploymentSearch = true;
+                try { _employmentSearch.Text = _employmentAppliedSearch; }
+                finally { _resettingEmploymentSearch = false; }
+                return;
+            }
+            FilterEmploymentHistory();
+        };
         header.Children.Insert(1, _employmentSearch);
 
         var actions = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
@@ -47,6 +59,19 @@ public partial class MainWindow
             button.Margin = new Thickness(0, 0, 9, 8);
             actions.Children.Add(button);
         }
+        AddAction("+ New Period", (_, _) => {
+            if (HasUnappliedWorkerExtraForm() &&
+                MessageBox.Show(this, "Discard unsaved changes and start a new period?",
+                    "New Employment Period", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            _settingWorkerExtraForm = true;
+            try { _employmentGrid.SelectedItem = null; }
+            finally { _settingWorkerExtraForm = false; }
+            EmploymentSelectionChanged(_employmentGrid, null!);
+            _employmentWorkerPicker.SelectedItem = null;
+            _employmentWorkerPicker.IsEnabled = true;
+            RefreshDirty();
+        });
         AddAction("Export All CSV", ExportEmploymentCsv_Click);
         AddAction("Import CSV", ImportEmploymentCsv_Click);
         AddAction("Refresh", (_, _) => {
@@ -171,6 +196,7 @@ public partial class MainWindow
         }
         finally { _settingWorkerExtraForm = false; }
         EmploymentSelectionChanged(_employmentGrid, null!);
+        _employmentAppliedSearch = _employmentSearch.Text;
     }
 
     private void ExportEmploymentCsv_Click(object sender, RoutedEventArgs e)
