@@ -262,7 +262,7 @@ public partial class MainWindow
         AddExtraField(employmentEditor, recordHeading, _employmentRecordName);
         _employmentNameHint = new TextBlock {
             Text = "Record names use company initials and both employment dates. " +
-                   "Example: PWA (2015-2021) or PWA (2015-Present). You can edit the generated name.",
+                   "Example: NCW (2016-2020) or DNA (2022 -?). You can edit the generated name.",
             Foreground = ExtraColor("#93B4D5"), FontSize = 11,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, -5, 0, 11)
         };
@@ -476,7 +476,7 @@ public partial class MainWindow
             _employmentNameAutomatic = true;
             _employmentRecordName.Text = "";
             _employmentNameHint.Text = "Record names use company initials and both employment dates. " +
-                "Example: PWA (2015-2021) or PWA (2015-Present).";
+                "Example: NCW (2016-2020) or DNA (2022 -?).";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentInitials.Text = _employmentFrom.Text = _employmentUntil.Text = "";
             _employmentCompanyMatch.Text = "Select a company or type its initials.";
@@ -605,7 +605,7 @@ public partial class MainWindow
             _employmentRecordName.Text = item?.RecordName ?? "";
             _employmentNameHint.Text = item == null
                 ? "Record names use company initials and both employment dates. " +
-                  "Example: PWA (2015-2021) or PWA (2015-Present)."
+                  "Example: NCW (2016-2020) or DNA (2022 -?)."
                 : "Existing record name is preserved until you choose Generate name or edit it.";
             _employmentNameHint.Foreground = ExtraColor("#93B4D5");
             _employmentCompany.SelectedItem = item == null ? null :

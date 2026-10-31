@@ -1100,10 +1100,14 @@ if (StudioRecordNames.TitleHistory("BCW Championship", 1) != "BCW Championship00
         new DateTime(2021, 12, 12)) != "PWA (2015-2021)" ||
     StudioRecordNames.Employment(" NCW ", new DateTime(2008, 10, 25),
         new DateTime(2012, 8, 18)) != "NCW (2008-2012)" ||
+    StudioRecordNames.Employment("NCW", new DateTime(2016, 5, 1),
+        new DateTime(2020, 4, 1)) != "NCW (2016-2020)" ||
+    StudioRecordNames.Employment("DNA", new DateTime(2022, 1, 1),
+        StudioDateFormat.OngoingEndDate) != "DNA (2022 -?)" ||
     StudioRecordNames.WithCollisionSuffix("PWA (2015-2021)", 2)
         != "PWA (2015-2021) #2" ||
     StudioRecordNames.Employment("dna", new DateTime(1998, 5, 12),
-        StudioDateFormat.OngoingEndDate) != "DNA (1998-Present)")
+        StudioDateFormat.OngoingEndDate) != "DNA (1998 -?)")
     throw new Exception("Championship or employment record-name format regressed.");
 
 bool invalidRecordNameRejected = false;
@@ -1207,18 +1211,18 @@ var cv = new[]
         new DateTime(2015, 4, 1), new DateTime(2021, 11, 1), "TUSCV0003")
 };
 var brendanCv = RecordNameRepairPlanner.Employment(cv, 4963);
-if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 3 ||
+if (brendanCv.ScannedCount != 3 || brendanCv.Changes.Count != 1 ||
+    brendanCv.Warnings.Count != 2 ||
     brendanCv.Changes.Any(x => x.OwnerUid != 4963) ||
-    !brendanCv.Changes.Any(x => x.NewName == "NCW (2008-2012)") ||
-    !brendanCv.Changes.Any(x => x.NewName == "PWA (2015-2021) #2") ||
-    !brendanCv.Changes.Any(x => x.NewName == "PWA (2015-2021) #3"))
-    throw new Exception("Existing Brendan employment names were not migrated or collision-safe.");
+    brendanCv.Changes[0].NewName != "NCW (2008-2012)" ||
+    brendanCv.Changes.Any(x => x.NewName.Contains('#')))
+    throw new Exception("Employment repair must keep collisions unchanged without suffixes.");
 var wholeCv = RecordNameRepairPlanner.Employment(cv, null);
-if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 3 ||
-    wholeCv.Changes.Select(x => x.NewName)
-        .Distinct(StringComparer.OrdinalIgnoreCase).Count() != wholeCv.Changes.Count ||
+if (wholeCv.ScannedCount != 4 || wholeCv.Changes.Count != 1 ||
+    wholeCv.Warnings.Count != 2 ||
+    wholeCv.Changes[0].NewName != "NCW (2008-2012)" ||
     wholeCv.Changes.Any(x => x.OwnerUid == 77))
-    throw new Exception("Database-wide employment record names were not made unique.");
+    throw new Exception("Database-wide employment collisions were not handled safely.");
 
 // Special TEW 1666 sentinel / damaged historical dates cannot be guessed.
 // Such rows should be shown as skipped rather than silently moved.
@@ -1235,7 +1239,7 @@ var ongoingPeriod = RecordNameRepairPlanner.Employment(new[]
         new DateTime(1998, 5, 12), StudioDateFormat.OngoingEndDate, "OldOngoing")
 }, 90);
 if (ongoingPeriod.Changes.Count != 1 ||
-    ongoingPeriod.Changes[0].NewName != "DNA (1998-Present)" ||
+    ongoingPeriod.Changes[0].NewName != "DNA (1998 -?)" ||
     ongoingPeriod.Warnings.Count != 0)
     throw new Exception("Ongoing employment was incorrectly rejected in record-name repair.");
 
@@ -1809,9 +1813,9 @@ if (!validEmploymentName.IsValid ||
     !StudioDateFormat.IsOngoingEndDate(new DateTime(1666, 1, 1)) ||
     StudioDateFormat.IsOngoingEndDate(new DateTime(1666, 1, 2)) ||
     EmploymentNameGeneration.Validate("DNA", "May 12th 1998", "01/01/1666")
-        .RecordName != "DNA (1998-Present)" ||
+        .RecordName != "DNA (1998 -?)" ||
     EmploymentNameGeneration.Validate("DNA", "5/12/1998", "1/1/1666")
-        .RecordName != "DNA (1998-Present)")
+        .RecordName != "DNA (1998 -?)")
     throw new Exception("Employment name generation rejects valid numeric/written dates.");
 
 foreach (var (initials, fromDate, untilDate, field) in new[] {
@@ -1831,6 +1835,11 @@ foreach (var (initials, fromDate, untilDate, field) in new[] {
         throw new Exception("Employment name generator did not diagnose invalid " +
             field + " input.");
 }
+if (EmploymentNameGeneration.Validate("DNA", "1/1/2022", "01/01/1666")
+        .RecordName != "DNA (2022 -?)" ||
+    EmploymentNameGeneration.Validate("NCW", "1/1/2016", "12/31/2020")
+        .RecordName != "NCW (2016-2020)")
+    throw new Exception("Requested TEW employment Record Name spelling regressed.");
 Console.WriteLine("Passed contextual employment name generation and ongoing-sentinel validation.");
 
 // Contract form changes must be recognized by typed value rather than

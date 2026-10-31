@@ -103,55 +103,90 @@ internal static class RecordNameRepairPlanner
             .OrderBy(row => row.WorkerUid).ThenBy(row => row.From)
             .ThenBy(row => row.Until).ThenBy(row => row.FedUid)
             .ThenBy(row => row.OldName, StringComparer.OrdinalIgnoreCase).ToArray();
-        var reserved = all.Where(row =>
-            selectedWorkerUid != null && row.WorkerUid != selectedWorkerUid)
-            .Select(row => row.OldName)
-            .Where(name => !string.IsNullOrEmpty(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var invalid in targets.Where(row =>
+
+        bool Invalid(EmploymentRecordNameRow row) =>
             string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
             row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
             row.Initials.Any(char.IsControl) ||
             row.From.Year is < 1800 or > 2100 ||
             (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
-             ((row.Until.Year is < 1800 or > 2100) || row.Until < row.From))))
-            if (!string.IsNullOrEmpty(invalid.OldName))
-                reserved.Add(invalid.OldName);
-        var changes = new List<RecordNameRepair>();
-        var warnings = new List<string>();
+             ((row.Until.Year is < 1800 or > 2100) || row.Until < row.From));
 
+        // Existing names on out-of-scope, invalid, or already-correct rows
+        // cannot be reused by a proposed rename.
+        var reserved = all.Where(row =>
+                (selectedWorkerUid != null && row.WorkerUid != selectedWorkerUid) ||
+                Invalid(row))
+            .Select(row => row.OldName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var warnings = new List<string>();
+        var valid = new List<(EmploymentRecordNameRow Row, string Desired)>();
         foreach (var row in targets)
         {
-            if (string.IsNullOrWhiteSpace(row.OldName) || row.WorkerUid <= 0 ||
-                row.FedUid <= 0 || string.IsNullOrWhiteSpace(row.Initials) ||
-                row.Initials.Any(char.IsControl) ||
-                row.From.Year is < 1800 or > 2100 ||
-            (!StudioDateFormat.IsOngoingEndDate(row.Until) &&
-             ((row.Until.Year is < 1800 or > 2100) || row.Until < row.From)))
+            if (Invalid(row))
             {
                 warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
-                    "missing initials, dates, or a valid record identity—left unchanged.");
-                if (!string.IsNullOrEmpty(row.OldName))
-                    reserved.Add(row.OldName);
+                    "missing initials, dates, or a valid record identity; left unchanged.");
                 continue;
             }
-
-            string stem = StudioRecordNames.Employment(
+            string desired = StudioRecordNames.Employment(
                 row.Initials, row.From, row.Until);
-            string proposed = stem;
-            int suffix = 2;
-            while (!reserved.Add(proposed))
-                proposed = StudioRecordNames.WithCollisionSuffix(stem, suffix++);
-
-            if (!string.Equals(row.OldName, proposed, StringComparison.Ordinal))
-                changes.Add(new RecordNameRepair(
-                    "tblCV", null, row.WorkerUid, row.FedUid, null,
-                    row.From, row.Until, row.OldName, proposed,
-                    $"Worker {row.WorkerUid} • {row.Initials} • " +
-                    $"{row.From.Year}-" +
-                    (StudioDateFormat.IsOngoingEndDate(row.Until)
-                        ? "Present" : row.Until.Year.ToString())));
+            if (string.Equals(row.OldName, desired, StringComparison.Ordinal))
+                reserved.Add(row.OldName);
+            else
+                valid.Add((row, desired));
         }
+
+        // A name is a table-wide identifier. When multiple stints generate
+        // the same INITIALS (YYYY-YYYY) or INITIALS (YYYY -?) identifier,
+        // never append #2 or silently choose a winner. Keep the old names and
+        // surface the collisions so the user can rename them manually.
+        var proposedCounts = valid.GroupBy(x => x.Desired,
+            StringComparer.OrdinalIgnoreCase).ToDictionary(
+                x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
+        var skipped = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (row, desired) in valid)
+            if (proposedCounts[desired] > 1 || reserved.Contains(desired))
+                skipped.Add(row.OldName);
+
+        // Skipped rows retain their original names. Propagate collisions with
+        // those original names before producing any write plan.
+        bool changed;
+        do
+        {
+            changed = false;
+            var retained = valid.Where(x => skipped.Contains(x.Row.OldName))
+                .Select(x => x.Row.OldName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var (row, desired) in valid)
+                if (!skipped.Contains(row.OldName) &&
+                    retained.Contains(desired))
+                {
+                    skipped.Add(row.OldName);
+                    changed = true;
+                }
+        }
+        while (changed);
+
+        var changes = new List<RecordNameRepair>();
+        foreach (var (row, desired) in valid)
+        {
+            if (skipped.Contains(row.OldName))
+            {
+                warnings.Add($"Worker {row.WorkerUid}, '{row.OldName}': " +
+                    $"the requested Record Name '{desired}' would duplicate another " +
+                    "employment record. Left unchanged; edit its name manually.");
+                continue;
+            }
+            changes.Add(new RecordNameRepair(
+                "tblCV", null, row.WorkerUid, row.FedUid, null,
+                row.From, row.Until, row.OldName, desired,
+                $"Worker {row.WorkerUid} • {row.Initials} • " +
+                (StudioDateFormat.IsOngoingEndDate(row.Until)
+                    ? $"{row.From.Year} -?" : $"{row.From.Year}-{row.Until.Year}")));
+        }
+
         return new RecordNameRepairPlan(
             "tblCV", selectedWorkerUid, targets.Length, changes, warnings);
     }

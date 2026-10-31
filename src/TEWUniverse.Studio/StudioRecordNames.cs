@@ -26,8 +26,9 @@ internal static class StudioRecordNames
             (!ongoing && ((until.Year is < 1800 or > 2100) || from.Date > until.Date)))
             throw new InvalidOperationException(
                 "Choose initials and valid employment dates, or 01/01/1666 as an ongoing Until date.");
-        string end = ongoing ? "Present" : until.Year.ToString("D4", CultureInfo.InvariantCulture);
-        return $"{company.ToUpperInvariant()} ({from.Year:D4}-{end})";
+        return ongoing
+            ? $"{company.ToUpperInvariant()} ({from.Year:D4} -?)"
+            : $"{company.ToUpperInvariant()} ({from.Year:D4}-{until.Year:D4})";
     }
 
     /// <summary>
