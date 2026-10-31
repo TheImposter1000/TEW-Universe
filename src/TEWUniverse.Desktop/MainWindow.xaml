@@ -153,6 +153,7 @@
 <Button x:Name="TagTeamsNav" Tag="Tag Teams" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tag Teams" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="EventsNav" Tag="Events" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Events" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="StablesNav" Tag="Stables" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Stables" VerticalAlignment="Center"/></StackPanel></Button>
+<Button x:Name="EmploymentNav" Tag="Employment History" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Employment History" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="RelationshipsNav" Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="AwardsNav" Tag="Awards" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Awards" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="ChemistryNav" Tag="Chemistry" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Chemistry" VerticalAlignment="Center"/></StackPanel></Button>
@@ -374,7 +375,7 @@
                    Content="◆   Attributes" Tag="Attributes" Click="Tab_Click" Margin="0,0,5,0"/>
            <Button x:Name="ContractsTab" Style="{StaticResource ActionButton}"
                    Content="▤   Contracts" Tag="Contracts" Click="Tab_Click" Margin="0,0,5,0"/>
-           <Button x:Name="EmploymentTab" Style="{StaticResource ActionButton}"
+           <Button x:Name="EmploymentTab" Visibility="Collapsed" Style="{StaticResource ActionButton}"
                    Content="▣   Employment History" Tag="Employment" Click="Tab_Click"/>
            <Button x:Name="AccomplishmentsTab" Style="{StaticResource ActionButton}"
                    Content="★   Accomplishments" Tag="Accomplishments" Click="Tab_Click" Margin="0,0,5,0"/>
@@ -450,9 +451,7 @@
             <Grid x:Name="ContractsHost"/>
            </Border>
            <Border x:Name="EmploymentView" Visibility="Collapsed"
-                   Style="{StaticResource CardBorder}" Padding="14">
-            <Grid x:Name="EmploymentHost"/>
-           </Border>
+                   Style="{StaticResource CardBorder}" Padding="14"/>
            <Border x:Name="AccomplishmentsView" Visibility="Collapsed"
                    Style="{StaticResource CardBorder}" Padding="14">
             <Grid x:Name="AccomplishmentsHost"/>
@@ -470,6 +469,14 @@
           </Border>
         </Grid>
       </Grid>
+      <!-- Standalone worker-wide tblCV employment editor and CSV manager. -->
+      <Grid x:Name="EmploymentWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
+            Visibility="Collapsed" Margin="10,10,11,10">
+        <Border Style="{StaticResource CardBorder}" Padding="14">
+          <Grid x:Name="EmploymentHost"/>
+        </Border>
+      </Grid>
+
       <!-- Relationship records are managed separately from generic existing-record editing. -->
       <Grid x:Name="RelationshipsWorkspace" Grid.Column="1" Grid.ColumnSpan="2"
             Visibility="Collapsed" Margin="10,10,11,10"/>

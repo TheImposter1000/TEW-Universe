@@ -308,6 +308,31 @@ internal sealed partial class DatabaseSession
         return companies;
     }
 
+    /// <summary>Read every tblCV history period in one query for the standalone editor and CSV.</summary>
+    public List<WorkerEmploymentEntry> ReadAllWorkerEmployment()
+    {
+        ValidateWorkerExtraSchema("tblCV", "RecordName", "WorkerUID",
+            "FedUID", "Initials", "CVFromDate", "CVUntilDate",
+            "Loan", "Trade", "Tour", "Developmental");
+        var result = new List<WorkerEmploymentEntry>();
+        using var command = new OleDbCommand(
+            "SELECT [RecordName],[WorkerUID],[FedUID],[Initials]," +
+            "[CVFromDate],[CVUntilDate],[Loan],[Trade],[Tour],[Developmental] " +
+            "FROM [tblCV] ORDER BY [WorkerUID],[CVFromDate]", _connection);
+        using var reader = command.ExecuteReader();
+        while (reader?.Read() == true)
+            result.Add(new WorkerEmploymentEntry(
+                FieldText(reader.GetValue(0)),
+                Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
+                Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
+                FieldText(reader.GetValue(3)),
+                reader.GetValue(4) is DateTime start ? start : StudioDateFormat.OngoingEndDate,
+                reader.GetValue(5) is DateTime end ? end : StudioDateFormat.OngoingEndDate,
+                Flag(reader.GetValue(6)), Flag(reader.GetValue(7)),
+                Flag(reader.GetValue(8)), Flag(reader.GetValue(9))));
+        return result;
+    }
+
     public List<WorkerEmploymentEntry> ReadWorkerEmployment(int workerId)
     {
         CheckLinkedWorker(workerId);

@@ -47,7 +47,7 @@ public partial class MainWindow
     private List<EmploymentCompanyChoice> _employmentCompanies = new();
     private bool _settingWorkerExtraForm;
 
-    private sealed record EmploymentDisplay(WorkerEmploymentEntry Entry, string Company)
+    private sealed record EmploymentDisplay(WorkerEmploymentEntry Entry, string Company, string WorkerName = "")
     {
         public string FromText => StudioDateFormat.Format(Entry.FromDate);
         public string UntilText => StudioDateFormat.IsOngoingEndDate(Entry.UntilDate)
@@ -493,7 +493,13 @@ public partial class MainWindow
     private void RefreshWorkerExtraTab(string tab, int? attributeUid = null,
         string? employmentKey = null)
     {
-        if (_session == null || _worker == null) return;
+        if (_session == null) return;
+        if (tab == "Employment" && _activeModule == "Employment History")
+        {
+            ReloadEmploymentHistory(EmploymentWorker?.Id, employmentKey);
+            return;
+        }
+        if (_worker == null) return;
         try
         {
             if (tab == "Contracts")
@@ -600,6 +606,13 @@ public partial class MainWindow
         try
         {
             var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
+            if (_activeModule == "Employment History" && _employmentWorkerPicker != null)
+            {
+                if (item != null)
+                    _employmentWorkerPicker.SelectedItem =
+                        _allWorkers.FirstOrDefault(x => x.Id == item.WorkerUid);
+                _employmentWorkerPicker.IsEnabled = item == null;
+            }
             _employmentSave.IsEnabled = _employmentDelete.IsEnabled = item != null;
             _employmentNameAutomatic = item == null;
             _employmentRecordName.Text = item?.RecordName ?? "";
@@ -636,7 +649,8 @@ public partial class MainWindow
     /// </summary>
     private bool HasUnappliedWorkerExtraForm()
     {
-        if (_settingWorkerExtraForm || _worker == null || _attributesGrid == null)
+        if (_settingWorkerExtraForm || _attributesGrid == null ||
+            (_worker == null && _activeModule != "Employment History"))
             return false;
         if (_currentTab == "Contracts") return HasUnappliedContractEdits();
         if (_currentTab == "Accomplishments") return HasPendingAccomplishmentEdits();
@@ -651,7 +665,8 @@ public partial class MainWindow
                 (_attributeHidden.IsChecked == true) != entry.Hidden ||
                 (_attributePermanent.IsChecked == true) != entry.Permanent;
         }
-        if (_currentTab == "Employment")
+        if (_activeModule == "Employment History" ||
+            (_activeModule == "Workers" && _currentTab == "Employment"))
         {
             var item = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
             var company = _employmentCompany.SelectedItem as EmploymentCompanyChoice;
@@ -775,17 +790,22 @@ public partial class MainWindow
 
     private void SaveEmploymentCore(bool createNew)
     {
-        if (_session == null || _worker == null) return;
+        if (_session == null) return;
         try
         {
             var selected = (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry;
+            var owner = !createNew && selected != null
+                ? _allWorkers.FirstOrDefault(w => w.Id == selected.WorkerUid)
+                : EmploymentWorker;
+            if (owner == null)
+                throw new InvalidOperationException("Select a worker for this employment period.");
             if (!createNew && selected == null)
                 throw new InvalidOperationException("Select an existing employment period first.");
             var draft = EmploymentDraft();
             string company = _employmentCompanies.First(x => x.Id == draft.FedUid).Name;
             if (!ConfirmExtraWrite(
                 (createNew ? "Add a new" : "Update this") +
-                $" historical employment period for {_worker.Name} at {company}?\n" +
+                $" historical employment period for {owner.Name} at {company}?\n" +
                 $"Record Name: {(string.IsNullOrEmpty(draft.RequestedRecordName) ? "(generate)" : draft.RequestedRecordName)}\n" +
                 $"{StudioDateFormat.Format(draft.FromDate)} through " +
                 (StudioDateFormat.IsOngoingEndDate(draft.UntilDate)
@@ -794,11 +814,13 @@ public partial class MainWindow
                 "This does not create or change an active worker contract.",
                 createNew ? "Add Employment History" : "Save Employment History")) return;
 
-            string key = _session.SaveWorkerEmployment(_worker.Id,
+            string key = _session.SaveWorkerEmployment(owner.Id,
                 createNew ? null : selected!.RecordName, draft);
             _lastSaved = DateTime.Now;
-            RefreshWorkerExtraTab("Employment", employmentKey: key);
-            SetStatus($"{(createNew ? "Added" : "Updated")} employment period for {_worker.Name} at {company}.");
+            if (_activeModule == "Employment History")
+                ReloadEmploymentHistory(owner.Id, key);
+            else RefreshWorkerExtraTab("Employment", employmentKey: key);
+            SetStatus($"{(createNew ? "Added" : "Updated")} employment period for {owner.Name} at {company}.");
             RefreshDirty();
         }
         catch (Exception ex) { Error(ex); }
@@ -809,20 +831,23 @@ public partial class MainWindow
 
     private void RemoveEmployment_Click(object sender, RoutedEventArgs e)
     {
-        if (_session == null || _worker == null ||
+        if (_session == null ||
             (_employmentGrid.SelectedItem as EmploymentDisplay)?.Entry is not
                 WorkerEmploymentEntry selected) return;
+        var owner = _allWorkers.FirstOrDefault(w => w.Id == selected.WorkerUid);
+        if (owner == null) return;
         if (!ConfirmExtraWrite(
-            $"Remove {_worker.Name}'s historical employment period " +
+            $"Remove {owner.Name}'s historical employment period " +
             $"{StudioDateFormat.Format(selected.FromDate)} through {StudioDateFormat.Format(selected.UntilDate)}?\n" +
             "This is permanent and cannot be restored without a backup.",
             "Remove Employment History")) return;
         try
         {
-            _session.DeleteWorkerEmployment(_worker.Id, selected.RecordName);
+            _session.DeleteWorkerEmployment(owner.Id, selected.RecordName);
             _lastSaved = DateTime.Now;
-            RefreshWorkerExtraTab("Employment");
-            SetStatus($"Removed an employment-history period for {_worker.Name}.");
+            if (_activeModule == "Employment History") ReloadEmploymentHistory();
+            else RefreshWorkerExtraTab("Employment");
+            SetStatus($"Removed an employment-history period for {owner.Name}.");
             RefreshDirty();
         }
         catch (Exception ex) { Error(ex); }

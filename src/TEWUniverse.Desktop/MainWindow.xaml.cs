@@ -566,6 +566,7 @@ public partial class MainWindow : Window
             .Distinct().ToList();
 
         foreach (var field in coreFields) AddField(ProfileFieldsPanel, field);
+        var typeFields = AddWorkerTypeEditor(ProfileFieldsPanel, profile);
         if (detailFields.Count > 0)
         {
             ProfileFieldsPanel.Children.Add(new Border {
@@ -577,7 +578,8 @@ public partial class MainWindow : Window
             foreach (var field in detailFields) AddField(ProfileFieldsPanel, field);
         }
 
-        var advanced = profile.Except(coreFields).Except(detailFields).ToList();
+        var advanced = profile.Except(coreFields).Except(detailFields)
+            .Except(typeFields).ToList();
         if (advanced.Count > 0)
         {
             var advancedFields = new StackPanel { Visibility = Visibility.Collapsed };

@@ -40,7 +40,7 @@ public partial class MainWindow
 
     private void PreviewEmploymentNameRepair(bool allWorkers)
     {
-        if (_session == null || _worker == null) return;
+        if (_session == null || (!allWorkers && EmploymentWorker == null)) return;
         if (HasEdits() || HasUnappliedWorkerExtraForm())
         {
             MessageBox.Show(this,
@@ -51,7 +51,7 @@ public partial class MainWindow
         try
         {
             var plan = _session.PreviewEmploymentRecordNameRepairs(
-                allWorkers ? null : _worker.Id);
+                allWorkers ? null : EmploymentWorker!.Id);
             ShowRecordNameRepairPreview(plan);
         }
         catch (Exception ex) { Error(ex); }
@@ -188,10 +188,10 @@ public partial class MainWindow
                         TitleLineagePanel.Visibility == Visibility.Visible)
                         LoadTitleLineage();
                 }
+                else if (_activeModule == "Employment History")
+                    ReloadEmploymentHistory();
                 else if (_worker != null && _currentTab == "Employment")
-                {
                     RefreshWorkerExtraTab("Employment");
-                }
                 SetStatus($"Repaired {changed:N0} existing " +
                     (titles ? "championship" : "employment") +
                     " RecordName values. No historical facts were changed.");

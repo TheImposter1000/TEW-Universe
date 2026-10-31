@@ -202,6 +202,8 @@ public partial class MainWindow
         WorkerBrowserPanel.Visibility = Visibility.Collapsed;
         WorkerDetailPanel.Visibility = Visibility.Collapsed;
         ExistingWorkspace.Visibility = Visibility.Collapsed;
+        EmploymentWorkspace.Visibility = Visibility.Collapsed;
+        EmploymentNav.Style = (Style)FindResource("NavigationButton");
         RelationshipsWorkspace.Visibility = Visibility.Collapsed;
         AwardsWorkspace.Visibility = Visibility.Collapsed;
         ToolsWorkspace.Visibility = Visibility.Collapsed;
