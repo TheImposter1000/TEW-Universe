@@ -277,10 +277,15 @@ public partial class MainWindow
             int additions = preview.Changes.Count(x => x.IsAdd);
             int deletions = preview.Changes.Count(x => x.IsDelete);
             int edits = preview.Changes.Count - additions - deletions;
-            string mode = preview.IsReplacement
-                ? "Full-table synchronization: deleted spreadsheet rows will be deleted " +
-                  "from the MDB, and new spreadsheet rows will be inserted."
-                : "Advanced Action CSV: only rows explicitly marked Delete are removed.";
+            string mode = preview.RebuildFromSnapshot
+                ? "DUPLICATE-NAME RECOVERY: the MDB contains ambiguous old RecordNames. " +
+                  "All existing employment records will be replaced by the CSV snapshot " +
+                  "within one transaction. The listed Add and DELETE counts are physical " +
+                  "rebuild operations, not new hires and departures. Create a backup first."
+                : preview.IsReplacement
+                    ? "Full-table synchronization: deleted spreadsheet rows will be deleted " +
+                      "from the MDB, and new spreadsheet rows will be inserted."
+                    : "Advanced Action CSV: only rows explicitly marked Delete are removed.";
             if (MessageBox.Show(this,
                 $"Reviewed {preview.ExportedRows:N0} CSV records.\n\n" +
                 $"Add: {additions:N0}\nUpdate: {edits:N0}\nDELETE: {deletions:N0}\n\n" +
