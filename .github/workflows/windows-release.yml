@@ -96,6 +96,8 @@ jobs:
           $notes = @"
           TEW Universe Studio - Experimental Windows Update
 
+          FIX: Employment History Auto-name uses company initials, NOT the full promotion name, for registered and historical unlisted companies. Ongoing: DNA (2022 - ). Historical: DNA (2020 - 2022). The selected company's stored initials and the historical initials field supply the label. Bulk Record Name Repair now also uses the recorded initials, even when the company has a full name in tblFed. Existing records remain unchanged until manually regenerated or explicitly batch repaired. No chemistry mapping changes in this release.
+
           FIX: Employment Auto-name now uses the registered full company name with spaced year formatting: Company Name (2022 - ) for ongoing and Company Name (2020 - 2022) for historical employment. Unlisted historical companies fall back to their stored initials. Existing names are not rewritten without a confirmed edit or bulk rename.
 
           NEW: Chemistry Type codes 1-5 have verified labels Fighting Against, Teaming With, Managing, Commentating With and Booking. Chemistry Quality 1-5 is Great, Good, Neutral, Poor and Awful. Names are TYPE-QUALITY: F.Lastname / F.Lastname, for example FA-GT: J.Cole / C.Potter, with GT/GD/NT/PR/AW quality shorthand. Changing the type or quality updates the readable RecordName, without changing UID or worker references.
