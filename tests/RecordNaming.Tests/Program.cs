@@ -9,22 +9,22 @@ static void Equal<T>(T expected, T actual)
 var ongoing = new DateTime(1666, 1, 1);
 var start = new DateTime(2022, 8, 4);
 var end = new DateTime(2023, 10, 31);
-Equal("Dynamic National Alliance (2022 - )",
-    StudioRecordNames.Employment("Dynamic National Alliance", start, ongoing));
-Equal("Dynamic National Alliance (2022 - 2023)",
-    StudioRecordNames.Employment("Dynamic National Alliance", start, end));
+Equal("DNA (2022 - )",
+    StudioRecordNames.Employment("DNA", start, ongoing));
+Equal("DNA (2022 - 2023)",
+    StudioRecordNames.Employment("DNA", start, end));
 Equal("OLLIE (2022 - )",
     StudioRecordNames.Employment("OLLIE", start, ongoing));
 
 var automatic = EmploymentNameGeneration.Validate(
-    "Dynamic National Alliance", "8/4/2022", "1/1/1666");
+    "DNA", "8/4/2022", "1/1/1666");
 Equal(true, automatic.IsValid);
-Equal("Dynamic National Alliance (2022 - )", automatic.RecordName);
-Equal("Dynamic National Alliance (2022 - 2023)",
+Equal("DNA (2022 - )", automatic.RecordName);
+Equal("DNA (2022 - 2023)",
     EmploymentNameGeneration.Validate(
-        "Dynamic National Alliance", "8/4/2022", "10/31/2023").RecordName);
+        "DNA", "8/4/2022", "10/31/2023").RecordName);
 Equal(false, EmploymentNameGeneration.Validate(
-    "Dynamic National Alliance", "10/31/2023", "8/4/2022").IsValid);
+    "DNA", "10/31/2023", "8/4/2022").IsValid);
 
 string[] types = { "Fighting Against", "Teaming With", "Managing",
     "Commentating With", "Booking" };
@@ -54,13 +54,13 @@ ChemistryRules.ValidateObserved(5, 5, Array.Empty<int>(), Array.Empty<int>());
 
 var history = new List<EmploymentRecordNameRow> {
     new(672, 12, "DNA",
-        start, ongoing, "DNA (2022 -?)", "Dynamic National Alliance"),
+        start, ongoing, "Dynamic National Alliance (2022 - )", "Dynamic National Alliance"),
     new(673, 0, "OLLIE",
         start, end, "OLLIE (2022-2023)")
 };
 var plan = RecordNameRepairPlanner.Employment(history, null);
 Equal(2, plan.Changes.Count);
-Equal("Dynamic National Alliance (2022 - )", plan.Changes[0].NewName);
+Equal("DNA (2022 - )", plan.Changes[0].NewName);
 Equal("OLLIE (2022 - 2023)", plan.Changes[1].NewName);
 
 Console.WriteLine("Passed 25 chemistry format combinations, employment Auto-name, and batch repair naming.");

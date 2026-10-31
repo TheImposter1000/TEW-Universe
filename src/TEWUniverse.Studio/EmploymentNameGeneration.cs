@@ -15,15 +15,15 @@ internal sealed record EmploymentNameGenerationResult(
 internal static class EmploymentNameGeneration
 {
     internal static EmploymentNameGenerationResult Validate(
-        string? companyName, string? fromText, string? untilText)
+        string? initials, string? fromText, string? untilText)
     {
-        string label = (companyName ?? "").Trim();
+        string label = (initials ?? "").Trim();
         if (label.Length == 0)
             return new(null,
-                "Select a company with a name, or enter initials for an unlisted historical company.",
+                "Select a company with saved initials or enter historical company initials.",
                 EmploymentNameField.Initials);
         if (label.Any(char.IsControl))
-            return new(null, "Company name cannot contain control characters.",
+            return new(null, "Company initials cannot contain control characters.",
                 EmploymentNameField.Initials);
 
         string from = (fromText ?? "").Trim();
