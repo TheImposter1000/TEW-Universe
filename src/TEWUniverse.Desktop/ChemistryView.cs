@@ -270,7 +270,7 @@ public partial class MainWindow
         IEnumerable<int> codes, int? selection, bool quality)
     {
         var verified = quality ? ChemistryRules.Qualities.Keys : ChemistryRules.Types.Keys;
-        var choices = verified.Concat(codes).Distinct().OrderBy(x => x)
+        var choices = verified.OrderBy(x => x)
             .Select(x => new ChemistryChoice(x, quality)).ToList();
         if (selection.HasValue && choices.All(x => x.Code != selection.Value))
             choices.Add(new ChemistryChoice(selection.Value, quality));
