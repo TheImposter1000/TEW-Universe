@@ -210,7 +210,24 @@ internal static class SaveTableRecordFilter
                     .Replace("]", "\\]", StringComparison.Ordinal) + "]";
                 var expression = col.DataType == typeof(string) ? quoted :
                     "Convert(" + quoted + ", 'System.String')";
-                return expression + " LIKE '%" + text + "%'";
+                var clauses = new List<string> {
+                    expression + " LIKE '%" + text + "%'"
+                };
+
+                // A label such as Female is displayed for raw code 5.
+                // Searching by the visible label must find that record too.
+                var mapped = TewCodeLabels.Choices(table.TableName, col.ColumnName);
+                var exact = mapped.Where(choice =>
+                    choice.Label.Equals(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+                var candidates = exact.Length > 0 ? exact : mapped.Where(choice =>
+                    choice.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+                foreach (var candidate in candidates)
+                {
+                    var code = candidate.Code.ToString(CultureInfo.InvariantCulture);
+                    clauses.Add(quoted + " = " +
+                        (col.DataType == typeof(string) ? "'" + code + "'" : code));
+                }
+                return "(" + string.Join(" OR ", clauses) + ")";
             }));
     }
 }
