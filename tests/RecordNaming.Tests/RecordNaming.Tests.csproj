@@ -11,5 +11,6 @@
     <Compile Include="../../src/TEWUniverse.Studio/EmploymentNameGeneration.cs" Link="EmploymentNameGeneration.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/RecordNameRepairPlanner.cs" Link="RecordNameRepairPlanner.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/ChemistryRules.cs" Link="ChemistryRules.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/TewFileKindDetector.cs" Link="TewFileKindDetector.cs" />
   </ItemGroup>
 </Project>
