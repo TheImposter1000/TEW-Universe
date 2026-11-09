@@ -558,7 +558,11 @@ internal sealed class SaveTablesView : UserControl, IDisposable
             "Discard unsaved save table changes?",
             "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             == MessageBoxResult.Yes;
-        if (discard) LoadSelected(force: true);
+        if (discard && _loadedTable != null)
+        {
+            _loadedTable.RejectChanges();
+            UpdateDirtyState();
+        }
         return discard;
     }
 
