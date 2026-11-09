@@ -69,6 +69,20 @@ internal static class SaveEditRules
             text.Length > column.MaxLength)
             return false;
 
+        // The detailed editor only uses verified numeric codes. Apply the
+        // same catalog to direct Save Tables edits instead of accepting an
+        // arbitrary integer for a known TEW category.
+        var choices = TewCodeLabels.Choices(tableName, column.ColumnName);
+        if (choices.Count > 0)
+        {
+            if (!TewCodeLabels.TryGetCode(Convert.ToString(value,
+                    CultureInfo.InvariantCulture), out int code))
+                return false;
+            if (!choices.Any(c => c.Code == code &&
+                    !c.Label.Equals("Unassigned", StringComparison.OrdinalIgnoreCase)))
+                return false;
+        }
+
         if (tableName.Equals("tblWorkerSkill", StringComparison.OrdinalIgnoreCase) &&
             PercentageFields.Contains(column.ColumnName))
         {
@@ -170,12 +184,22 @@ internal static class SaveTableRecordFilter
             columns = new[] { table.Columns[column]! };
         }
 
-        var text = query
-            .Replace("'", "''", StringComparison.Ordinal)
-            .Replace("[", "[[]", StringComparison.Ordinal)
-            .Replace("]", "[]]", StringComparison.Ordinal)
-            .Replace("%", "[%]", StringComparison.Ordinal)
-            .Replace("*", "[*]", StringComparison.Ordinal);
+        // Escape LIKE metacharacters in a single pass so the escape
+        // sequences we insert cannot be escaped a second time.
+        var escaped = new System.Text.StringBuilder();
+        foreach (char ch in query)
+        {
+            escaped.Append(ch switch
+            {
+                '\\'' => "''",
+                '[' => "[[]",
+                ']' => "[]]",
+                '%' => "[%]",
+                '*' => "[*]",
+                _ => ch.ToString()
+            });
+        }
+        var text = escaped.ToString();
 
         return string.Join(" OR ", columns.Where(col =>
                 SaveEditRules.IsSupportedScalarType(col.DataType))
