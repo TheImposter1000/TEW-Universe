@@ -786,6 +786,28 @@ public partial class MainWindow : Window
         return (open(asked), asked);
     }
 
+    private void OpenSaveStudio_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog {
+            Title = "Select a TEW IX save game (read-only snapshot)",
+            Filter = "TEW IX save game (*.mdb)|*.mdb"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        var password = PasswordDialog.Ask(this);
+        if (password == null) return;
+
+        try
+        {
+            var window = new SaveStudioWindow(dialog.FileName, password) { Owner = this };
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Could not open Save Studio",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void Import_Click(object sender, RoutedEventArgs e)
     {
         if (!MayLeave()) return;
