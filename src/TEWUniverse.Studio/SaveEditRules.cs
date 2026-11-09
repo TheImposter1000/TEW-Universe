@@ -191,7 +191,7 @@ internal static class SaveTableRecordFilter
         {
             escaped.Append(ch switch
             {
-                '\\'' => "''",
+                '\u0027' => "''",
                 '[' => "[[]",
                 ']' => "[]]",
                 '%' => "[%]",
