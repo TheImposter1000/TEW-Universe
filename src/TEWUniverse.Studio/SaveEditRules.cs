@@ -58,7 +58,9 @@ internal static class SaveEditRules
     internal static bool IsValidValue(string tableName, DataColumn column, object value)
     {
         if (value == null || value is DBNull)
-            return column.AllowDBNull;
+            return column.AllowDBNull &&
+                !(tableName.Equals("tblWorkerSkill", StringComparison.OrdinalIgnoreCase) &&
+                  PercentageFields.Contains(column.ColumnName));
 
         if (!IsSupportedScalarType(column.DataType) || !column.DataType.IsInstanceOfType(value))
             return false;
