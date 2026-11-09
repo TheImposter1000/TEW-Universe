@@ -13,5 +13,7 @@
     <Compile Include="../../src/TEWUniverse.Studio/ChemistryRules.cs" Link="ChemistryRules.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/TewFileKindDetector.cs" Link="TewFileKindDetector.cs" />
     <Compile Include="../../src/TEWUniverse.Studio/SaveEditRules.cs" Link="SaveEditRules.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/TewCodeLabels.cs" Link="TewCodeLabels.cs" />
+    <Compile Include="../../src/TEWUniverse.Studio/AppSettings.cs" Link="AppSettings.cs" />
   </ItemGroup>
 </Project>

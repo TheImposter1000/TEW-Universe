@@ -69,6 +69,20 @@ internal static class SaveEditRules
             text.Length > column.MaxLength)
             return false;
 
+        // The detailed editor only uses verified numeric codes. Apply the
+        // same catalog to direct Save Tables edits instead of accepting an
+        // arbitrary integer for a known TEW category.
+        var choices = TewCodeLabels.Choices(tableName, column.ColumnName);
+        if (choices.Count > 0)
+        {
+            if (!TewCodeLabels.TryGetCode(Convert.ToString(value,
+                    CultureInfo.InvariantCulture), out int code))
+                return false;
+            if (!choices.Any(c => c.Code == code &&
+                    !c.Label.Equals("Unassigned", StringComparison.OrdinalIgnoreCase)))
+                return false;
+        }
+
         if (tableName.Equals("tblWorkerSkill", StringComparison.OrdinalIgnoreCase) &&
             PercentageFields.Contains(column.ColumnName))
         {
@@ -142,4 +156,78 @@ internal static class SaveTableBrowserRules
         table.Equals("tblWorkerOver", StringComparison.OrdinalIgnoreCase) ? 2 :
         table.Equals("tblWorkerPhysical", StringComparison.OrdinalIgnoreCase) ? 3 :
         table.Equals("tblWorkerBio", StringComparison.OrdinalIgnoreCase) ? 4 : 5;
+}
+
+
+/// <summary>
+/// Build a DataView search expression only from the selected DataTable's
+/// discovered columns. Filtering is presentation-only and cannot alter MDB
+/// records or bypass edit validation.
+/// </summary>
+internal static class SaveTableRecordFilter
+{
+    internal const string AllColumns = "All fields";
+
+    internal static string Build(DataTable table, string? column, string? search)
+    {
+        var query = search?.Trim() ?? "";
+        if (query.Length == 0) return "";
+
+        IEnumerable<DataColumn> columns;
+        if (string.IsNullOrWhiteSpace(column) || column == AllColumns)
+            columns = table.Columns.Cast<DataColumn>();
+        else
+        {
+            if (!table.Columns.Contains(column))
+                throw new ArgumentException("The selected record field is not in this table.",
+                    nameof(column));
+            columns = new[] { table.Columns[column]! };
+        }
+
+        // Escape LIKE metacharacters in a single pass so the escape
+        // sequences we insert cannot be escaped a second time.
+        var escaped = new System.Text.StringBuilder();
+        foreach (char ch in query)
+        {
+            escaped.Append(ch switch
+            {
+                '\u0027' => "''",
+                '[' => "[[]",
+                ']' => "[]]",
+                '%' => "[%]",
+                '*' => "[*]",
+                _ => ch.ToString()
+            });
+        }
+        var text = escaped.ToString();
+
+        return string.Join(" OR ", columns.Where(col =>
+                SaveEditRules.IsSupportedScalarType(col.DataType))
+            .Select(col =>
+            {
+                var quoted = "[" + col.ColumnName
+                    .Replace("\\", "\\\\", StringComparison.Ordinal)
+                    .Replace("]", "\\]", StringComparison.Ordinal) + "]";
+                var expression = col.DataType == typeof(string) ? quoted :
+                    "Convert(" + quoted + ", 'System.String')";
+                var clauses = new List<string> {
+                    expression + " LIKE '%" + text + "%'"
+                };
+
+                // A label such as Female is displayed for raw code 5.
+                // Searching by the visible label must find that record too.
+                var mapped = TewCodeLabels.Choices(table.TableName, col.ColumnName);
+                var exact = mapped.Where(choice =>
+                    choice.Label.Equals(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+                var candidates = exact.Length > 0 ? exact : mapped.Where(choice =>
+                    choice.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+                foreach (var candidate in candidates)
+                {
+                    var code = candidate.Code.ToString(CultureInfo.InvariantCulture);
+                    clauses.Add(quoted + " = " +
+                        (col.DataType == typeof(string) ? "'" + code + "'" : code));
+                }
+                return "(" + string.Join(" OR ", clauses) + ")";
+            }));
+    }
 }

@@ -28,11 +28,21 @@ internal sealed class SaveTablesView : UserControl, IDisposable
     private readonly Button _reloadButton = new();
     private readonly Button _nextPageButton = new();
     private readonly Button _previousPageButton = new();
+    private readonly ComboBox _pageSizePicker = new();
+    private readonly ComboBox _recordFieldPicker = new();
+    private readonly TextBox _recordSearch = new();
+    private readonly Button _applyRecordFilter = new();
+    private readonly Button _clearRecordFilter = new();
+    private readonly TextBlock _recordFilterSummary = new();
     private readonly TextBlock _pageLabel = new();
-    private const int PageSize = 250;
+    private const int DefaultPageSize = 250;
+    // 0 means load all records from the selected table.
+    private int _pageSize = DefaultPageSize;
     private int _pageIndex;
     private int _totalRows;
     private DataTable? _loadedTable;
+    internal bool HasPendingChanges => PendingChanges > 0;
+    internal event Action? DirtyStateChanged;
 
     private sealed record SaveTableEntry(string Name, string Category)
     {
@@ -281,10 +291,69 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         controls.Children.Add(_reloadButton);
         details.Children.Add(controls);
 
-        var pager = new StackPanel {
-            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0)
+        var filter = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        filter.Children.Add(new TextBlock {
+            Text = "Find save records by field or search all fields",
+            FontSize = 12, Foreground = Brush("#B6CEE5"), Margin = new Thickness(0, 0, 0, 7)
+        });
+        var filters = new StackPanel { Orientation = Orientation.Horizontal };
+
+        _recordFieldPicker.Style = AppStyle("DarkComboBox");
+        _recordFieldPicker.Width = 185;
+        _recordFieldPicker.Height = 34;
+        _recordFieldPicker.Items.Add(SaveTableRecordFilter.AllColumns);
+        _recordFieldPicker.SelectedIndex = 0;
+        filters.Children.Add(_recordFieldPicker);
+
+        _recordSearch.Style = AppStyle("SearchBox");
+        _recordSearch.Width = 260;
+        _recordSearch.Height = 34;
+        _recordSearch.Margin = new Thickness(9, 0, 0, 0);
+        _recordSearch.ToolTip = "Search across the complete save table, not only the current page";
+        _recordSearch.KeyDown += (_, args) => {
+            if (args.Key == System.Windows.Input.Key.Enter) ApplyRecordFilter();
         };
-        _previousPageButton.Content = "Previous 250";
+        filters.Children.Add(_recordSearch);
+
+        _applyRecordFilter.Content = "Apply Filter";
+        _applyRecordFilter.Style = AppStyle("BlueButton");
+        _applyRecordFilter.Margin = new Thickness(9, 0, 0, 0);
+        _applyRecordFilter.Padding = new Thickness(10, 6, 10, 6);
+        _applyRecordFilter.Click += (_, _) => ApplyRecordFilter();
+        filters.Children.Add(_applyRecordFilter);
+
+        _clearRecordFilter.Content = "Clear";
+        _clearRecordFilter.Style = AppStyle("ActionButton");
+        _clearRecordFilter.Margin = new Thickness(8, 0, 0, 0);
+        _clearRecordFilter.Padding = new Thickness(10, 6, 10, 6);
+        _clearRecordFilter.Click += (_, _) => ClearRecordFilter();
+        filters.Children.Add(_clearRecordFilter);
+        filter.Children.Add(filters);
+        _recordFilterSummary.Foreground = Brush("#A8C4DE");
+        _recordFilterSummary.FontSize = 11;
+        _recordFilterSummary.Margin = new Thickness(0, 5, 0, 0);
+        _recordFilterSummary.Text = "Select a table to search its records.";
+        filter.Children.Add(_recordFilterSummary);
+        details.Children.Add(filter);
+
+        var pager = new StackPanel {
+            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 11, 0, 0)
+        };
+        pager.Children.Add(new TextBlock {
+            Text = "Show records", VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush("#BCD3E8"), Margin = new Thickness(0, 0, 9, 0)
+        });
+        _pageSizePicker.Style = AppStyle("DarkComboBox");
+        _pageSizePicker.Width = 120;
+        _pageSizePicker.Height = 33;
+        foreach (var option in new[] { "100", "250", "500", "1000", "All Records" })
+            _pageSizePicker.Items.Add(option);
+        _pageSizePicker.SelectedItem = "250";
+        _pageSizePicker.SelectionChanged += (_, _) => ChangePageSize();
+        pager.Children.Add(_pageSizePicker);
+
+        _previousPageButton.Margin = new Thickness(12, 0, 0, 0);
+        _previousPageButton.Content = "Previous";
         _previousPageButton.Style = AppStyle("ActionButton");
         _previousPageButton.Padding = new Thickness(10, 6, 10, 6);
         _previousPageButton.Click += (_, _) => ChangePage(-1);
@@ -296,7 +365,7 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _pageLabel.Margin = new Thickness(13, 0, 13, 0);
         pager.Children.Add(_pageLabel);
 
-        _nextPageButton.Content = "Next 250";
+        _nextPageButton.Content = "Next";
         _nextPageButton.Style = AppStyle("ActionButton");
         _nextPageButton.Padding = new Thickness(10, 6, 10, 6);
         _nextPageButton.Click += (_, _) => ChangePage(1);
@@ -332,22 +401,55 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _preview.HorizontalGridLinesBrush = Brush("#30465C");
         _preview.AutoGeneratingColumn += (_, e) =>
         {
-            // Use text columns for all Access field types so WPF does not
-            // generate white checkbox/header controls inside the dark grid.
             var writable = _sessionCanEdit(e.PropertyName);
-            e.Column = new DataGridTextColumn {
-                Header = writable ? e.PropertyName + "  ✎" : e.PropertyName,
-                Binding = new Binding("[" + e.PropertyName + "]") {
-                    Mode = writable ? BindingMode.TwoWay : BindingMode.OneWay,
-                    UpdateSourceTrigger = UpdateSourceTrigger.LostFocus
-                },
-                ElementStyle = GridDisplayStyle(),
-                EditingElementStyle = GridEditingStyle(),
-                Width = ColumnWidth(e.PropertyName),
-                MinWidth = 85,
-                MaxWidth = 450,
-                IsReadOnly = !writable
+            var binding = new Binding("[" + e.PropertyName + "]") {
+                Mode = writable ? BindingMode.TwoWay : BindingMode.OneWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.LostFocus
             };
+            var choices = _loadedTable == null
+                ? Array.Empty<TewCodeChoice>()
+                : TewCodeLabels.Choices(_loadedTable.TableName, e.PropertyName).ToArray();
+
+            if (choices.Length > 0)
+            {
+                // Use the exact same verified numeric code catalog as the
+                // detailed TEW Universe editor. Never write display labels
+                // into the underlying numeric MDB field.
+                var displayed = choices.ToList();
+                foreach (DataRow row in _loadedTable!.Rows)
+                {
+                    if (!TewCodeLabels.TryGetCode(Convert.ToString(
+                        row[e.PropertyName], System.Globalization.CultureInfo.InvariantCulture),
+                        out int stored) || displayed.Any(c => c.Code == stored))
+                        continue;
+                    displayed.Add(new TewCodeChoice(stored, "Unmapped code " + stored));
+                }
+                var comboStyle = AppStyle("DarkComboBox");
+                e.Column = new DataGridComboBoxColumn {
+                    Header = writable ? e.PropertyName + "  ✎" : e.PropertyName,
+                    ItemsSource = displayed,
+                    SelectedValuePath = nameof(TewCodeChoice.Code),
+                    DisplayMemberPath = nameof(TewCodeChoice.Label),
+                    SelectedValueBinding = binding,
+                    ElementStyle = comboStyle,
+                    EditingElementStyle = comboStyle,
+                    Width = ColumnWidth(e.PropertyName),
+                    MinWidth = 105,
+                    MaxWidth = 450,
+                    IsReadOnly = !writable
+                };
+            }
+            else
+                e.Column = new DataGridTextColumn {
+                    Header = writable ? e.PropertyName + "  ✎" : e.PropertyName,
+                    Binding = binding,
+                    ElementStyle = GridDisplayStyle(),
+                    EditingElementStyle = GridEditingStyle(),
+                    Width = ColumnWidth(e.PropertyName),
+                    MinWidth = 85,
+                    MaxWidth = 450,
+                    IsReadOnly = !writable
+                };
         };
         _preview.CellEditEnding += (_, _) =>
             Dispatcher.BeginInvoke(new Action(UpdateDirtyState));
@@ -388,10 +490,18 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _tableList.IsEnabled = count == 0;
         _tableSearch.IsEnabled = count == 0;
         _categoryFilter.IsEnabled = count == 0;
-        _previousPageButton.IsEnabled = count == 0 && _pageIndex > 0;
-        _nextPageButton.IsEnabled = count == 0 && (_pageIndex + 1) * PageSize < _totalRows;
+        _pageSizePicker.IsEnabled = count == 0;
+        _recordFieldPicker.IsEnabled = count == 0;
+        _recordSearch.IsEnabled = count == 0;
+        _applyRecordFilter.IsEnabled = count == 0;
+        _clearRecordFilter.IsEnabled = count == 0;
+        _previousPageButton.IsEnabled = count == 0 &&
+            _pageSize != 0 && _pageIndex > 0;
+        _nextPageButton.IsEnabled = count == 0 && _pageSize != 0 &&
+            (_pageIndex + 1) * _pageSize < _totalRows;
         if (count > 0)
             _status.Text = count + " pending field changes. Save or discard before switching tables.";
+        DirtyStateChanged?.Invoke();
     }
 
     private void RefreshTables()
@@ -420,10 +530,79 @@ internal sealed class SaveTablesView : UserControl, IDisposable
 
     private void LoadSelected() => LoadSelected(force: false);
 
+    private void ChangePageSize()
+    {
+        if (PendingChanges > 0) return;
+        var choice = _pageSizePicker.SelectedItem as string ?? "250";
+        var selected = choice == "All Records" ? 0 :
+            int.TryParse(choice, out var size) ? size : DefaultPageSize;
+        if (_pageSize == selected) return;
+        _pageSize = selected;
+        _pageIndex = 0;
+        if (_pageSize != 0) _recordSearch.Text = "";
+        LoadSelected(force: false);
+    }
+
+    private void ApplyRecordFilter()
+    {
+        if (_loadedTable == null || PendingChanges > 0) return;
+        if (_recordSearch.Text.Trim().Length > 0 && _pageSize != 0)
+        {
+            // Always search the whole save table. Never silently search
+            // only the currently visible 250 records.
+            _pageSizePicker.SelectedItem = "All Records";
+            return; // ChangePageSize performs the complete reload and filter.
+        }
+        ApplyFilterToView();
+    }
+
+    private void ClearRecordFilter()
+    {
+        if (_loadedTable == null || PendingChanges > 0) return;
+        _recordSearch.Text = "";
+        _recordFieldPicker.SelectedIndex = 0;
+        _loadedTable.DefaultView.RowFilter = "";
+        _recordFilterSummary.Text = "Showing " + _loadedTable.DefaultView.Count.ToString("N0") +
+            " records. Search all fields or select a specific field.";
+    }
+
+    private void RebuildRecordFieldChoices(DataTable data)
+    {
+        _recordFieldPicker.Items.Clear();
+        _recordFieldPicker.Items.Add(SaveTableRecordFilter.AllColumns);
+        foreach (DataColumn column in data.Columns)
+            if (SaveEditRules.IsSupportedScalarType(column.DataType))
+                _recordFieldPicker.Items.Add(column.ColumnName);
+        _recordFieldPicker.SelectedIndex = 0;
+    }
+
+    private void ApplyFilterToView()
+    {
+        if (_loadedTable == null) return;
+        try
+        {
+            var column = _recordFieldPicker.SelectedItem as string ??
+                SaveTableRecordFilter.AllColumns;
+            _loadedTable.DefaultView.RowFilter = SaveTableRecordFilter.Build(
+                _loadedTable, column, _recordSearch.Text);
+            _recordFilterSummary.Text = "Matching " +
+                _loadedTable.DefaultView.Count.ToString("N0") + " of " +
+                _totalRows.ToString("N0") + " records in " +
+                _loadedTable.TableName + ".";
+        }
+        catch (Exception ex) when (ex is EvaluateException or SyntaxErrorException
+            or ArgumentException or InvalidOperationException)
+        {
+            _loadedTable.DefaultView.RowFilter = "";
+            _recordFilterSummary.Text = "Filter cannot be applied: " + ex.Message;
+        }
+    }
+
     private void ChangePage(int delta)
     {
         if (PendingChanges > 0 || _loadedTable == null) return;
-        var pages = Math.Max(1, (_totalRows + PageSize - 1) / PageSize);
+        var pages = _pageSize == 0 ? 1 :
+            Math.Max(1, (_totalRows + _pageSize - 1) / _pageSize);
         var next = Math.Clamp(_pageIndex + delta, 0, pages - 1);
         if (next == _pageIndex) return;
         _pageIndex = next;
@@ -451,25 +630,41 @@ internal sealed class SaveTablesView : UserControl, IDisposable
 
         try
         {
-            if (_loadedTable == null ||
-                !_loadedTable.TableName.Equals(item.Name, StringComparison.OrdinalIgnoreCase))
+            var changingTable = _loadedTable == null ||
+                !_loadedTable.TableName.Equals(item.Name, StringComparison.OrdinalIgnoreCase);
+            if (changingTable)
+            {
                 _pageIndex = 0;
+                _recordSearch.Text = "";
+                // Loading every row is always an explicit choice per table.
+                // Switching tables returns to the default manageable page.
+                _pageSize = DefaultPageSize;
+                _pageSizePicker.SelectedItem = "250";
+            }
 
             _totalRows = _session.CountRows(item.Name);
-            var maxPage = Math.Max(0, (_totalRows - 1) / PageSize);
+            var maxPage = _pageSize == 0 ? 0 :
+                Math.Max(0, (_totalRows - 1) / _pageSize);
             _pageIndex = Math.Min(_pageIndex, maxPage);
 
-            var data = _session.Preview(item.Name, _pageIndex, PageSize);
+            var data = _session.Preview(item.Name, _pageIndex, _pageSize);
             if (_loadedTable != null) _loadedTable.RowChanged -= LoadedTable_RowChanged;
             _loadedTable = data;
             _loadedTable.RowChanged += LoadedTable_RowChanged;
             _preview.ItemsSource = data.DefaultView;
+            if (changingTable)
+                RebuildRecordFieldChoices(data);
+            ApplyFilterToView();
             var editable = data.Columns.Cast<DataColumn>()
                 .Count(column => SaveGameSession.CanEdit(data, column));
-            var first = _totalRows == 0 ? 0 : _pageIndex * PageSize + 1;
-            var last = Math.Min((_pageIndex + 1) * PageSize, _totalRows);
-            _pageLabel.Text = first.ToString("N0") + " to " +
-                last.ToString("N0") + " of " + _totalRows.ToString("N0");
+            var first = _totalRows == 0 ? 0 :
+                _pageSize == 0 ? 1 : _pageIndex * _pageSize + 1;
+            var last = _pageSize == 0 ? _totalRows :
+                Math.Min((_pageIndex + 1) * _pageSize, _totalRows);
+            _pageLabel.Text = _pageSize == 0
+                ? "All " + _totalRows.ToString("N0") + " records"
+                : first.ToString("N0") + " to " +
+                    last.ToString("N0") + " of " + _totalRows.ToString("N0");
 
             _tableDetails.Text = item.Name + "  |  " + _session.TableType(item.Name) +
                 "  |  " + item.Category + "  |  " +
@@ -478,8 +673,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
                     ? editable + " editable fields (marked with a pen)"
                     : "Read-only: no unique record key or editable scalar fields");
             _status.Text = editable > 0
-                ? "Editing the selected save directly. Change a pen-marked field and choose Save Changes."
-                : "This Access object is available to inspect; its record identity or field type cannot safely be edited.";
+                ? (_pageSize == 0 ? "All records loaded. " : "") +
+                    "Change a pen-marked field and choose Save Changes to update the save."
+                : "This table is view-only because its field types or row identity are not verified.";
             UpdateDirtyState();
         }
         catch (Exception ex)
@@ -496,7 +692,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
     private void LoadedTable_RowChanged(object? sender, DataRowChangeEventArgs e)
         => Dispatcher.BeginInvoke(new Action(UpdateDirtyState));
 
-    private void SaveChanges_Click(object sender, RoutedEventArgs e)
+    private void SaveChanges_Click(object sender, RoutedEventArgs e) => SavePendingChanges();
+
+    internal void SavePendingChanges()
     {
         if (_loadedTable == null) return;
         _preview.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -546,5 +744,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         return discard;
     }
 
-    public void Dispose() => _session.Dispose();
+    public void Dispose()
+    {
+        DirtyStateChanged = null;
+        _session.Dispose();
+    }
 }

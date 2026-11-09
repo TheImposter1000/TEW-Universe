@@ -15,6 +15,8 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _original = current.Copy();
         ActivePath.Text = current.ActiveDatabasePath;
+        SaveGamePath.Text = current.ActiveSaveGamePath;
+        RememberSavePassword.IsChecked = current.RememberSaveGamePassword;
         BackupPath.Text = current.BackupFolderPath;
         PicturePath.Text = current.WorkerPicturesFolderPath;
         RememberPassword.IsChecked = current.RememberDatabasePassword;
@@ -28,6 +30,16 @@ public partial class SettingsWindow : Window
         };
         if (File.Exists(ActivePath.Text)) dialog.FileName = ActivePath.Text;
         if (dialog.ShowDialog(this) == true) ActivePath.Text = dialog.FileName;
+    }
+
+    private void SaveGameBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog {
+            Title = "Select the active TEW IX game save to edit",
+            Filter = "TEW IX save (*.mdb)|*.mdb"
+        };
+        if (File.Exists(SaveGamePath.Text)) dialog.FileName = SaveGamePath.Text;
+        if (dialog.ShowDialog(this) == true) SaveGamePath.Text = dialog.FileName;
     }
 
     private void BackupBrowse_Click(object sender, RoutedEventArgs e)
@@ -51,6 +63,8 @@ public partial class SettingsWindow : Window
             // Preserve app-only title categories when other settings change.
             var next = _original.Copy();
             next.ActiveDatabasePath = ActivePath.Text;
+            next.ActiveSaveGamePath = SaveGamePath.Text;
+            next.RememberSaveGamePassword = RememberSavePassword.IsChecked == true;
             next.BackupFolderPath = BackupPath.Text;
             next.WorkerPicturesFolderPath = PicturePath.Text;
             next.RememberDatabasePassword = RememberPassword.IsChecked == true;
@@ -68,6 +82,14 @@ public partial class SettingsWindow : Window
                     "Confirm direct database editing", MessageBoxButton.YesNo,
                     MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     return;
+            }
+            if (next.ActiveSaveGamePath.Length > 0)
+            {
+                if (!File.Exists(next.ActiveSaveGamePath))
+                    throw new InvalidOperationException("The selected TEW IX save MDB does not exist.");
+                if (AppSettings.SamePath(next.ActiveSaveGamePath, next.ActiveDatabasePath))
+                    throw new InvalidOperationException(
+                        "The scenario database and active save cannot use the same MDB path.");
             }
             ResultSettings = next;
             DialogResult = true;

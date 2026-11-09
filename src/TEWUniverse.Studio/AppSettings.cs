@@ -7,6 +7,9 @@ internal sealed class AppSettings
 {
     // Explicit direct-edit target. We do not auto-activate a legacy working copy.
     public string ActiveDatabasePath { get; set; } = "";
+    // Separate from the scenario MDB. This is the direct-edit TEW IX game save.
+    public string ActiveSaveGamePath { get; set; } = "";
+    public bool RememberSaveGamePassword { get; set; } = false;
     // Old settings retained for backward-compatible JSON reading only.
     public string DefaultDatabasePath { get; set; } = "";
     public string CurrentCopyPath { get; set; } = "";
@@ -80,6 +83,8 @@ internal sealed class AppSettings
     public AppSettings Copy() => new()
     {
         ActiveDatabasePath = ActiveDatabasePath,
+        ActiveSaveGamePath = ActiveSaveGamePath,
+        RememberSaveGamePassword = RememberSaveGamePassword,
         DefaultDatabasePath = DefaultDatabasePath,
         CurrentCopyPath = CurrentCopyPath,
         BackupFolderPath = BackupFolderPath,
@@ -98,6 +103,7 @@ internal sealed class AppSettings
     public void NormalizeAndValidate()
     {
         ActiveDatabasePath = NormalizeFilePath(ActiveDatabasePath, "Active Database");
+        ActiveSaveGamePath = NormalizeFilePath(ActiveSaveGamePath, "TEW IX Save Game");
         DefaultDatabasePath = NormalizeFilePath(DefaultDatabasePath, "Legacy Default Database");
         CurrentCopyPath = NormalizeFilePath(CurrentCopyPath, "Current Copy");
         BackupFolderPath = string.IsNullOrWhiteSpace(BackupFolderPath)

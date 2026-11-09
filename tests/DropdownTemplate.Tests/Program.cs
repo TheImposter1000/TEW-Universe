@@ -96,3 +96,15 @@ if ((string?)saveTablesNav.Attribute("Click") != "SaveTablesNav_Click" ||
 
 Console.WriteLine("Passed integrated Save Studio main-window navigation checks.");
 
+
+var settingsWindow = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "SettingsWindow.xaml"));
+var settingNames = settingsWindow.Descendants()
+    .Select(node => (string?)node.Attribute(xaml + "Name"))
+    .Where(name => !string.IsNullOrWhiteSpace(name)).ToHashSet();
+if (!settingNames.Contains("SaveGamePath") ||
+    !settingNames.Contains("RememberSavePassword") ||
+    !settingsWindow.Descendants(wpf + "Button")
+        .Any(button => (string?)button.Attribute("Click") == "SaveGameBrowse_Click"))
+    throw new Exception("Save game path and separate credential controls are missing in Settings.");
+
+Console.WriteLine("Passed Save Studio path and credential settings UI checks.");
