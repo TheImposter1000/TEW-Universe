@@ -189,17 +189,20 @@ internal sealed class SaveGameSession : IDisposable
     }
 
     /// <summary>
-    /// Load one page of actual saved records. Sort by Access primary key
+    /// Load one page or all actual saved records. Sort by Access primary key
     /// when available, so paging does not depend on physical table order.
+    /// pageSize = 0 means explicitly load all records (user-selected).
     /// </summary>
     internal DataTable Preview(string tableName, int pageIndex = 0, int pageSize = 250)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("The table was not discovered in this save.");
-        if (pageIndex < 0 || pageSize < 1 || pageSize > 1000)
+        if (pageIndex < 0 || pageSize < 0 || pageSize > 1000)
             throw new ArgumentOutOfRangeException(nameof(pageSize));
-        if (pageIndex > int.MaxValue / pageSize)
+        if (pageSize == 0 && pageIndex != 0)
+            throw new ArgumentOutOfRangeException(nameof(pageIndex));
+        if (pageSize > 0 && pageIndex > int.MaxValue / pageSize)
             throw new ArgumentOutOfRangeException(nameof(pageIndex));
 
         var quoted = QuoteName(tableName);
@@ -218,7 +221,10 @@ internal sealed class SaveGameSession : IDisposable
         using var pageCommand = new OleDbCommand(sql, _connection);
         using var pageAdapter = new OleDbDataAdapter(pageCommand);
         var dataset = new DataSet();
-        pageAdapter.Fill(dataset, pageIndex * pageSize, pageSize, tableName);
+        if (pageSize == 0)
+            pageAdapter.Fill(dataset, tableName);
+        else
+            pageAdapter.Fill(dataset, pageIndex * pageSize, pageSize, tableName);
         var table = dataset.Tables.Contains(tableName)
             ? dataset.Tables[tableName]!
             : new DataTable(tableName);
