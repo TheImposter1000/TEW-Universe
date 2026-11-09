@@ -77,7 +77,13 @@ internal sealed partial class DatabaseSession : IDisposable
     private readonly string _password;
     private OleDbConnection _connection;
     public string PathOnDisk { get; }
+    public bool IsSaveGame { get; }
     public string ProjectFolder => Path.GetDirectoryName(PathOnDisk)!;
+
+    // Save Tables shares the existing ACE connection with the domain editors.
+    // Two independent writers must not be opened against the same save.
+    internal OleDbConnection SharedConnection => _connection;
+    internal void MarkInternalWrite() => _openedStamp = GetStamp(PathOnDisk);
     public string Provider { get; private set; } = "";
 
     // Session connects directly to the user's selected scenario MDB.
@@ -101,9 +107,10 @@ internal sealed partial class DatabaseSession : IDisposable
                 "Close TEW IX's database editor, choose Refresh Database, review the updated records, " +
                 "and then make your changes again.");
     }
-    private DatabaseSession(string path, string password)
+    private DatabaseSession(string path, string password, bool isSaveGame = false)
     {
         PathOnDisk = path;
+        IsSaveGame = isSaveGame;
         _password = password;
         _connection = Connect();
         _openedStamp = GetStamp(PathOnDisk);
@@ -135,7 +142,50 @@ internal sealed partial class DatabaseSession : IDisposable
                 throw new InvalidOperationException(
                     "This MDB contains TEW IX save-game tables. It cannot be opened " +
                     "in the scenario editor, even if the file was renamed. " +
-                    "Choose Open Save Studio to inspect a read-only snapshot.");
+                    "Choose Open Save Studio to edit the active save in its own workspace.");
+            return session;
+        }
+        catch
+        {
+            session.Dispose();
+            throw;
+        }
+    }
+
+    public static DatabaseSession OpenSaveDatabase(string path, string password)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new InvalidOperationException("Choose an existing TEW IX save MDB.");
+
+        var full = Path.GetFullPath(path.Trim());
+        if (!File.Exists(full) || !Path.GetExtension(full)
+                .Equals(".mdb", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Select an existing .mdb save game.");
+        if (new FileInfo(full).IsReadOnly)
+            throw new InvalidOperationException("The selected save is marked read-only.");
+
+        // Refuse a concurrent TEW IX write session before opening the MDB.
+        try
+        {
+            using var exclusive = new FileStream(
+                full, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException(
+                "This save is in use. Close TEW IX before editing it in Save Studio.", ex);
+        }
+
+        var session = new DatabaseSession(full, password, isSaveGame: true);
+        try
+        {
+            var schema = session._connection.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, null);
+            var names = schema == null ? Enumerable.Empty<string>() :
+                schema.Rows.Cast<DataRow>()
+                    .Select(row => Convert.ToString(row["TABLE_NAME"]) ?? "");
+            if (TewFileKindDetector.Detect(names) != TewFileKind.SaveGame)
+                throw new InvalidOperationException(
+                    "The selected MDB does not contain the expected TEW IX save tables.");
             return session;
         }
         catch

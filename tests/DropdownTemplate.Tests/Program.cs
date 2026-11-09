@@ -79,3 +79,20 @@ if (!setupScroll.Ancestors().Contains(advancedPanel) ||
     throw new Exception("Championship Advanced Generator regressed into clipped/nested scrolling or hidden actions.");
 
 Console.WriteLine("Passed championship Builder/Preview layout, reachable actions and full-height preview checks.");
+
+// Save Studio must stay inside the existing desktop window rather than
+// opening a separate top-level editor with a filtered catalog.
+var saveTablesNav = Named("Button", "SaveTablesNav");
+var saveTablesPanel = Named("ContentControl", "SaveTablesPanel");
+var scenarioStart = Named("Button", "ScenarioStartButton");
+var openSave = Named("Button", "OpenSaveButton");
+if ((string?)saveTablesNav.Attribute("Click") != "SaveTablesNav_Click" ||
+    (string?)saveTablesNav.Attribute("Visibility") != "Collapsed" ||
+    (string?)saveTablesPanel.Attribute("Visibility") != "Collapsed" ||
+    (string?)saveTablesPanel.Attribute("Grid.ColumnSpan") != "2" ||
+    (string?)openSave.Attribute("Click") != "OpenSaveStudio_Click" ||
+    (string?)scenarioStart.Attribute("Click") != "EditScenarioStart_Click")
+    throw new Exception("Integrated Save Studio workspace/nav has regressed.");
+
+Console.WriteLine("Passed integrated Save Studio main-window navigation checks.");
+

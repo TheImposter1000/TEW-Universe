@@ -1,20 +1,18 @@
 using System.ComponentModel;
 using System.Data;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Interop;
 using System.Windows.Media;
 
 namespace TEWUniverse.Desktop;
 
 /// <summary>
-/// Direct-save workspace for editing existing, keyed scalar records
-/// across the TEW IX save. Structural keys and unsupported types stay locked.
+/// Embedded all-table editor inside the main TEW Universe Studio window.
+/// Core workers, titles and company editing still use the existing modules.
 /// </summary>
-internal sealed class SaveStudioWindow : Window
+internal sealed class SaveTablesView : UserControl, IDisposable
 {
     private readonly SaveGameSession _session;
     private readonly List<SaveTableEntry> _tables;
@@ -58,50 +56,22 @@ internal sealed class SaveStudioWindow : Window
         public override string ToString() => DisplayName;
     }
 
-    internal SaveStudioWindow(string sourcePath, string password)
+    internal SaveTablesView(TEWUniverse.Studio.DatabaseSession activeSave)
     {
-        _session = SaveGameSession.OpenDirect(sourcePath, password);
+        _session = SaveGameSession.Attach(activeSave);
         _tables = _session.TableNames
             .Select(name => new SaveTableEntry(name, CategoryFor(name)))
             .OrderBy(item => item.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
-        Title = "TEW Universe Studio | Save Studio";
-        Width = 1360;
-        Height = 850;
-        MinWidth = 900;
-        MinHeight = 560;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = Brush("#091322");
         Foreground = Brushes.White;
         Content = BuildContent();
-        SourceInitialized += (_, _) => ApplyDarkTitleBar();
-        Closing += SaveStudioWindow_Closing;
-        Closed += (_, _) => _session.Dispose();
         RefreshTables();
     }
 
     private static SolidColorBrush Brush(string hex)
         => new((Color)ColorConverter.ConvertFromString(hex)!);
-
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    private static extern int DwmSetWindowAttribute(
-        IntPtr window, int attribute, ref int value, int size);
-
-    private void ApplyDarkTitleBar()
-    {
-        // Windows 10/11 supports dark native title bars. Older versions keep
-        // the system title bar instead of failing to open Save Studio.
-        try
-        {
-            var handle = new WindowInteropHelper(this).Handle;
-            var enabled = 1;
-            if (DwmSetWindowAttribute(handle, 20, ref enabled, sizeof(int)) != 0)
-                DwmSetWindowAttribute(handle, 19, ref enabled, sizeof(int));
-        }
-        catch (DllNotFoundException) { }
-        catch (EntryPointNotFoundException) { }
-    }
 
     private Style AppStyle(string name) => (Style)FindResource(name);
 
@@ -189,6 +159,9 @@ internal sealed class SaveStudioWindow : Window
 
     private static string CategoryFor(string name)
     {
+        if (name.StartsWith("MSys", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("USys", StringComparison.OrdinalIgnoreCase))
+            return "Access internal";
         if (name.Contains("History", StringComparison.OrdinalIgnoreCase) ||
             name.EndsWith("Log", StringComparison.OrdinalIgnoreCase) ||
             name.Contains("LogCompetitor", StringComparison.OrdinalIgnoreCase))
@@ -219,15 +192,15 @@ internal sealed class SaveStudioWindow : Window
 
         var header = new StackPanel { Margin = new Thickness(23, 17, 23, 15) };
         header.Children.Add(new TextBlock {
-            Text = "Save Studio", FontSize = 26, FontWeight = FontWeights.Bold
+            Text = "Save Tables", FontSize = 26, FontWeight = FontWeights.Bold
         });
         header.Children.Add(new TextBlock {
-            Text = "DIRECT SAVE EDITING  |  Changes written to the selected MDB  |  Close TEW IX first",
+            Text = "Browse all discovered Access objects. Core workers, companies and titles have detailed editors in the left navigation.",
             FontSize = 12, Foreground = Brush("#F5C96A"), Margin = new Thickness(0, 4, 0, 5)
         });
         header.Children.Add(new TextBlock {
             Text = System.IO.Path.GetFileName(_session.OriginalPath) +
-                "  |  " + _tables.Count + " discovered tables",
+                "  |  " + _tables.Count + " Access objects (including nonstandard names and internal objects)",
             FontSize = 12, Foreground = Brush("#A6BFDA")
         });
         Grid.SetRow(header, 0);
@@ -242,7 +215,7 @@ internal sealed class SaveStudioWindow : Window
         };
         var picker = new StackPanel { Margin = new Thickness(14, 13, 14, 12) };
         picker.Children.Add(new TextBlock {
-            Text = "SAVE TABLES", FontSize = 13, FontWeight = FontWeights.Bold,
+            Text = "ALL ACCESS OBJECTS", FontSize = 13, FontWeight = FontWeights.Bold,
             Foreground = Brush("#AFCEF1"), Margin = new Thickness(0, 0, 0, 9)
         });
         picker.Children.Add(new TextBlock {
@@ -273,7 +246,7 @@ internal sealed class SaveStudioWindow : Window
         _categoryFilter.Margin = new Thickness(0, 0, 0, 0);
         foreach (var category in new[] {
             "All categories", "Current universe", "History and results",
-            "Game and booking state", "Other save tables"
+            "Game and booking state", "Other save tables", "Access internal"
         })
             _categoryFilter.Items.Add(category);
         _categoryFilter.SelectedIndex = 0;
@@ -491,7 +464,7 @@ internal sealed class SaveStudioWindow : Window
         if (PendingChanges > 0 && !force)
             return;
         if (PendingChanges > 0 &&
-            MessageBox.Show(this, "Discard all pending edits to this table?",
+            MessageBox.Show(Window.GetWindow(this), "Discard all pending edits to this table?",
                 "Discard changes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             != MessageBoxResult.Yes)
             return;
@@ -518,13 +491,15 @@ internal sealed class SaveStudioWindow : Window
             _pageLabel.Text = first.ToString("N0") + " to " +
                 last.ToString("N0") + " of " + _totalRows.ToString("N0");
 
-            _tableDetails.Text = item.Name + "  |  " + item.Category + "  |  " +
+            _tableDetails.Text = item.Name + "  |  " + _session.TableType(item.Name) +
+                "  |  " + item.Category + "  |  " +
                 data.Columns.Count + " columns  |  " +
                 (editable > 0
                     ? editable + " editable fields (marked with a pen)"
                     : "Read-only: no unique record key or editable scalar fields");
-            _status.Text = "Editing the selected save directly. " +
-                "Select an editable field, change its value, then choose Save Changes.";
+            _status.Text = editable > 0
+                ? "Editing the selected save directly. Change a pen-marked field and choose Save Changes."
+                : "This Access object is available to inspect; its record identity or field type cannot safely be edited.";
             UpdateDirtyState();
         }
         catch (Exception ex)
@@ -549,7 +524,7 @@ internal sealed class SaveStudioWindow : Window
         var changes = PendingChanges;
         if (changes == 0) return;
 
-        if (MessageBox.Show(this,
+        if (MessageBox.Show(Window.GetWindow(this),
                 "Save " + changes + " changed fields directly into:\n\n" +
                 _session.OriginalPath +
                 "\n\nTEW IX must be closed. These edits will change the original game save. " +
@@ -567,20 +542,29 @@ internal sealed class SaveStudioWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Save failed",
+            MessageBox.Show(Window.GetWindow(this), ex.Message, "Save failed",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    private void SaveStudioWindow_Closing(object? sender, CancelEventArgs e)
+    // Called before leaving the embedded table workspace, loading another MDB
+    // or exiting Studio. Pending edits are never silently abandoned.
+    internal bool MayLeave()
     {
         _preview.CommitEdit(DataGridEditingUnit.Cell, true);
         _preview.CommitEdit(DataGridEditingUnit.Row, true);
-        if (PendingChanges == 0) return;
-        if (MessageBox.Show(this,
-                "Discard unsaved save edits and close?",
-                "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-            != MessageBoxResult.Yes)
-            e.Cancel = true;
+        if (PendingChanges == 0) return true;
+        var discard = MessageBox.Show(Window.GetWindow(this),
+            "Discard unsaved save table changes?",
+            "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            == MessageBoxResult.Yes;
+        if (discard && _loadedTable != null)
+        {
+            _loadedTable.RejectChanges();
+            UpdateDirtyState();
+        }
+        return discard;
     }
+
+    public void Dispose() => _session.Dispose();
 }
