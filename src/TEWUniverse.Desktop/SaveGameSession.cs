@@ -127,26 +127,52 @@ internal sealed class SaveGameSession : IDisposable
             .ToList();
     }
 
-    /// <summary>
-    /// Preview existing table data. The DataTable tracks pending grid edits
-    /// in memory until Save Changes is explicitly confirmed by the user.
-    /// </summary>
-    internal DataTable Preview(string tableName, int limit = 250)
+    internal int CountRows(string tableName)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("The table was not discovered in this save.");
-        if (limit < 1 || limit > 250)
-            throw new ArgumentOutOfRangeException(nameof(limit));
+
+        using var command = new OleDbCommand(
+            "SELECT COUNT(*) FROM " + QuoteName(tableName), _connection);
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Load one page of actual saved records. Sort by Access primary key
+    /// when available, so paging does not depend on physical table order.
+    /// </summary>
+    internal DataTable Preview(string tableName, int pageIndex = 0, int pageSize = 250)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The table was not discovered in this save.");
+        if (pageIndex < 0 || pageSize < 1 || pageSize > 1000)
+            throw new ArgumentOutOfRangeException(nameof(pageSize));
+        if (pageIndex > int.MaxValue / pageSize)
+            throw new ArgumentOutOfRangeException(nameof(pageIndex));
 
         var quoted = QuoteName(tableName);
-        using var command = new OleDbCommand(
-            "SELECT TOP " + limit.ToString(CultureInfo.InvariantCulture) +
-            " * FROM " + quoted, _connection);
-        using var adapter = new OleDbDataAdapter(command);
-        var table = new DataTable(tableName);
-        adapter.Fill(table);
-        table.ExtendedProperties["SaveRecordKeys"] = ResolveRecordKeys(table);
+        // A zero-row result reveals the actual column schema without loading
+        // thousands of records to discover the correct identity fields.
+        using var schemaCommand = new OleDbCommand(
+            "SELECT * FROM " + quoted + " WHERE 1 = 0", _connection);
+        using var schemaAdapter = new OleDbDataAdapter(schemaCommand);
+        var schema = new DataTable(tableName);
+        schemaAdapter.Fill(schema);
+        var keys = ResolveRecordKeys(schema);
+
+        var sql = "SELECT * FROM " + quoted +
+            (keys.Length == 0 ? "" : " ORDER BY " +
+                string.Join(", ", keys.Select(QuoteName)));
+        using var pageCommand = new OleDbCommand(sql, _connection);
+        using var pageAdapter = new OleDbDataAdapter(pageCommand);
+        var dataset = new DataSet();
+        pageAdapter.Fill(dataset, pageIndex * pageSize, pageSize, tableName);
+        var table = dataset.Tables.Contains(tableName)
+            ? dataset.Tables[tableName]!
+            : new DataTable(tableName);
+        table.ExtendedProperties["SaveRecordKeys"] = keys;
         return table;
     }
 
