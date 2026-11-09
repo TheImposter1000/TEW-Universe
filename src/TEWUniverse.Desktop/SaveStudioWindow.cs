@@ -11,8 +11,8 @@ using System.Windows.Media;
 namespace TEWUniverse.Desktop;
 
 /// <summary>
-/// Direct-save workspace. Only explicitly validated skill columns are editable;
-/// the remainder of the save is inspectable but remains read-only.
+/// Direct-save workspace for editing existing, keyed scalar records
+/// across the TEW IX save. Structural keys and unsupported types stay locked.
 /// </summary>
 internal sealed class SaveStudioWindow : Window
 {
@@ -27,6 +27,12 @@ internal sealed class SaveStudioWindow : Window
     private readonly Button _saveButton = new();
     private readonly Button _discardButton = new();
     private readonly Button _reloadButton = new();
+    private readonly Button _nextPageButton = new();
+    private readonly Button _previousPageButton = new();
+    private readonly TextBlock _pageLabel = new();
+    private const int PageSize = 250;
+    private int _pageIndex;
+    private int _totalRows;
     private DataTable? _loadedTable;
 
     private sealed record SaveTableEntry(string Name, string Category)
@@ -324,6 +330,29 @@ internal sealed class SaveStudioWindow : Window
         _reloadButton.Click += (_, _) => LoadSelected(force: true);
         controls.Children.Add(_reloadButton);
         details.Children.Add(controls);
+
+        var pager = new StackPanel {
+            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0)
+        };
+        _previousPageButton.Content = "Previous 250";
+        _previousPageButton.Style = AppStyle("ActionButton");
+        _previousPageButton.Padding = new Thickness(10, 6, 10, 6);
+        _previousPageButton.Click += (_, _) => ChangePage(-1);
+        pager.Children.Add(_previousPageButton);
+
+        _pageLabel.Text = "No records";
+        _pageLabel.Foreground = Brush("#C9DCEF");
+        _pageLabel.VerticalAlignment = VerticalAlignment.Center;
+        _pageLabel.Margin = new Thickness(13, 0, 13, 0);
+        pager.Children.Add(_pageLabel);
+
+        _nextPageButton.Content = "Next 250";
+        _nextPageButton.Style = AppStyle("ActionButton");
+        _nextPageButton.Padding = new Thickness(10, 6, 10, 6);
+        _nextPageButton.Click += (_, _) => ChangePage(1);
+        pager.Children.Add(_nextPageButton);
+        details.Children.Add(pager);
+
         Grid.SetRow(details, 0);
         right.Children.Add(details);
 
@@ -409,6 +438,8 @@ internal sealed class SaveStudioWindow : Window
         _tableList.IsEnabled = count == 0;
         _tableSearch.IsEnabled = count == 0;
         _categoryFilter.IsEnabled = count == 0;
+        _previousPageButton.IsEnabled = count == 0 && _pageIndex > 0;
+        _nextPageButton.IsEnabled = count == 0 && (_pageIndex + 1) * PageSize < _totalRows;
         if (count > 0)
             _status.Text = count + " pending field changes. Save or discard before switching tables.";
     }
@@ -436,6 +467,16 @@ internal sealed class SaveStudioWindow : Window
 
     private void LoadSelected() => LoadSelected(force: false);
 
+    private void ChangePage(int delta)
+    {
+        if (PendingChanges > 0 || _loadedTable == null) return;
+        var pages = Math.Max(1, (_totalRows + PageSize - 1) / PageSize);
+        var next = Math.Clamp(_pageIndex + delta, 0, pages - 1);
+        if (next == _pageIndex) return;
+        _pageIndex = next;
+        LoadSelected(force: false);
+    }
+
     private void LoadSelected(bool force)
     {
         if (_tableList.SelectedItem is not SaveTableEntry item)
@@ -457,26 +498,41 @@ internal sealed class SaveStudioWindow : Window
 
         try
         {
+            if (_loadedTable == null ||
+                !_loadedTable.TableName.Equals(item.Name, StringComparison.OrdinalIgnoreCase))
+                _pageIndex = 0;
+
+            _totalRows = _session.CountRows(item.Name);
+            var maxPage = Math.Max(0, (_totalRows - 1) / PageSize);
+            _pageIndex = Math.Min(_pageIndex, maxPage);
+
+            var data = _session.Preview(item.Name, _pageIndex, PageSize);
             if (_loadedTable != null) _loadedTable.RowChanged -= LoadedTable_RowChanged;
-            var data = _session.Preview(item.Name);
             _loadedTable = data;
             _loadedTable.RowChanged += LoadedTable_RowChanged;
             _preview.ItemsSource = data.DefaultView;
             var editable = data.Columns.Cast<DataColumn>()
                 .Count(column => SaveGameSession.CanEdit(data, column));
+            var first = _totalRows == 0 ? 0 : _pageIndex * PageSize + 1;
+            var last = Math.Min((_pageIndex + 1) * PageSize, _totalRows);
+            _pageLabel.Text = first.ToString("N0") + " to " +
+                last.ToString("N0") + " of " + _totalRows.ToString("N0");
+
             _tableDetails.Text = item.Name + "  |  " + item.Category + "  |  " +
-                data.Columns.Count + " columns  |  Showing up to 250 rows" +
+                data.Columns.Count + " columns  |  " +
                 (editable > 0
-                    ? "  |  " + editable + " editable skill fields"
-                    : "  |  Read-only until validated for save editing");
-            _status.Text = "Loaded " + data.Rows.Count +
-                " rows from the active save. Nothing is changed until Save Changes.";
+                    ? editable + " editable fields (marked with a pen)"
+                    : "Read-only: no unique record key or editable scalar fields");
+            _status.Text = "Editing the selected save directly. " +
+                "Select an editable field, change its value, then choose Save Changes.";
             UpdateDirtyState();
         }
         catch (Exception ex)
         {
             _preview.ItemsSource = null;
             _loadedTable = null;
+            _totalRows = 0;
+            _pageLabel.Text = "No records";
             _tableDetails.Text = item.Name + " could not be loaded.";
             _status.Text = ex.Message;
         }
