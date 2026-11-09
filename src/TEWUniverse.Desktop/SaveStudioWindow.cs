@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Data;
 using System.Windows;
 using System.Windows.Controls;
@@ -6,7 +7,8 @@ using System.Windows.Media;
 namespace TEWUniverse.Desktop;
 
 /// <summary>
-/// Dedicated Save Studio workspace. No edit, save, SQL, or import controls exist.
+/// Direct-save workspace. Only explicitly validated skill columns are editable;
+/// the remainder of the save is inspectable but remains read-only.
 /// </summary>
 internal sealed class SaveStudioWindow : Window
 {
@@ -18,6 +20,10 @@ internal sealed class SaveStudioWindow : Window
     private readonly DataGrid _preview = new();
     private readonly TextBlock _tableDetails = new();
     private readonly TextBlock _status = new();
+    private readonly Button _saveButton = new();
+    private readonly Button _discardButton = new();
+    private readonly Button _reloadButton = new();
+    private DataTable? _loadedTable;
 
     private sealed record SaveTableEntry(string Name, string Category)
     {
@@ -26,13 +32,13 @@ internal sealed class SaveStudioWindow : Window
 
     internal SaveStudioWindow(string sourcePath, string password)
     {
-        _session = SaveGameSession.OpenReadOnly(sourcePath, password);
+        _session = SaveGameSession.OpenDirect(sourcePath, password);
         _tables = _session.TableNames
             .Select(name => new SaveTableEntry(name, CategoryFor(name)))
             .OrderBy(item => item.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
-        Title = "TEW Universe Studio | Save Studio (Read Only)";
+        Title = "TEW Universe Studio | Save Studio";
         Width = 1360;
         Height = 850;
         MinWidth = 900;
@@ -41,6 +47,7 @@ internal sealed class SaveStudioWindow : Window
         Background = Brush("#091322");
         Foreground = Brushes.White;
         Content = BuildContent();
+        Closing += SaveStudioWindow_Closing;
         Closed += (_, _) => _session.Dispose();
         RefreshTables();
     }
@@ -83,8 +90,8 @@ internal sealed class SaveStudioWindow : Window
             Text = "Save Studio", FontSize = 26, FontWeight = FontWeights.Bold
         });
         header.Children.Add(new TextBlock {
-            Text = "READ ONLY  |  Disposable snapshot  |  Original save never edited",
-            FontSize = 12, Foreground = Brush("#65D5B6"), Margin = new Thickness(0, 4, 0, 5)
+            Text = "DIRECT SAVE EDITING  |  Changes written to the selected MDB  |  Close TEW IX first",
+            FontSize = 12, Foreground = Brush("#F5C96A"), Margin = new Thickness(0, 4, 0, 5)
         });
         header.Children.Add(new TextBlock {
             Text = System.IO.Path.GetFileName(_session.OriginalPath) +
@@ -139,18 +146,43 @@ internal sealed class SaveStudioWindow : Window
         right.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         var details = new StackPanel { Margin = new Thickness(16, 13, 16, 11) };
         details.Children.Add(new TextBlock {
-            Text = "Table preview", FontSize = 19, FontWeight = FontWeights.SemiBold
+            Text = "Table records", FontSize = 19, FontWeight = FontWeights.SemiBold
         });
         _tableDetails.Text = "Select a save table to inspect its records.";
         _tableDetails.Margin = new Thickness(0, 6, 0, 0);
         _tableDetails.Foreground = Brush("#A6BFDA");
         _tableDetails.TextWrapping = TextWrapping.Wrap;
         details.Children.Add(_tableDetails);
+
+        var controls = new StackPanel {
+            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 11, 0, 0)
+        };
+        _saveButton.Content = "Save Changes";
+        _saveButton.Padding = new Thickness(14, 8, 14, 8);
+        _saveButton.Background = Brush("#176FDF");
+        _saveButton.Foreground = Brushes.White;
+        _saveButton.IsEnabled = false;
+        _saveButton.Click += SaveChanges_Click;
+        controls.Children.Add(_saveButton);
+
+        _discardButton.Content = "Discard Changes";
+        _discardButton.Padding = new Thickness(14, 8, 14, 8);
+        _discardButton.Margin = new Thickness(9, 0, 0, 0);
+        _discardButton.IsEnabled = false;
+        _discardButton.Click += (_, _) => LoadSelected(force: true);
+        controls.Children.Add(_discardButton);
+
+        _reloadButton.Content = "Refresh Table";
+        _reloadButton.Padding = new Thickness(14, 8, 14, 8);
+        _reloadButton.Margin = new Thickness(9, 0, 0, 0);
+        _reloadButton.Click += (_, _) => LoadSelected(force: true);
+        controls.Children.Add(_reloadButton);
+        details.Children.Add(controls);
         Grid.SetRow(details, 0);
         right.Children.Add(details);
 
         _preview.AutoGenerateColumns = true;
-        _preview.IsReadOnly = true;
+        _preview.IsReadOnly = false;
         _preview.CanUserAddRows = false;
         _preview.CanUserDeleteRows = false;
         _preview.EnableRowVirtualization = true;
@@ -163,12 +195,19 @@ internal sealed class SaveStudioWindow : Window
         _preview.BorderThickness = new Thickness(0);
         _preview.GridLinesVisibility = DataGridGridLinesVisibility.Horizontal;
         _preview.HorizontalGridLinesBrush = Brush("#30465C");
-        _preview.AutoGeneratingColumn += (_, e) => {
+        _preview.AutoGeneratingColumn += (_, e) =>
+        {
             if (e.Column is DataGridTextColumn column)
                 column.Binding = new System.Windows.Data.Binding("[" + e.PropertyName + "]") {
-                    Mode = System.Windows.Data.BindingMode.OneWay
+                    Mode = System.Windows.Data.BindingMode.TwoWay,
+                    UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.LostFocus
                 };
+            e.Column.IsReadOnly = _loadedTable == null ||
+                !_sessionCanEdit(e.PropertyName);
         };
+        _preview.CellEditEnding += (_, _) =>
+            Dispatcher.BeginInvoke(new Action(UpdateDirtyState));
+        _preview.CurrentCellChanged += (_, _) => UpdateDirtyState();
         Grid.SetRow(_preview, 1);
         right.Children.Add(_preview);
         Grid.SetColumn(right, 1);
@@ -189,8 +228,29 @@ internal sealed class SaveStudioWindow : Window
         return layout;
     }
 
+    private bool _sessionCanEdit(string columnName)
+        => _loadedTable?.Columns.Contains(columnName) == true
+            && SaveGameSession.CanEdit(_loadedTable, _loadedTable.Columns[columnName]!);
+
+    private int PendingChanges =>
+        _loadedTable == null ? 0 : _session.CountPendingEdits(_loadedTable);
+
+    private void UpdateDirtyState()
+    {
+        var count = PendingChanges;
+        _saveButton.IsEnabled = count > 0;
+        _discardButton.IsEnabled = count > 0;
+        // Do not silently lose staged edits by browsing to another table.
+        _tableList.IsEnabled = count == 0;
+        _tableSearch.IsEnabled = count == 0;
+        _categoryFilter.IsEnabled = count == 0;
+        if (count > 0)
+            _status.Text = count + " pending field changes. Save or discard before switching tables.";
+    }
+
     private void RefreshTables()
     {
+        if (PendingChanges > 0) return;
         var query = _tableSearch.Text.Trim();
         var category = _categoryFilter.SelectedItem as string ?? "All categories";
         var previous = (_tableList.SelectedItem as SaveTableEntry)?.Name;
@@ -204,32 +264,99 @@ internal sealed class SaveStudioWindow : Window
             string.Equals(item.Name, previous, StringComparison.OrdinalIgnoreCase))
             ?? filtered.FirstOrDefault();
         _status.Text = filtered.Count + " of " + _tables.Count +
-            " tables  |  All data is read from a temporary snapshot.";
+            " tables  |  Direct edits require explicit Save Changes.";
     }
 
-    private void LoadSelected()
+    private void LoadSelected() => LoadSelected(force: false);
+
+    private void LoadSelected(bool force)
     {
         if (_tableList.SelectedItem is not SaveTableEntry item)
         {
-            _preview.ItemsSource = null;
-            _tableDetails.Text = "No matching table selected.";
+            if (PendingChanges == 0)
+            {
+                _preview.ItemsSource = null;
+                _tableDetails.Text = "No matching table selected.";
+            }
             return;
         }
+        if (PendingChanges > 0 && !force)
+            return;
+        if (PendingChanges > 0 &&
+            MessageBox.Show(this, "Discard all pending edits to this table?",
+                "Discard changes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes)
+            return;
 
         try
         {
+            if (_loadedTable != null) _loadedTable.RowChanged -= LoadedTable_RowChanged;
             var data = _session.Preview(item.Name);
+            _loadedTable = data;
+            _loadedTable.RowChanged += LoadedTable_RowChanged;
             _preview.ItemsSource = data.DefaultView;
+            var editable = data.Columns.Cast<DataColumn>()
+                .Count(column => SaveGameSession.CanEdit(data, column));
             _tableDetails.Text = item.Name + "  |  " + item.Category + "  |  " +
-                data.Columns.Count + " columns  |  Showing up to 250 rows";
+                data.Columns.Count + " columns  |  Showing up to 250 rows" +
+                (editable > 0
+                    ? "  |  " + editable + " editable skill fields"
+                    : "  |  Read-only until validated for save editing");
             _status.Text = "Loaded " + data.Rows.Count +
-                " preview rows. Save data cannot be modified from this window.";
+                " rows from the active save. Nothing is changed until Save Changes.";
+            UpdateDirtyState();
         }
         catch (Exception ex)
         {
             _preview.ItemsSource = null;
-            _tableDetails.Text = item.Name + " could not be previewed.";
+            _loadedTable = null;
+            _tableDetails.Text = item.Name + " could not be loaded.";
             _status.Text = ex.Message;
         }
+    }
+
+    private void LoadedTable_RowChanged(object? sender, DataRowChangeEventArgs e)
+        => Dispatcher.BeginInvoke(new Action(UpdateDirtyState));
+
+    private void SaveChanges_Click(object sender, RoutedEventArgs e)
+    {
+        if (_loadedTable == null) return;
+        _preview.CommitEdit(DataGridEditingUnit.Cell, true);
+        _preview.CommitEdit(DataGridEditingUnit.Row, true);
+        var changes = PendingChanges;
+        if (changes == 0) return;
+
+        if (MessageBox.Show(this,
+                "Save " + changes + " changed fields directly into:\n\n" +
+                _session.OriginalPath +
+                "\n\nTEW IX must be closed. These edits will change the original game save.",
+                "Confirm changes to active save", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            var committed = _session.SaveChanges(_loadedTable);
+            UpdateDirtyState();
+            _status.Text = "Saved " + committed +
+                " fields directly to the TEW IX save. No working copy was created.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Save failed",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void SaveStudioWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        _preview.CommitEdit(DataGridEditingUnit.Cell, true);
+        _preview.CommitEdit(DataGridEditingUnit.Row, true);
+        if (PendingChanges == 0) return;
+        if (MessageBox.Show(this,
+                "Discard unsaved save edits and close?",
+                "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes)
+            e.Cancel = true;
     }
 }
