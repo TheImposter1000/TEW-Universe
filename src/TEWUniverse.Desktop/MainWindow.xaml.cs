@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
 using TEWUniverse.Studio;
@@ -778,9 +779,13 @@ public partial class MainWindow : Window
     }
 
     private (DatabaseSession session, string password)? OpenWithCredential(
-        Func<string, DatabaseSession> open)
+        Func<string, DatabaseSession> open, bool saveGame = false)
     {
-        var saved = _settings.RememberDatabasePassword ? CredentialStore.TryRead() : null;
+        var saved = saveGame
+            ? (_settings.RememberSaveGamePassword
+                ? CredentialStore.TryReadSaveGamePassword() : null)
+            : (_settings.RememberDatabasePassword
+                ? CredentialStore.TryRead() : null);
         if (!string.IsNullOrEmpty(saved))
         {
             try { return (open(saved), saved); }
@@ -794,14 +799,29 @@ public partial class MainWindow : Window
     private void OpenSaveStudio_Click(object sender, RoutedEventArgs e)
     {
         if (!MayLeave()) return;
-        var dialog = new OpenFileDialog {
-            Title = "Open a TEW IX save in the main Studio workspace",
-            Filter = "TEW IX save (*.mdb)|*.mdb"
-        };
-        if (dialog.ShowDialog(this) != true) return;
+        var savedPath = _settings.ActiveSaveGamePath;
+        // Shift-click allows changing a saved path without visiting Settings.
+        bool browse = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ||
+            string.IsNullOrWhiteSpace(savedPath) || !File.Exists(savedPath);
+        string path;
+        if (browse)
+        {
+            var dialog = new OpenFileDialog {
+                Title = "Select the TEW IX save game to edit directly",
+                Filter = "TEW IX save (*.mdb)|*.mdb"
+            };
+            if (File.Exists(savedPath)) dialog.FileName = savedPath;
+            if (dialog.ShowDialog(this) != true) return;
+            path = dialog.FileName;
+        }
+        else
+        {
+            path = savedPath;
+        }
+
         if (MessageBox.Show(this,
                 "Open this TEW IX save directly in the full Studio editor?\n\n" +
-                dialog.FileName + "\n\nClose TEW IX first. Changes are written to this file, " +
+                path + "\n\nClose TEW IX first. Changes are written to this file, " +
                 "and game-only references are not automatically repaired.",
                 "Open Save Studio", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
@@ -810,7 +830,7 @@ public partial class MainWindow : Window
         try
         {
             var opened = OpenWithCredential(p =>
-                DatabaseSession.OpenSaveDatabase(dialog.FileName, p));
+                DatabaseSession.OpenSaveDatabase(path, p), saveGame: true);
             if (opened.HasValue)
             {
                 SetSession(opened.Value.session, opened.Value.password);
@@ -952,11 +972,11 @@ public partial class MainWindow : Window
             var list = opened.ListWorkers();
             var copy = _settings.Copy();
             // A save must not replace the remembered scenario database path.
-            if (!opened.IsSaveGame)
-            {
+            if (opened.IsSaveGame)
+                copy.ActiveSaveGamePath = opened.PathOnDisk;
+            else
                 copy.ActiveDatabasePath = opened.PathOnDisk;
-                copy.Save();
-            }
+            copy.Save();
             UnloadSaveTables();
             _session?.Dispose();
             _session = opened;
@@ -1062,10 +1082,19 @@ public partial class MainWindow : Window
                     ? $"Save Studio: {list.Count:N0} worker records loaded. Select a profile or All Save Tables."
                     : "This save reports zero worker records in tblWorker. Check the actual save and its worker tables."
                 : $"Loaded {list.Count:N0} existing workers");
-            if (_settings.RememberDatabasePassword)
+            if (opened.IsSaveGame ? _settings.RememberSaveGamePassword :
+                _settings.RememberDatabasePassword)
             {
-                try { CredentialStore.Save(password); }
-                catch (Exception ex) { SetStatus("Loaded database, but Windows did not save the password: " + ex.Message); }
+                try
+                {
+                    if (opened.IsSaveGame) CredentialStore.SaveGamePassword(password);
+                    else CredentialStore.Save(password);
+                }
+                catch (Exception ex)
+                {
+                    SetStatus("Opened the MDB, but the remembered password could not be saved: " +
+                        ex.Message);
+                }
             }
         }
         catch
@@ -1082,16 +1111,27 @@ public partial class MainWindow : Window
         var next = dialog.ResultSettings;
         bool changed = !AppSettings.SamePath(next.ActiveDatabasePath, _settings.ActiveDatabasePath) &&
             !(string.IsNullOrWhiteSpace(next.ActiveDatabasePath) && string.IsNullOrWhiteSpace(_settings.ActiveDatabasePath));
-        if (changed && !MayLeave()) return;
+        bool changedSave = !AppSettings.SamePath(
+            next.ActiveSaveGamePath, _settings.ActiveSaveGamePath) &&
+            !(string.IsNullOrWhiteSpace(next.ActiveSaveGamePath) &&
+              string.IsNullOrWhiteSpace(_settings.ActiveSaveGamePath));
+        if ((changed || (changedSave && _session?.IsSaveGame == true)) && !MayLeave())
+            return;
         try
         {
             next.Save();
             if (!next.RememberDatabasePassword) CredentialStore.Delete();
-            else if (_sessionPassword != null) CredentialStore.Save(_sessionPassword);
+            else if (_session?.IsSaveGame == false && _sessionPassword != null)
+                CredentialStore.Save(_sessionPassword);
+
+            if (!next.RememberSaveGamePassword || changedSave)
+                CredentialStore.DeleteSaveGamePassword();
+            else if (_session?.IsSaveGame == true && _sessionPassword != null)
+                CredentialStore.SaveGamePassword(_sessionPassword);
             _settings = next;
             RefreshPortraits();
             SetStatus("Settings saved.");
-            if (changed)
+            if (changed || (changedSave && _session?.IsSaveGame == true))
             {
                 UnloadSaveTables();
                 _activeModule = "Workers";
@@ -1117,7 +1157,10 @@ public partial class MainWindow : Window
                 ReloadWorkerFilterIndex();
                 FilterWorkers();
                 BackupButton.IsEnabled = SaveAsButton.IsEnabled = SaveButton.IsEnabled = false;
-                RestoreProject();
+                if (changed)
+                    RestoreProject();
+                else
+                    SetStatus("Save path updated. Choose Open Save Studio to open the configured save.");
             }
         }
         catch (Exception ex) { Error(ex); }
