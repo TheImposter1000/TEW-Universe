@@ -2,13 +2,15 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
-## Save Studio (initial read-only support)
+## Save Studio (first direct-save editing phase)
 
-The main toolbar now offers **Open Save Studio** separately from **Select Database**. Save Studio accepts a TEW IX save-game MDB and asks for its existing Access password. It copies the selected file to a disposable temporary snapshot, opens that copy using the Microsoft ACE provider in read mode, identifies the file from its actual Access tables, and provides a searchable list of tables with a preview of up to 250 records per table. Categories help separate current-universe records, game/booking state, and histories/results. There are no save-game edit or import commands. Close TEW IX before taking the snapshot so the copy is consistent.
+The main toolbar offers **Open Save Studio** separately from **Select Database**. Save Studio opens the **actual TEW IX save MDB** using Windows Microsoft ACE OLE DB. It does not create a working copy or require the user to move an edited file back into the game. **Close TEW IX before opening the save** to avoid concurrent write conflicts.
 
-The existing Database Studio still edits scenarios. Its open path now checks the schema and refuses save-game files **even if renamed**, instead of relying solely on the literal `TEW9Save.mdb` filename. This is important because the original editor includes destructive update tools that are not validated against ongoing games.
+Save Studio identifies the file by its actual Access table schema. The workspace provides a searchable, categorized table browser with up to 250 records per table. **Validated numeric wrestler skill columns in `tblWorkerSkill` can be changed directly** (values 0 through 100). They are staged in the grid until the user selects **Save Changes** and confirms the exact target path; the app then commits the changes transactionally into the selected game save. Row identity and previous values are checked, and a stale or ambiguous record causes rollback. There is also a discard option.
 
-Both modes use the existing Windows application. Save Studio is currently a separate read-only window; domain-aware worker/company dashboards, historical comparisons, and save editing are **not implemented**. Runtime Access compatibility must be validated on Windows with the 64-bit Microsoft ACE OLE DB provider and a disposable save copy. The password is used for the connection and is not written to the repository.
+All other tables, keys and unverified fields remain read-only until their save-specific relationships and validation rules have been established. No INSERT, DELETE, arbitrary SQL, or automatic backup is enabled in Save Studio. The lack of a mandatory backup is intentional, but users should still maintain their own TEW save backups before first testing. Writing to a live save can corrupt game state if undocumented dependencies exist.
+
+The existing Database Studio still edits scenarios, with schema-based protection that rejects save-game files **even if renamed**. Save Studio is a separate window within the same desktop application; domain-aware dashboards and general save editing are not yet implemented. Windows build tests and real-world MDB runtime verification are separate requirements.
 
 ## Verified numeric code labels
 
