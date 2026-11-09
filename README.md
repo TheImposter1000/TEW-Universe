@@ -14,6 +14,8 @@ In **Settings**, configure the active save game path separately from the scenari
 
 All Save Tables writes changed values **directly into the selected save** after confirmation, using an Access transaction that checks original values and requires an unambiguous row match. Identifiers and foreign-key references remain locked; inserting/deleting records and generic raw SQL are not available. The ordinary detailed modules retain their existing save behavior and validations.
 
+**Pencil-marked columns:** Click the *cell* to edit a value. Clicking the column header (including its pencil marker) sorts the records using the underlying TEW field name. Save Studio now handles sorting explicitly rather than allowing WPF to interpret the decorated header as an Access column; enum dropdowns no longer intercept clicks while the cell is in display mode. Recoverable UI exceptions are logged locally to `%LOCALAPPDATA%\\TEW Universe Studio\\logs\\ui-errors.log`, instead of silently closing the application. The diagnostic file is not uploaded.
+
 **Important:** Save editing is still experimental, and a successful Windows build does not establish compatibility with every TEW IX gameplay dependency. Keep a separate recovery backup for first-time testing and verify that the modified game loads correctly. Changing a stored value without understanding the game rules can create inconsistencies, even when Access accepts the update.
 
 ## Verified numeric code labels
