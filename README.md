@@ -2,15 +2,17 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
-## Save Studio (first direct-save editing phase)
+## Save Studio (direct save record editing)
 
-The main toolbar offers **Open Save Studio** separately from **Select Database**. Save Studio opens the **actual TEW IX save MDB** using Windows Microsoft ACE OLE DB. It does not create a working copy or require the user to move an edited file back into the game. **Close TEW IX before opening the save** to avoid concurrent write conflicts.
+Use **Open Save Studio** to edit the actual TEW IX save MDB without exporting or copying a working file back into the game. **Close TEW IX before editing.**
 
-Save Studio identifies the file by its actual Access table schema. The workspace provides a searchable, categorized table browser with up to 250 records per table. **Validated numeric wrestler skill columns in `tblWorkerSkill` can be changed directly** (values 0 through 100). They are staged in the grid until the user selects **Save Changes** and confirms the exact target path; the app then commits the changes transactionally into the selected game save. Row identity and previous values are checked, and a stale or ambiguous record causes rollback. There is also a discard option.
+Save Studio discovers the save's Access tables and opens records in a searchable, categorized, paginated grid. Browse every page in groups of 250 records rather than being limited to the first 250. Fields marked with a pen in their header are editable. **All supported scalar fields on records with discoverable primary/unique identity keys** can be updated, including names, biographies, finances, title details, worker statistics, popularity and other numeric, date and boolean values, where present in the actual save. The supported editing scope is much broader than just `tblWorkerSkill`. Original record keys, `Recordname`, UID foreign-key references, binary fields, computed/read-only fields, and tables without a usable row identity are protected.
 
-All other tables, keys and unverified fields remain read-only until their save-specific relationships and validation rules have been established. No INSERT, DELETE, arbitrary SQL, or automatic backup is enabled in Save Studio. The lack of a mandatory backup is intentional, but users should still maintain their own TEW save backups before first testing. Writing to a live save can corrupt game state if undocumented dependencies exist.
+Edit cells in place, then select **Save Changes** to commit them directly to the selected save after confirmation. The changes are verified against the original record values and written in one Access transaction. An update that affects an unexpected number of rows or a stale record causes rollback. There is no automatic backup or temporary working copy, per the direct-edit design. A table may still be view-only if ACE exposes no usable identity key.
 
-The existing Database Studio still edits scenarios, with schema-based protection that rejects save-game files **even if renamed**. Save Studio is a separate window within the same desktop application; domain-aware dashboards and general save editing are not yet implemented. Windows build tests and real-world MDB runtime verification are separate requirements.
+This is **raw save data editing**, not a guarantee that every changed field is safe according to TEW IX game rules. TEW maintains many linked systems; changing a valid Access value can still make gameplay inconsistent. Do not edit structural references manually. For initial compatibility checks, keep your own recovery backup, and verify that the updated save opens correctly in TEW IX. The app does not support inserting or deleting save records or arbitrary SQL in this phase. Those operations require separate identity and relationship validation.
+
+The existing **Database Studio** remains the scenario editor and refuses save files based on their actual schema, even when renamed. The application shares an installer but keeps the two editing workspaces separate.
 
 ## Verified numeric code labels
 
