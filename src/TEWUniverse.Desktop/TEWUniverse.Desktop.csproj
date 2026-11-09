@@ -16,6 +16,7 @@
   <ItemGroup>
     <Compile Include="..\TEWUniverse.Studio\DatabaseSession.cs" Link="Services\DatabaseSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\TewFileKindDetector.cs" Link="Services\TewFileKindDetector.cs"/>
+    <Compile Include="..\TEWUniverse.Studio\SaveEditRules.cs" Link="Services\SaveEditRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CompanyFieldRules.cs" Link="Services\CompanyFieldRules.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CompanyExtendedSession.cs" Link="Services\CompanyExtendedSession.cs"/>
     <Compile Include="..\TEWUniverse.Studio\CompanyRosterSession.cs" Link="Services\CompanyRosterSession.cs"/>
