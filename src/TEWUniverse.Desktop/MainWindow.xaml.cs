@@ -832,6 +832,9 @@ public partial class MainWindow : Window
 
         try
         {
+            // The regular module form should not retain discarded staged fields.
+            _fields.Clear();
+            _existingFields.Clear();
             _saveTablesView ??= new SaveTablesView(_session);
             SaveTablesPanel.Content = _saveTablesView;
             _activeModule = "Save Tables";
@@ -1077,6 +1080,14 @@ public partial class MainWindow : Window
             SetStatus("Settings saved.");
             if (changed)
             {
+                UnloadSaveTables();
+                _activeModule = "Workers";
+                SaveTablesNav.Visibility = Visibility.Collapsed;
+                ScenarioStartButton.Visibility = Visibility.Visible;
+                TitleLineageTab.Visibility = Visibility.Visible;
+                AdvancedLineageTab.Visibility = Visibility.Visible;
+                WorkerBrowserPanel.Visibility = Visibility.Visible;
+                WorkerDetailPanel.Visibility = Visibility.Visible;
                 _session?.Dispose();
                 _session = null;
                 _toolsResults.Clear();
