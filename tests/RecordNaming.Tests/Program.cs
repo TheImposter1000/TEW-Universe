@@ -161,6 +161,15 @@ filtered.RowFilter = SaveTableRecordFilter.Build(records, SaveTableRecordFilter.
 Equal(1, filtered.Count);
 filtered.RowFilter = SaveTableRecordFilter.Build(records, "Name", "");
 Equal(2, filtered.Count);
+records.Columns.Add("Gender", typeof(int));
+records.Rows[0]["Gender"] = 5;
+records.Rows[1]["Gender"] = 1;
+filtered.RowFilter = SaveTableRecordFilter.Build(records, "Gender", "Female");
+Equal(1, filtered.Count);
+filtered.RowFilter = SaveTableRecordFilter.Build(records, "Gender", "Male");
+Equal(1, filtered.Count);
+filtered.RowFilter = SaveTableRecordFilter.Build(records, SaveTableRecordFilter.AllColumns, "Female");
+Equal(1, filtered.Count);
 
 // Save configuration and remembered password choice are independent from
 // the scenario MDB configuration and survive a settings clone.
