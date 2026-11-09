@@ -67,6 +67,14 @@
               </StackPanel>
             </StackPanel>
           </Button>
+          <Button Style="{StaticResource ActionButton}" Click="OpenSaveStudio_Click" Margin="0,0,9,0"
+                  ToolTip="Inspect a TEW IX save using a disposable read-only copy">
+            <StackPanel>
+              <TextBlock Text="Open Save Studio" FontWeight="SemiBold"/>
+              <TextBlock Text="Read-only save browser" FontWeight="Normal" FontSize="10"
+                         Foreground="{StaticResource TextBrushMuted}"/>
+            </StackPanel>
+          </Button>
           <Button Style="{StaticResource ActionButton}" Click="RefreshDatabase_Click" Margin="0,0,9,0">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="&#xE8A7;" FontFamily="Segoe MDL2 Assets" Foreground="#F5BC4C" FontSize="23" Margin="0,0,12,0"/>
