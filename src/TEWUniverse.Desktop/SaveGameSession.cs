@@ -14,21 +14,43 @@ namespace TEWUniverse.Desktop;
 internal sealed class SaveGameSession : IDisposable
 {
     private readonly OleDbConnection _connection;
+    private readonly bool _ownsConnection;
+    private readonly Action? _notifySharedWrite;
+    private readonly Dictionary<string, string> _tableTypes;
     private bool _disposed;
     private FileStamp _lastKnownStamp;
 
     private readonly record struct FileStamp(long Length, DateTime LastWriteUtc);
 
-    private SaveGameSession(string path, OleDbConnection connection, List<string> tables)
+    private SaveGameSession(string path, OleDbConnection connection,
+        Dictionary<string, string> catalog, bool ownsConnection = true,
+        Action? notifySharedWrite = null)
     {
         OriginalPath = path;
         _connection = connection;
-        TableNames = tables.AsReadOnly();
+        _ownsConnection = ownsConnection;
+        _notifySharedWrite = notifySharedWrite;
+        _tableTypes = catalog;
+        TableNames = catalog.Keys.OrderBy(name => name,
+            StringComparer.OrdinalIgnoreCase).ToArray();
         _lastKnownStamp = GetStamp(path);
     }
 
     internal string OriginalPath { get; }
     internal IReadOnlyList<string> TableNames { get; }
+    internal string TableType(string name) =>
+        _tableTypes.TryGetValue(name, out var type) ? type : "Unknown";
+
+    // The all-tables browser uses the same ACE session as the main editor.
+    // It is a view within Studio, not a second database window.
+    internal static SaveGameSession Attach(DatabaseSession parent)
+    {
+        if (!parent.IsSaveGame)
+            throw new InvalidOperationException("A save game must be selected first.");
+        var catalog = ReadTableCatalog(parent.SharedConnection);
+        return new SaveGameSession(parent.PathOnDisk, parent.SharedConnection,
+            catalog, ownsConnection: false, notifySharedWrite: parent.MarkInternalWrite);
+    }
 
     private static FileStamp GetStamp(string path)
     {
@@ -86,13 +108,13 @@ internal sealed class SaveGameSession : IDisposable
                 connection = new OleDbConnection(builder.ConnectionString);
                 connection.Open();
 
-                var tables = ReadUserTables(connection);
-                if (TewFileKindDetector.Detect(tables) != TewFileKind.SaveGame)
+                var catalog = ReadTableCatalog(connection);
+                if (TewFileKindDetector.Detect(catalog.Keys) != TewFileKind.SaveGame)
                     throw new InvalidOperationException(
                         "This file lacks the expected TEW IX save-game tables. " +
                         "Use Select Database for a scenario MDB.");
 
-                return new SaveGameSession(path, connection, tables);
+                return new SaveGameSession(path, connection, catalog);
             }
             catch (Exception ex)
             {
@@ -113,18 +135,23 @@ internal sealed class SaveGameSession : IDisposable
             "Microsoft ACE OLE DB installation.\n\n" + string.Join("\n", errors.Take(2)));
     }
 
-    private static List<string> ReadUserTables(OleDbConnection connection)
+    // Return every discoverable Access object, including names without a tbl
+    // prefix and provider-reported system objects. Provider permissions may
+    // prevent previewing an internal object; it must still appear in the catalog.
+    private static Dictionary<string, string> ReadTableCatalog(OleDbConnection connection)
     {
+        var catalog = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var schema = connection.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, null);
-        if (schema == null) return new();
-        return schema.Rows.Cast<DataRow>()
-            .Where(row => string.Equals(
-                Convert.ToString(row["TABLE_TYPE"]), "TABLE", StringComparison.OrdinalIgnoreCase))
-            .Select(row => Convert.ToString(row["TABLE_NAME"]) ?? "")
-            .Where(name => name.StartsWith("tbl", StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        if (schema == null) return catalog;
+        foreach (DataRow row in schema.Rows)
+        {
+            var name = Convert.ToString(row["TABLE_NAME"])?.Trim();
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var type = schema.Columns.Contains("TABLE_TYPE")
+                ? Convert.ToString(row["TABLE_TYPE"]) ?? "TABLE" : "TABLE";
+            catalog.TryAdd(name, type);
+        }
+        return catalog;
     }
 
     internal int CountRows(string tableName)
@@ -343,6 +370,7 @@ internal sealed class SaveGameSession : IDisposable
 
             transaction.Commit();
             _lastKnownStamp = GetStamp(OriginalPath);
+            _notifySharedWrite?.Invoke();
             table.AcceptChanges();
             return pending.Count;
         }
@@ -361,6 +389,6 @@ internal sealed class SaveGameSession : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _connection.Dispose();
+        if (_ownsConnection) _connection.Dispose();
     }
 }
