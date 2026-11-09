@@ -106,6 +106,7 @@ public partial class MainWindow : Window
     }
 
     private bool HasEdits() => _activeModule switch {
+        "Save Tables" => _saveTablesView?.HasPendingChanges == true,
         "Workers" => _fields.Any(x => x.Dirty) ||
             (_bioExists && BioEditor.Text != _originalBio) ||
             (_currentTab == "Contracts" && HasUnappliedContractEdits()) ||
