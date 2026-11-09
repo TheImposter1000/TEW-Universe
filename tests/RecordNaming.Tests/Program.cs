@@ -123,5 +123,19 @@ game.Columns.Add("CurrentDate", typeof(DateTime));
 Equal(true, SaveEditRules.CanEdit("tblGameInfo", game.Columns["CurrentDate"]!, beltKey));
 Equal(false, SaveEditRules.CanEdit("randomTable", game.Columns["CurrentDate"]!, beltKey));
 
-Console.WriteLine("Passed naming checks and broad record-editing rules for Save Studio.");
+
+Equal(false, SaveTableBrowserRules.Include("MSysObjects", "SYSTEM TABLE"));
+Equal(false, SaveTableBrowserRules.Include("USysNavigationPane", "TABLE"));
+Equal(false, SaveTableBrowserRules.Include("tblWorker", "SYSTEM TABLE"));
+Equal(true, SaveTableBrowserRules.Include("tblWorker", "TABLE"));
+Equal(true, SaveTableBrowserRules.Include("tblWorkerSkill", "TABLE"));
+Equal(true, SaveTableBrowserRules.Include("CustomTEWTable", "TABLE"));
+Equal("Workers", SaveTableBrowserRules.Category("tblWorker"));
+Equal("Workers", SaveTableBrowserRules.Category("tblWorkerSkill"));
+Equal("Workers", SaveTableBrowserRules.Category("tblWorkerBio"));
+Equal(0, SaveTableBrowserRules.CategoryOrder("Workers"));
+Equal(0, SaveTableBrowserRules.WorkerOrder("tblWorker"));
+Equal(1, SaveTableBrowserRules.WorkerOrder("tblWorkerSkill"));
+
+Console.WriteLine("Passed naming, direct save editing, and prioritized TEW worker table discovery checks.");
 
