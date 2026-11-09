@@ -78,4 +78,18 @@ Equal(TewFileKind.SaveGame, TewFileKindDetector.Detect(new[]
 }));
 Equal(TewFileKind.Unknown, TewFileKindDetector.Detect(new[] { "tblWorker", "tblInfo" }));
 
-Console.WriteLine("Passed naming checks and four TEW file-kind classification checks.");
+
+var skills = new System.Data.DataTable("tblWorkerSkill");
+skills.Columns.Add("WorkerUID", typeof(int));
+skills.Columns.Add("Brawling", typeof(int));
+skills.Columns.Add("NotASkill", typeof(int));
+Equal(true, SaveEditRules.CanEdit("tblWorkerSkill", skills.Columns["Brawling"]!));
+Equal(false, SaveEditRules.CanEdit("tblWorkerSkill", skills.Columns["WorkerUID"]!));
+Equal(false, SaveEditRules.CanEdit("tblWorkerSkill", skills.Columns["NotASkill"]!));
+Equal(false, SaveEditRules.CanEdit("tblGameInfo", skills.Columns["Brawling"]!));
+Equal(true, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", 100));
+Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", -1));
+Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", 101));
+Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", DBNull.Value));
+
+Console.WriteLine("Passed naming checks and TEW file-kind and save edit-rule tests.");
