@@ -108,3 +108,36 @@ if (!settingNames.Contains("SaveGamePath") ||
     throw new Exception("Save game path and separate credential controls are missing in Settings.");
 
 Console.WriteLine("Passed Save Studio path and credential settings UI checks.");
+
+
+// The scrollbars shared by the main editor and Save Studio must have
+// horizontal and vertical tracks. Previously the global Width=12 style
+// collapsed every horizontal track to a 12-pixel control.
+var darkScroll = document.Descendants(wpf + "Style").Single(style =>
+    (string?)style.Attribute("TargetType") == "ScrollBar" &&
+    style.Attribute(xaml + "Key") == null);
+var scrollTemplate = darkScroll.Descendants(wpf + "ControlTemplate").Single();
+var scrollTrack = scrollTemplate.Descendants(wpf + "Track").Single();
+var horizontalScrollTemplateTrigger = scrollTemplate.Descendants(wpf + "Trigger").Single(t =>
+    (string?)t.Attribute("Property") == "Orientation" &&
+    (string?)t.Attribute("Value") == "Horizontal");
+var horizontalBarSizeTrigger = darkScroll.Element(wpf + "Style.Triggers")?
+    .Elements(wpf + "Trigger").SingleOrDefault(t =>
+        (string?)t.Attribute("Property") == "Orientation" &&
+        (string?)t.Attribute("Value") == "Horizontal");
+if ((string?)scrollTrack.Attribute("Orientation") != "Vertical" ||
+    horizontalBarSizeTrigger == null ||
+    !HasSetter(horizontalScrollTemplateTrigger, wpf, "PART_Track", "Orientation", "Horizontal") ||
+    !HasSetter(horizontalScrollTemplateTrigger, wpf, "DecreasePage", "Command",
+        "{x:Static ScrollBar.PageLeftCommand}") ||
+    !HasSetter(horizontalScrollTemplateTrigger, wpf, "IncreasePage", "Command",
+        "{x:Static ScrollBar.PageRightCommand}") ||
+    !horizontalBarSizeTrigger.Elements(wpf + "Setter").Any(setter =>
+        (string?)setter.Attribute("Property") == "Width" &&
+        (string?)setter.Attribute("Value") == "Auto") ||
+    !horizontalBarSizeTrigger.Elements(wpf + "Setter").Any(setter =>
+        (string?)setter.Attribute("Property") == "Height" &&
+        (string?)setter.Attribute("Value") == "14"))
+    throw new Exception("WPF dark scrollbar orientation or horizontal track sizing has regressed.");
+
+Console.WriteLine("Passed two-axis scrollbar orientation and horizontal width regression checks.");
