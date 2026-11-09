@@ -63,4 +63,19 @@ Equal(2, plan.Changes.Count);
 Equal("DNA (2022 - )", plan.Changes[0].NewName);
 Equal("OLLIE (2022 - 2023)", plan.Changes[1].NewName);
 
-Console.WriteLine("Passed 25 chemistry format combinations, employment Auto-name, and batch repair naming.");
+
+Equal(TewFileKind.Scenario, TewFileKindDetector.Detect(new[]
+{
+    "tblWorker", "tblFed", "tblInfo", "tblBelt"
+}));
+Equal(TewFileKind.SaveGame, TewFileKindDetector.Detect(new[]
+{
+    "tblWorker", "tblFed", "tblInfo", "tblGameInfo", "tblPlayerInfo"
+}));
+Equal(TewFileKind.SaveGame, TewFileKindDetector.Detect(new[]
+{
+    "TBLGAMEINFO", "TBLMATCHLOG"
+}));
+Equal(TewFileKind.Unknown, TewFileKindDetector.Detect(new[] { "tblWorker", "tblInfo" }));
+
+Console.WriteLine("Passed naming checks and four TEW file-kind classification checks.");
