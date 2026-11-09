@@ -978,6 +978,13 @@ public partial class MainWindow : Window
                 ? Visibility.Visible : Visibility.Collapsed;
             ScenarioStartButton.Visibility = opened.IsSaveGame
                 ? Visibility.Collapsed : Visibility.Visible;
+            // Pre-game history generators are not the correct interface for
+            // modifying a running game's title reigns.
+            TitleLineageTab.Visibility = opened.IsSaveGame
+                ? Visibility.Collapsed : Visibility.Visible;
+            AdvancedLineageTab.Visibility = opened.IsSaveGame
+                ? Visibility.Collapsed : Visibility.Visible;
+            ShowTitleDetails();
             Title = opened.IsSaveGame
                 ? "TEW Universe Studio | Save Studio"
                 : "TEW Universe Studio | Database Studio";
