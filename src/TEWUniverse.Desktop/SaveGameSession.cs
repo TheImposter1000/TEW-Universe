@@ -151,6 +151,29 @@ internal sealed class SaveGameSession : IDisposable
             if (SaveTableBrowserRules.Include(name, type))
                 catalog.TryAdd(name, type);
         }
+
+        // Some TEW IX saves contain tables whose Access metadata is not
+        // enumerated normally. These are genuine, directly queried worker
+        // sections. Only add them if the provider can actually read them.
+        foreach (var workerTable in new[] {
+            "tblWorker", "tblWorkerSkill", "tblWorkerOver",
+            "tblWorkerPhysical", "tblWorkerBio"
+        })
+        {
+            if (catalog.ContainsKey(workerTable)) continue;
+            try
+            {
+                using var command = new OleDbCommand(
+                    "SELECT TOP 1 * FROM [" + workerTable + "]", connection);
+                using var reader = command.ExecuteReader();
+                if (reader != null)
+                    catalog.TryAdd(workerTable, "TABLE");
+            }
+            catch (OleDbException)
+            {
+                // This named worker table is not accessible in this save.
+            }
+        }
         return catalog;
     }
 
