@@ -552,7 +552,8 @@ internal sealed class SaveStudioWindow : Window
         if (MessageBox.Show(this,
                 "Save " + changes + " changed fields directly into:\n\n" +
                 _session.OriginalPath +
-                "\n\nTEW IX must be closed. These edits will change the original game save.",
+                "\n\nTEW IX must be closed. These edits will change the original game save. " +
+                "Changing a valid Access field can still affect game rules or linked records.",
                 "Confirm changes to active save", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
