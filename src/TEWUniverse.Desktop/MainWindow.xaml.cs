@@ -789,10 +789,18 @@ public partial class MainWindow : Window
     private void OpenSaveStudio_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog {
-            Title = "Select a TEW IX save game (read-only snapshot)",
+            Title = "Select a TEW IX save game to edit directly",
             Filter = "TEW IX save game (*.mdb)|*.mdb"
         };
         if (dialog.ShowDialog(this) != true) return;
+        if (MessageBox.Show(this,
+                "Save Studio will update this MDB directly when you press Save Changes:\n\n" +
+                dialog.FileName +
+                "\n\nClose TEW IX before continuing. Skill values are the only fields " +
+                "currently enabled for save editing. No working copy will be created.",
+                "Confirm direct save editing", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
         var password = PasswordDialog.Ask(this);
         if (password == null) return;
 
