@@ -121,7 +121,28 @@ internal sealed partial class DatabaseSession : IDisposable
                 "TEW9Save.mdb is a save-game database. Only scenario MDBs are supported.");
         if (new FileInfo(full).IsReadOnly)
             throw new InvalidOperationException("This MDB is marked read-only.");
-        return new DatabaseSession(full, password);
+        var session = new DatabaseSession(full, password);
+        try
+        {
+            var schema = session._connection.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, null);
+            var names = schema == null ? Enumerable.Empty<string>() :
+                schema.Rows.Cast<DataRow>()
+                    .Where(row => string.Equals(
+                        Convert.ToString(row["TABLE_TYPE"]), "TABLE",
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(row => Convert.ToString(row["TABLE_NAME"]) ?? "");
+            if (TewFileKindDetector.Detect(names) == TewFileKind.SaveGame)
+                throw new InvalidOperationException(
+                    "This MDB contains TEW IX save-game tables. It cannot be opened " +
+                    "in the scenario editor, even if the file was renamed. " +
+                    "Choose Open Save Studio to inspect a read-only snapshot.");
+            return session;
+        }
+        catch
+        {
+            session.Dispose();
+            throw;
+        }
     }
 
     private OleDbConnection Connect()

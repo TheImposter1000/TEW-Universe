@@ -2,6 +2,16 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
+## Save Studio (first direct-save editing phase)
+
+The main toolbar offers **Open Save Studio** separately from **Select Database**. Save Studio opens the **actual TEW IX save MDB** using Windows Microsoft ACE OLE DB. It does not create a working copy or require the user to move an edited file back into the game. **Close TEW IX before opening the save** to avoid concurrent write conflicts.
+
+Save Studio identifies the file by its actual Access table schema. The workspace provides a searchable, categorized table browser with up to 250 records per table. **Validated numeric wrestler skill columns in `tblWorkerSkill` can be changed directly** (values 0 through 100). They are staged in the grid until the user selects **Save Changes** and confirms the exact target path; the app then commits the changes transactionally into the selected game save. Row identity and previous values are checked, and a stale or ambiguous record causes rollback. There is also a discard option.
+
+All other tables, keys and unverified fields remain read-only until their save-specific relationships and validation rules have been established. No INSERT, DELETE, arbitrary SQL, or automatic backup is enabled in Save Studio. The lack of a mandatory backup is intentional, but users should still maintain their own TEW save backups before first testing. Writing to a live save can corrupt game state if undocumented dependencies exist.
+
+The existing Database Studio still edits scenarios, with schema-based protection that rejects save-game files **even if renamed**. Save Studio is a separate window within the same desktop application; domain-aware dashboards and general save editing are not yet implemented. Windows build tests and real-world MDB runtime verification are separate requirements.
+
 ## Verified numeric code labels
 
 The centralized `TewCodeLabels` catalog translates **403 verified numeric codes** across fourteen database fields, based on mappings supplied by the TEW Universe maintainer. The worker categories are `tblWorker.Gender` (8), `Sexuality` (5), `Pronouns` (5), `Race` (9), `Based_In` (65), `Nationality` (200), `Style` (16), `CompetesAgainst` (5), and `Outsiderel` (4). Tag teams translate `tblTeam.Type` (6). Relationships translate `tblRelation.P_Rel` (9), `R_Rel` (7), and `F_Rel` (7), each beginning at code 0. Worker attributes add `tblAttribute.Attribute` (57 verified code/label pairs covering four groups). Some examples: Gender 5 is Female; Sexuality 5 is Pansexual; Pronouns 3 is They-Them; Race 7 is South Asian; Based In 22 is Manitoba; Nationality 36 is Canadian; Style 13 is Technician Flyer; Competes Against 5 is Primary Women's Division; Outside Relationship 1 is No; Tag Team Type 4 is Inactive Permanent Unit. These mappings are **application labels only** and never change the TEW IX database schema.
