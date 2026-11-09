@@ -636,6 +636,10 @@ internal sealed class SaveTablesView : UserControl, IDisposable
             {
                 _pageIndex = 0;
                 _recordSearch.Text = "";
+                // Loading every row is always an explicit choice per table.
+                // Switching tables returns to the default manageable page.
+                _pageSize = DefaultPageSize;
+                _pageSizePicker.SelectedItem = "250";
             }
 
             _totalRows = _session.CountRows(item.Name);
