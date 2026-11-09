@@ -10,5 +10,7 @@
           Link="App.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/TEWUniverse.Desktop/MainWindow.xaml"
           Link="MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/TEWUniverse.Desktop/SettingsWindow.xaml"
+          Link="SettingsWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
