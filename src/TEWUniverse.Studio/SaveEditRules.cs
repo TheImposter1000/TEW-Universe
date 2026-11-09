@@ -87,3 +87,58 @@ internal static class SaveEditRules
         return true;
     }
 }
+
+
+/// <summary>
+/// Show TEW's actual user tables and group related worker data first.
+/// ACE also exposes MSys/USys and system metadata; those are not TEW
+/// records and should never crowd the Save Studio table browser.
+/// </summary>
+internal static class SaveTableBrowserRules
+{
+    internal static bool Include(string? name, string? type)
+        => !string.IsNullOrWhiteSpace(name)
+            && !name.StartsWith("MSys", StringComparison.OrdinalIgnoreCase)
+            && !name.StartsWith("USys", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(type, "TABLE", StringComparison.OrdinalIgnoreCase);
+
+    internal static string Category(string table)
+    {
+        if (table.StartsWith("tblWorker", StringComparison.OrdinalIgnoreCase))
+            return "Workers";
+        if (table.StartsWith("tblFed", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblBelt", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblContract", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblStoryline", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblTeam", StringComparison.OrdinalIgnoreCase))
+            return "Current universe";
+        if (table.Contains("History", StringComparison.OrdinalIgnoreCase) ||
+            table.EndsWith("Log", StringComparison.OrdinalIgnoreCase) ||
+            table.Contains("LogCompetitor", StringComparison.OrdinalIgnoreCase))
+            return "History and results";
+        if (table.StartsWith("tblGame", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblPlayer", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblUser", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblPending", StringComparison.OrdinalIgnoreCase) ||
+            table.StartsWith("tblAI", StringComparison.OrdinalIgnoreCase) ||
+            table.Contains("Booking", StringComparison.OrdinalIgnoreCase))
+            return "Game and booking state";
+        return "Other save tables";
+    }
+
+    internal static int CategoryOrder(string category) => category switch
+    {
+        "Workers" => 0,
+        "Current universe" => 1,
+        "Game and booking state" => 2,
+        "History and results" => 3,
+        _ => 4
+    };
+
+    internal static int WorkerOrder(string table) =>
+        table.Equals("tblWorker", StringComparison.OrdinalIgnoreCase) ? 0 :
+        table.Equals("tblWorkerSkill", StringComparison.OrdinalIgnoreCase) ? 1 :
+        table.Equals("tblWorkerOver", StringComparison.OrdinalIgnoreCase) ? 2 :
+        table.Equals("tblWorkerPhysical", StringComparison.OrdinalIgnoreCase) ? 3 :
+        table.Equals("tblWorkerBio", StringComparison.OrdinalIgnoreCase) ? 4 : 5;
+}
