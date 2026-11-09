@@ -37,6 +37,7 @@ public partial class MainWindow : Window
 {
     private AppSettings _settings = AppSettings.Load();
     private DatabaseSession? _session;
+    private SaveTablesView? _saveTablesView;
     private string? _sessionPassword;
     private WorkerItem? _worker;
     private List<WorkerItem> _allWorkers = new();
@@ -117,6 +118,8 @@ public partial class MainWindow : Window
 
     private bool MayLeave()
     {
+        if (_activeModule == "Save Tables" && _saveTablesView != null)
+            return _saveTablesView.MayLeave();
         if (!HasEdits() && !HasUnappliedWorkerExtraForm()) return true;
         return MessageBox.Show(this,
             "Discard unsaved changes? Use Save Changes for worker fields, or " +
@@ -128,6 +131,7 @@ public partial class MainWindow : Window
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (!MayLeave()) { e.Cancel = true; return; }
+        UnloadSaveTables();
         _session?.Dispose();
     }
 
@@ -138,7 +142,7 @@ public partial class MainWindow : Window
         UpdateSectionCsvButtons();
         bool dirty = HasEdits();
         SaveButton.IsEnabled = _session != null &&
-            _activeModule is not ("Relationships" or "Employment History" or "Chemistry" or "Awards" or "Tools") &&
+            _activeModule is not ("Relationships" or "Employment History" or "Chemistry" or "Awards" or "Tools" or "Save Tables") &&
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
@@ -147,7 +151,8 @@ public partial class MainWindow : Window
         BackupButton.IsEnabled = _session != null;
         SaveAsButton.IsEnabled = _session != null;
         WorkingText.Text = _session == null ? "No active database" :
-            "Active Database: " + Path.GetFileName(_session.PathOnDisk);
+            (_session.IsSaveGame ? "Active Save: " : "Active Database: ") +
+            Path.GetFileName(_session.PathOnDisk);
         SaveStateText.Text = dirty ? "● Unsaved changes" :
             _lastSaved is DateTime saved ? "Saved " + saved.ToString("HH:mm", CultureInfo.CurrentCulture) :
             "No unsaved edits";
@@ -788,32 +793,80 @@ public partial class MainWindow : Window
 
     private void OpenSaveStudio_Click(object sender, RoutedEventArgs e)
     {
+        if (!MayLeave()) return;
         var dialog = new OpenFileDialog {
-            Title = "Select a TEW IX save game to edit directly",
-            Filter = "TEW IX save game (*.mdb)|*.mdb"
+            Title = "Open a TEW IX save in the main Studio workspace",
+            Filter = "TEW IX save (*.mdb)|*.mdb"
         };
         if (dialog.ShowDialog(this) != true) return;
         if (MessageBox.Show(this,
-                "Save Studio will update this MDB directly when you press Save Changes:\n\n" +
-                dialog.FileName +
-                "\n\nClose TEW IX before continuing. Skill values are the only fields " +
-                "currently enabled for save editing. No working copy will be created.",
-                "Confirm direct save editing", MessageBoxButton.YesNo,
+                "Open this TEW IX save directly in the full Studio editor?\n\n" +
+                dialog.FileName + "\n\nClose TEW IX first. Changes are written to this file, " +
+                "and game-only references are not automatically repaired.",
+                "Open Save Studio", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
-        var password = PasswordDialog.Ask(this);
-        if (password == null) return;
 
         try
         {
-            var window = new SaveStudioWindow(dialog.FileName, password) { Owner = this };
-            window.Show();
+            var opened = OpenWithCredential(p =>
+                DatabaseSession.OpenSaveDatabase(dialog.FileName, p));
+            if (opened.HasValue)
+            {
+                SetSession(opened.Value.session, opened.Value.password);
+                SetStatus("Save Studio loaded: use the detailed editors or All Save Tables.");
+            }
         }
-        catch (Exception ex)
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void SaveTablesNav_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session?.IsSaveGame != true)
         {
-            MessageBox.Show(this, ex.Message, "Could not open Save Studio",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, "Open a TEW IX save first.", "Save Studio");
+            return;
         }
+        if (_activeModule == "Save Tables") return;
+        if (!MayLeave()) return;
+
+        try
+        {
+            _saveTablesView ??= new SaveTablesView(_session);
+            SaveTablesPanel.Content = _saveTablesView;
+            _activeModule = "Save Tables";
+            WorkerBrowserPanel.Visibility = Visibility.Collapsed;
+            WorkerDetailPanel.Visibility = Visibility.Collapsed;
+            ExistingWorkspace.Visibility = Visibility.Collapsed;
+            EmploymentWorkspace.Visibility = Visibility.Collapsed;
+            RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+            ChemistryWorkspace.Visibility = Visibility.Collapsed;
+            AwardsWorkspace.Visibility = Visibility.Collapsed;
+            ToolsWorkspace.Visibility = Visibility.Collapsed;
+            SaveTablesPanel.Visibility = Visibility.Visible;
+            SaveTablesNav.Style = (Style)FindResource("BlueButton");
+            SaveTablesNav.HorizontalContentAlignment = HorizontalAlignment.Left;
+            RefreshDirty();
+            SetStatus("All save objects are listed. Select a table to inspect or edit supported fields.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    private void UnloadSaveTables()
+    {
+        SaveTablesPanel.Visibility = Visibility.Collapsed;
+        SaveTablesPanel.Content = null;
+        _saveTablesView?.Dispose();
+        _saveTablesView = null;
+        SaveTablesNav.Style = (Style)FindResource("NavigationButton");
+        SaveTablesNav.HorizontalContentAlignment = HorizontalAlignment.Left;
+    }
+
+    private void ReturnFromSaveTables()
+    {
+        if (_activeModule != "Save Tables") return;
+        UnloadSaveTables();
+        _activeModule = "__LeavingSaveTables";
     }
 
     private void Import_Click(object sender, RoutedEventArgs e)
@@ -852,7 +905,9 @@ public partial class MainWindow : Window
         if (!MayLeave()) return;
         try
         {
-            var opened = DatabaseSession.OpenDatabase(_session.PathOnDisk, _sessionPassword);
+            var opened = _session.IsSaveGame
+                ? DatabaseSession.OpenSaveDatabase(_session.PathOnDisk, _sessionPassword)
+                : DatabaseSession.OpenDatabase(_session.PathOnDisk, _sessionPassword);
             SetSession(opened, _sessionPassword);
             SetStatus("Refreshed active MDB. External additions and updates have been reloaded.");
         }
@@ -893,10 +948,39 @@ public partial class MainWindow : Window
         {
             var list = opened.ListWorkers();
             var copy = _settings.Copy();
-            copy.ActiveDatabasePath = opened.PathOnDisk;
-            copy.Save();
+            // A save must not replace the remembered scenario database path.
+            if (!opened.IsSaveGame)
+            {
+                copy.ActiveDatabasePath = opened.PathOnDisk;
+                copy.Save();
+            }
+            UnloadSaveTables();
             _session?.Dispose();
             _session = opened;
+            _activeModule = "Workers";
+            WorkerBrowserPanel.Visibility = Visibility.Visible;
+            WorkerDetailPanel.Visibility = Visibility.Visible;
+            ExistingWorkspace.Visibility = Visibility.Collapsed;
+            EmploymentWorkspace.Visibility = Visibility.Collapsed;
+            RelationshipsWorkspace.Visibility = Visibility.Collapsed;
+            ChemistryWorkspace.Visibility = Visibility.Collapsed;
+            AwardsWorkspace.Visibility = Visibility.Collapsed;
+            ToolsWorkspace.Visibility = Visibility.Collapsed;
+            WorkersNav.Style = (Style)FindResource("BlueButton");
+            WorkersNav.HorizontalContentAlignment = HorizontalAlignment.Left;
+            foreach (var nav in new[] { CompaniesNav, TitlesNav, TagTeamsNav, EventsNav,
+                StablesNav, EmploymentNav, RelationshipsNav, ChemistryNav, AwardsNav })
+            {
+                nav.Style = (Style)FindResource("NavigationButton");
+                nav.HorizontalContentAlignment = HorizontalAlignment.Left;
+            }
+            SaveTablesNav.Visibility = opened.IsSaveGame
+                ? Visibility.Visible : Visibility.Collapsed;
+            ScenarioStartButton.Visibility = opened.IsSaveGame
+                ? Visibility.Collapsed : Visibility.Visible;
+            Title = opened.IsSaveGame
+                ? "TEW Universe Studio | Save Studio"
+                : "TEW Universe Studio | Database Studio";
             // Results are tied to a specific scenario and must never survive
             // switching the active MDB, even when Tools is not the visible tab.
             _toolsResults.Clear();
@@ -928,10 +1012,11 @@ public partial class MainWindow : Window
             _syncBio = false;
             WorkerNameText.Text = "Choose an existing worker";
             WorkerSummaryText.Text = "Search on the left to open a worker profile.";
-            WorkerStatusText.Text = "Database loaded";
+            WorkerStatusText.Text = opened.IsSaveGame ? "Save loaded" : "Database loaded";
             ProfileFieldsPanel.Children.Clear();
             DetailsFieldsPanel.Children.Clear();
-            ProjectPathLabel.Text = opened.PathOnDisk;
+            ProjectPathLabel.Text = (opened.IsSaveGame ? "SAVE  |  " : "DATABASE  |  ") +
+                opened.PathOnDisk;
             _lastSaved = null;
             SearchBox.Text = "";
             FilterWorkers();
@@ -951,7 +1036,9 @@ public partial class MainWindow : Window
             }
             else if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
-            SetStatus($"Loaded {list.Count:N0} existing workers");
+            SetStatus(opened.IsSaveGame
+                ? $"Save Studio: {list.Count:N0} workers and detailed editing modules ready"
+                : $"Loaded {list.Count:N0} existing workers");
             if (_settings.RememberDatabasePassword)
             {
                 try { CredentialStore.Save(password); }
@@ -1017,6 +1104,8 @@ public partial class MainWindow : Window
 
     private void WorkersNav_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeModule == "Save Tables" && !MayLeave()) return;
+        ReturnFromSaveTables();
         SelectModule("Workers");
         if (_activeModule == "Workers") ShowSection(_currentTab);
     }
@@ -1024,6 +1113,8 @@ public partial class MainWindow : Window
     private void FutureNav_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string section) return;
+        if (_activeModule == "Save Tables" && !MayLeave()) return;
+        ReturnFromSaveTables();
         if (section == "Employment History")
         {
             SelectEmploymentHistoryModule();
@@ -1069,6 +1160,8 @@ public partial class MainWindow : Window
         // Confirmation to discard changes means reload the selected worker from disk
         // when we eventually return, rather than preserving stale unsaved form text.
         _activeModule = section;
+        SaveTablesPanel.Visibility = Visibility.Collapsed;
+        SaveTablesNav.Style = (Style)FindResource("NavigationButton");
         ResetAdvancedTitle();
         bool workers = section == "Workers";
         WorkerBrowserPanel.Visibility = workers ? Visibility.Visible : Visibility.Collapsed;
