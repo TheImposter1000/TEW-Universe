@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Input;
 using TEWUniverse.Studio;
 
 namespace TEWUniverse.Desktop;
@@ -385,8 +386,17 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _preview.ColumnHeaderStyle = GridHeaderStyle();
         _preview.RowHeaderStyle = GridRowHeaderStyle();
         _preview.CellStyle = GridCellStyle();
-        _preview.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
-        _preview.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        // Always show full-length scroll tracks for 78+ columns and
+        // thousands of rows in All Records mode. Keep virtualized row
+        // scrolling rather than placing the DataGrid in another ScrollViewer.
+        _preview.HorizontalScrollBarVisibility = ScrollBarVisibility.Visible;
+        _preview.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
+        _preview.SetValue(ScrollViewer.CanContentScrollProperty, true);
+        VirtualizingPanel.SetVirtualizationMode(_preview, VirtualizationMode.Recycling);
+        _preview.Margin = new Thickness(0, 0, 0, 6);
+        // Shift + mouse wheel scrolls across columns; ordinary wheel
+        // events continue through the native vertical DataGrid scroll path.
+        _preview.PreviewMouseWheel += PreviewMouseWheel_ScrollAcrossColumns;
         _preview.CanUserAddRows = false;
         _preview.CanUserDeleteRows = false;
         _preview.EnableRowVirtualization = true;
@@ -472,6 +482,20 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         Grid.SetRow(footer, 2);
         layout.Children.Add(footer);
         return layout;
+    }
+
+    private void PreviewMouseWheel_ScrollAcrossColumns(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0) return;
+        var scroller = _preview.Template.FindName("DG_ScrollViewer", _preview)
+            as ScrollViewer;
+        if (scroller == null || scroller.ScrollableWidth <= 0) return;
+
+        // The standard WPF DataGrid continues to handle vertical wheel input.
+        // Horizontal movement only applies when Shift is held.
+        scroller.ScrollToHorizontalOffset(
+            scroller.HorizontalOffset - (e.Delta / 120d) * 90d);
+        e.Handled = true;
     }
 
     private bool _sessionCanEdit(string columnName)
