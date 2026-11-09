@@ -142,8 +142,10 @@ public partial class MainWindow : Window
     {
         UpdateSectionCsvButtons();
         bool dirty = HasEdits();
-        SaveButton.IsEnabled = _session != null &&
-            _activeModule is not ("Relationships" or "Employment History" or "Chemistry" or "Awards" or "Tools" or "Save Tables") &&
+        SaveButton.IsEnabled = _activeModule == "Save Tables"
+            ? _saveTablesView?.HasPendingChanges == true
+            : _session != null &&
+            _activeModule is not ("Relationships" or "Employment History" or "Chemistry" or "Awards" or "Tools") &&
             (_activeModule == "Workers"
                 ? _worker != null && (_currentTab == "Contracts"
                     ? HasUnappliedContractEdits()
@@ -691,6 +693,12 @@ public partial class MainWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeModule == "Save Tables")
+        {
+            _saveTablesView?.SavePendingChanges();
+            RefreshDirty();
+            return;
+        }
         // Save Changes in the main toolbar must also recognize edits to
         // EXISTING contracts. Their values live in tblContract, not tblWorker.
         if (_activeModule == "Workers" && _currentTab == "Contracts")
@@ -855,7 +863,11 @@ public partial class MainWindow : Window
             // The regular module form should not retain discarded staged fields.
             _fields.Clear();
             _existingFields.Clear();
-            _saveTablesView ??= new SaveTablesView(_session);
+            if (_saveTablesView == null)
+            {
+                _saveTablesView = new SaveTablesView(_session);
+                _saveTablesView.DirtyStateChanged += RefreshDirty;
+            }
             SaveTablesPanel.Content = _saveTablesView;
             _activeModule = "Save Tables";
             WorkerBrowserPanel.Visibility = Visibility.Collapsed;
@@ -879,7 +891,11 @@ public partial class MainWindow : Window
     {
         SaveTablesPanel.Visibility = Visibility.Collapsed;
         SaveTablesPanel.Content = null;
-        _saveTablesView?.Dispose();
+        if (_saveTablesView != null)
+        {
+            _saveTablesView.DirtyStateChanged -= RefreshDirty;
+            _saveTablesView.Dispose();
+        }
         _saveTablesView = null;
         SaveTablesNav.Style = (Style)FindResource("NavigationButton");
         SaveTablesNav.HorizontalContentAlignment = HorizontalAlignment.Left;
@@ -1179,9 +1195,16 @@ public partial class MainWindow : Window
     private void WorkersNav_Click(object sender, RoutedEventArgs e)
     {
         if (_activeModule == "Save Tables" && !MayLeave()) return;
+        bool returningFromSaveTables = _activeModule == "Save Tables";
         ReturnFromSaveTables();
         SelectModule("Workers");
-        if (_activeModule == "Workers") ShowSection(_currentTab);
+        if (_activeModule == "Workers")
+        {
+            if (returningFromSaveTables && _worker != null)
+                LoadWorker(_worker);
+            else
+                ShowSection(_currentTab);
+        }
     }
 
     private void FutureNav_Click(object sender, RoutedEventArgs e)
