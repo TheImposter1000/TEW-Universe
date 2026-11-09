@@ -67,11 +67,11 @@
               </StackPanel>
             </StackPanel>
           </Button>
-          <Button Style="{StaticResource ActionButton}" Click="OpenSaveStudio_Click" Margin="0,0,9,0"
-                  ToolTip="Inspect a TEW IX save and edit verified skills directly">
+          <Button x:Name="OpenSaveButton" Style="{StaticResource ActionButton}" Click="OpenSaveStudio_Click" Margin="0,0,9,0"
+                  ToolTip="Open a TEW IX save in the full Studio editing workspace">
             <StackPanel>
               <TextBlock Text="Open Save Studio" FontWeight="SemiBold"/>
-              <TextBlock Text="Direct save editing" FontWeight="Normal" FontSize="10"
+              <TextBlock Text="Use the original detailed editors" FontWeight="Normal" FontSize="10"
                          Foreground="{StaticResource TextBrushMuted}"/>
             </StackPanel>
           </Button>
@@ -118,7 +118,7 @@
                   ToolTip="Validate and preview changes to the selected record from an exported Studio CSV">
             <TextBlock Text="Import Record CSV" FontWeight="SemiBold"/>
           </Button>
-          <Button Style="{StaticResource ActionButton}" Click="EditScenarioStart_Click" Margin="0,0,9,0"
+          <Button x:Name="ScenarioStartButton" Style="{StaticResource ActionButton}" Click="EditScenarioStart_Click" Margin="0,0,9,0"
                   ToolTip="Edit the scenario starting month/year stored in tblInfo">
             <TextBlock Text="Scenario Start..." FontWeight="SemiBold"/>
           </Button>
@@ -165,9 +165,18 @@
 <Button x:Name="RelationshipsNav" Tag="Relationships" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Relationships" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="AwardsNav" Tag="Awards" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Awards" VerticalAlignment="Center"/></StackPanel></Button>
 <Button x:Name="ChemistryNav" Tag="Chemistry" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8D4;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Chemistry" VerticalAlignment="Center"/></StackPanel></Button>
-<Button x:Name="ToolsNav" Tag="Tools" Visibility="Collapsed" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tools" VerticalAlignment="Center"/></StackPanel></Button></StackPanel>
+<Button x:Name="ToolsNav" Tag="Tools" Visibility="Collapsed" Style="{StaticResource NavigationButton}" Click="FutureNav_Click" Margin="9,4" Height="45"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="19" Width="35"/><TextBlock Text="Tools" VerticalAlignment="Center"/></StackPanel></Button>
+<Button x:Name="SaveTablesNav" Visibility="Collapsed" Style="{StaticResource NavigationButton}"
+        Click="SaveTablesNav_Click" Margin="9,4" Height="45">
+ <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets"
+ FontSize="19" Width="35"/><TextBlock Text="All Save Tables" VerticalAlignment="Center"/></StackPanel>
+</Button></StackPanel>
        </DockPanel>
       </Border>
+
+      <!-- The embedded save table browser shares the main window, sidebar and MDB session. -->
+      <ContentControl x:Name="SaveTablesPanel" Grid.Column="1" Grid.ColumnSpan="2"
+                      Visibility="Collapsed" Margin="10,10,11,10"/>
 
       <!-- Searchable, sortable worker list -->
       <Border x:Name="WorkerBrowserPanel" Grid.Column="1" Margin="10,10,7,10" Style="{StaticResource CardBorder}">
