@@ -135,9 +135,8 @@ internal sealed class SaveGameSession : IDisposable
             "Microsoft ACE OLE DB installation.\n\n" + string.Join("\n", errors.Take(2)));
     }
 
-    // Return every discoverable Access object, including names without a tbl
-    // prefix and provider-reported system objects. Provider permissions may
-    // prevent previewing an internal object; it must still appear in the catalog.
+    // Show all physical user tables, regardless of naming convention.
+    // MSys and USys are Access internals, not TEW's missing worker records.
     private static Dictionary<string, string> ReadTableCatalog(OleDbConnection connection)
     {
         var catalog = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -149,7 +148,8 @@ internal sealed class SaveGameSession : IDisposable
             if (string.IsNullOrWhiteSpace(name)) continue;
             var type = schema.Columns.Contains("TABLE_TYPE")
                 ? Convert.ToString(row["TABLE_TYPE"]) ?? "TABLE" : "TABLE";
-            catalog.TryAdd(name, type);
+            if (SaveTableBrowserRules.Include(name, type))
+                catalog.TryAdd(name, type);
         }
         return catalog;
     }
