@@ -2,6 +2,14 @@
 
 Independent Windows desktop editor for **existing** Total Extreme Wrestling IX scenario records.
 
+## Save Studio (initial read-only support)
+
+The main toolbar now offers **Open Save Studio** separately from **Select Database**. Save Studio accepts a TEW IX save-game MDB and asks for its existing Access password. It copies the selected file to a disposable temporary snapshot, opens that copy using the Microsoft ACE provider in read mode, identifies the file from its actual Access tables, and provides a searchable list of tables with a preview of up to 250 records per table. Categories help separate current-universe records, game/booking state, and histories/results. There are no save-game edit or import commands. Close TEW IX before taking the snapshot so the copy is consistent.
+
+The existing Database Studio still edits scenarios. Its open path now checks the schema and refuses save-game files **even if renamed**, instead of relying solely on the literal `TEW9Save.mdb` filename. This is important because the original editor includes destructive update tools that are not validated against ongoing games.
+
+Both modes use the existing Windows application. Save Studio is currently a separate read-only window; domain-aware worker/company dashboards, historical comparisons, and save editing are **not implemented**. Runtime Access compatibility must be validated on Windows with the 64-bit Microsoft ACE OLE DB provider and a disposable save copy. The password is used for the connection and is not written to the repository.
+
 ## Verified numeric code labels
 
 The centralized `TewCodeLabels` catalog translates **403 verified numeric codes** across fourteen database fields, based on mappings supplied by the TEW Universe maintainer. The worker categories are `tblWorker.Gender` (8), `Sexuality` (5), `Pronouns` (5), `Race` (9), `Based_In` (65), `Nationality` (200), `Style` (16), `CompetesAgainst` (5), and `Outsiderel` (4). Tag teams translate `tblTeam.Type` (6). Relationships translate `tblRelation.P_Rel` (9), `R_Rel` (7), and `F_Rel` (7), each beginning at code 0. Worker attributes add `tblAttribute.Attribute` (57 verified code/label pairs covering four groups). Some examples: Gender 5 is Female; Sexuality 5 is Pansexual; Pronouns 3 is They-Them; Race 7 is South Asian; Based In 22 is Manitoba; Nationality 36 is Canadian; Style 13 is Technician Flyer; Competes Against 5 is Primary Women's Division; Outside Relationship 1 is No; Tag Team Type 4 is Inactive Permanent Unit. These mappings are **application labels only** and never change the TEW IX database schema.
