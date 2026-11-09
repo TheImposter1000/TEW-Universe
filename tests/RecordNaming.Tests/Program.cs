@@ -126,9 +126,10 @@ Equal(false, SaveEditRules.CanEdit("randomTable", game.Columns["CurrentDate"]!, 
 
 Equal(false, SaveTableBrowserRules.Include("MSysObjects", "SYSTEM TABLE"));
 Equal(false, SaveTableBrowserRules.Include("USysNavigationPane", "TABLE"));
-Equal(false, SaveTableBrowserRules.Include("tblWorker", "SYSTEM TABLE"));
+Equal(true, SaveTableBrowserRules.Include("tblWorker", "SYSTEM TABLE"));
 Equal(true, SaveTableBrowserRules.Include("tblWorker", "TABLE"));
 Equal(true, SaveTableBrowserRules.Include("tblWorkerSkill", "TABLE"));
+Equal(true, SaveTableBrowserRules.Include("tblWorkerOver", "VIEW"));
 Equal(true, SaveTableBrowserRules.Include("CustomTEWTable", "TABLE"));
 Equal("Workers", SaveTableBrowserRules.Category("tblWorker"));
 Equal("Workers", SaveTableBrowserRules.Category("tblWorkerSkill"));
