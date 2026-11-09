@@ -372,6 +372,11 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _nextPageButton.Click += (_, _) => ChangePage(1);
         pager.Children.Add(_nextPageButton);
         details.Children.Add(pager);
+        details.Children.Add(new TextBlock {
+            Text = "Mouse wheel: scroll rows   |   Shift + wheel: scroll columns   |   Drag the scrollbars to jump through All Records",
+            FontSize = 11, Foreground = Brush("#9FBDD9"),
+            Margin = new Thickness(0, 7, 0, 0)
+        });
 
         Grid.SetRow(details, 0);
         right.Children.Add(details);
