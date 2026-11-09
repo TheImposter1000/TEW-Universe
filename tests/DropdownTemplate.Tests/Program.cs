@@ -141,3 +141,19 @@ if ((string?)scrollTrack.Attribute("Orientation") != "Vertical" ||
     throw new Exception("WPF dark scrollbar orientation or horizontal track sizing has regressed.");
 
 Console.WriteLine("Passed two-axis scrollbar orientation and horizontal width regression checks.");
+
+var saveTablesSource = File.ReadAllText(
+    Path.Combine(AppContext.BaseDirectory, "SaveStudioWindow.cs"));
+var sortMapCount = System.Text.RegularExpressions.Regex.Matches(
+    saveTablesSource, @"SortMemberPath\s*=\s*e\.PropertyName").Count;
+if (sortMapCount != 2 ||
+    !saveTablesSource.Contains("_preview.Sorting += Preview_Sorting;", StringComparison.Ordinal) ||
+    !saveTablesSource.Contains("e.Handled = true;", StringComparison.Ordinal) ||
+    !saveTablesSource.Contains("SaveTableSortRules.Expression(", StringComparison.Ordinal) ||
+    !saveTablesSource.Contains("UIElement.IsHitTestVisibleProperty, false",
+        StringComparison.Ordinal))
+    throw new Exception(
+        "Save Tables must sort by original Access field names, not the pencil-decorated header, " +
+        "and must keep non-editing combo boxes from intercepting cell clicks.");
+
+Console.WriteLine("Passed Save Studio pencil click and safe sort wiring regressions.");

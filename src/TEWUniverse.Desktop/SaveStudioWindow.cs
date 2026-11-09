@@ -373,7 +373,7 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         pager.Children.Add(_nextPageButton);
         details.Children.Add(pager);
         details.Children.Add(new TextBlock {
-            Text = "Mouse wheel: scroll rows   |   Shift + wheel: scroll columns   |   Drag the scrollbars to jump through All Records",
+            Text = "Click a pen-marked CELL to edit   |   Click a COLUMN HEADER to sort   |   Mouse wheel: rows   |   Shift + wheel: columns",
             FontSize = 11, Foreground = Brush("#9FBDD9"),
             Margin = new Thickness(0, 7, 0, 0)
         });
@@ -414,6 +414,7 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _preview.BorderThickness = new Thickness(0);
         _preview.GridLinesVisibility = DataGridGridLinesVisibility.Horizontal;
         _preview.HorizontalGridLinesBrush = Brush("#30465C");
+        _preview.Sorting += Preview_Sorting;
         _preview.AutoGeneratingColumn += (_, e) =>
         {
             var writable = _sessionCanEdit(e.PropertyName);
@@ -439,15 +440,22 @@ internal sealed class SaveTablesView : UserControl, IDisposable
                         continue;
                     displayed.Add(new TewCodeChoice(stored, "Unmapped code " + stored));
                 }
-                var comboStyle = AppStyle("DarkComboBox");
+                // Display-mode combos must NOT capture clicks intended for
+                // the DataGrid. A real editable combo is created only once
+                // the user starts editing the selected cell.
+                var displayStyle = new Style(typeof(ComboBox), AppStyle("DarkComboBox"));
+                displayStyle.Setters.Add(new Setter(UIElement.IsHitTestVisibleProperty, false));
+                displayStyle.Setters.Add(new Setter(UIElement.FocusableProperty, false));
+                var editStyle = AppStyle("DarkComboBox");
                 e.Column = new DataGridComboBoxColumn {
                     Header = writable ? e.PropertyName + "  ✎" : e.PropertyName,
+                    SortMemberPath = e.PropertyName,
                     ItemsSource = displayed,
                     SelectedValuePath = nameof(TewCodeChoice.Code),
                     DisplayMemberPath = nameof(TewCodeChoice.Label),
                     SelectedValueBinding = binding,
-                    ElementStyle = comboStyle,
-                    EditingElementStyle = comboStyle,
+                    ElementStyle = displayStyle,
+                    EditingElementStyle = editStyle,
                     Width = ColumnWidth(e.PropertyName),
                     MinWidth = 105,
                     MaxWidth = 450,
@@ -457,6 +465,7 @@ internal sealed class SaveTablesView : UserControl, IDisposable
             else
                 e.Column = new DataGridTextColumn {
                     Header = writable ? e.PropertyName + "  ✎" : e.PropertyName,
+                    SortMemberPath = e.PropertyName,
                     Binding = binding,
                     ElementStyle = GridDisplayStyle(),
                     EditingElementStyle = GridEditingStyle(),
@@ -487,6 +496,38 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         Grid.SetRow(footer, 2);
         layout.Children.Add(footer);
         return layout;
+    }
+
+    private void Preview_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        // The pencil is a visual marker, not part of the Access column name.
+        // WPF's automatic sort can mistake a decorated header for a field.
+        // Sorting ourselves ensures the real DataColumn is always used and
+        // failures never escape the event handler and close the application.
+        e.Handled = true;
+        if (_loadedTable == null) return;
+
+        try
+        {
+            var direction = e.Column.SortDirection == ListSortDirection.Ascending
+                ? ListSortDirection.Descending : ListSortDirection.Ascending;
+
+            var expression = SaveTableSortRules.Expression(
+                _loadedTable, e.Column.SortMemberPath,
+                direction == ListSortDirection.Descending);
+            _loadedTable.DefaultView.Sort = expression;
+
+            foreach (var column in _preview.Columns)
+                column.SortDirection = column == e.Column ? direction : null;
+            _status.Text = "Sorted " + e.Column.SortMemberPath + " " +
+                (direction == ListSortDirection.Ascending ? "ascending" : "descending") +
+                ". Click an editable record cell to change its value.";
+        }
+        catch (Exception ex) when (ex is ArgumentException or
+            InvalidOperationException or DataException)
+        {
+            _status.Text = "Could not sort this field: " + ex.Message;
+        }
     }
 
     private void PreviewMouseWheel_ScrollAcrossColumns(object sender, MouseWheelEventArgs e)

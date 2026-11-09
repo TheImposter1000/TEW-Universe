@@ -190,4 +190,26 @@ Equal(true, clone.ActiveSaveGamePath.EndsWith(".mdb",
 
 Console.WriteLine("Passed TEW save field filtering, code labels, and separate save settings.");
 
+// Clicking editable headers must sort the real Access column, not the
+// decorated display label such as "Active ✎".
+var sortable = new System.Data.DataTable("tblWorker");
+sortable.Columns.Add("UID", typeof(int));
+sortable.Columns.Add("Active", typeof(bool));
+sortable.Columns.Add("Name", typeof(string));
+sortable.Rows.Add(1, true, "Zeta");
+sortable.Rows.Add(2, false, "Alpha");
+sortable.Rows.Add(3, true, "Beta");
+sortable.DefaultView.Sort = SaveTableSortRules.Expression(sortable, "Name", descending: false);
+Equal("Alpha", sortable.DefaultView[0]["Name"]!.ToString());
+sortable.DefaultView.Sort = SaveTableSortRules.Expression(sortable, "UID", descending: true);
+Equal(3, sortable.DefaultView[0]["UID"]);
+sortable.DefaultView.Sort = SaveTableSortRules.Expression(sortable, "Active", descending: false);
+Equal(false, sortable.DefaultView[0]["Active"]);
+bool refusedDecoratedHeader = false;
+try { SaveTableSortRules.Expression(sortable, "Active ✎", descending: false); }
+catch (ArgumentException) { refusedDecoratedHeader = true; }
+Equal(true, refusedDecoratedHeader);
+Console.WriteLine("Passed safe sorting for worker names, numeric fields and pencil-marked boolean headers.");
+
+
 

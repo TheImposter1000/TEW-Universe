@@ -231,3 +231,28 @@ internal static class SaveTableRecordFilter
             }));
     }
 }
+
+
+/// <summary>
+/// Sort raw TEW tables using their real Access field names. The Save Studio
+/// DataGrid displays a pencil in editable headers, but those display labels
+/// must never be interpreted as DataView column names.
+/// </summary>
+internal static class SaveTableSortRules
+{
+    internal static string Expression(
+        System.Data.DataTable table, string? fieldName, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName) ||
+            !table.Columns.Contains(fieldName))
+            throw new ArgumentException(
+                "Sort field must be a real column in the selected TEW table.",
+                nameof(fieldName));
+
+        var realName = table.Columns[fieldName]!.ColumnName;
+        var escaped = realName
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal);
+        return "[" + escaped + "] " + (descending ? "DESC" : "ASC");
+    }
+}
