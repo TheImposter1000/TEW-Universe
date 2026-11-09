@@ -210,32 +210,52 @@
     </ControlTemplate></Setter.Value>
    </Setter>
   </Style>
+  <!-- Both scroll directions need a real track and usable hit area.
+       Older style forced ALL scrollbars to Width=12 and left the Track
+       vertical, which reduced horizontal scrolling to a tiny unusable thumb. -->
   <Style TargetType="ScrollBar">
-   <Setter Property="Width" Value="12"/>
-   <Setter Property="MinWidth" Value="10"/>
+   <Setter Property="Width" Value="14"/>
+   <Setter Property="MinWidth" Value="14"/>
+   <Setter Property="MinHeight" Value="0"/>
    <Setter Property="Background" Value="#102238"/>
    <Setter Property="Template">
     <Setter.Value><ControlTemplate TargetType="ScrollBar">
      <Border Background="{TemplateBinding Background}" CornerRadius="5">
-      <Track x:Name="PART_Track" IsDirectionReversed="True" Focusable="False">
+      <Track x:Name="PART_Track" Orientation="Vertical"
+             IsDirectionReversed="True" Focusable="False">
        <Track.DecreaseRepeatButton>
-        <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource InvisibleRepeat}"/>
+        <RepeatButton x:Name="DecreasePage" Command="ScrollBar.PageUpCommand"
+                      Style="{StaticResource InvisibleRepeat}"/>
        </Track.DecreaseRepeatButton>
        <Track.Thumb>
         <Thumb Style="{StaticResource DarkThumb}"/>
        </Track.Thumb>
        <Track.IncreaseRepeatButton>
-        <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource InvisibleRepeat}"/>
+        <RepeatButton x:Name="IncreasePage" Command="ScrollBar.PageDownCommand"
+                      Style="{StaticResource InvisibleRepeat}"/>
        </Track.IncreaseRepeatButton>
       </Track>
      </Border>
      <ControlTemplate.Triggers>
       <Trigger Property="Orientation" Value="Horizontal">
+       <Setter TargetName="PART_Track" Property="Orientation" Value="Horizontal"/>
        <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+       <Setter TargetName="DecreasePage" Property="Command"
+               Value="{x:Static ScrollBar.PageLeftCommand}"/>
+       <Setter TargetName="IncreasePage" Property="Command"
+               Value="{x:Static ScrollBar.PageRightCommand}"/>
       </Trigger>
      </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value>
    </Setter>
+   <Style.Triggers>
+    <Trigger Property="Orientation" Value="Horizontal">
+     <Setter Property="Width" Value="Auto"/>
+     <Setter Property="MinWidth" Value="0"/>
+     <Setter Property="Height" Value="14"/>
+     <Setter Property="MinHeight" Value="14"/>
+    </Trigger>
+   </Style.Triggers>
   </Style>
 
   <Style TargetType="ListBoxItem">
