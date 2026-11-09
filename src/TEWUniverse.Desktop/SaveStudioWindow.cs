@@ -41,6 +41,8 @@ internal sealed class SaveTablesView : UserControl, IDisposable
     private int _pageIndex;
     private int _totalRows;
     private DataTable? _loadedTable;
+    internal bool HasPendingChanges => PendingChanges > 0;
+    internal event Action? DirtyStateChanged;
 
     private sealed record SaveTableEntry(string Name, string Category)
     {
@@ -499,6 +501,7 @@ internal sealed class SaveTablesView : UserControl, IDisposable
             (_pageIndex + 1) * _pageSize < _totalRows;
         if (count > 0)
             _status.Text = count + " pending field changes. Save or discard before switching tables.";
+        DirtyStateChanged?.Invoke();
     }
 
     private void RefreshTables()
@@ -685,7 +688,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
     private void LoadedTable_RowChanged(object? sender, DataRowChangeEventArgs e)
         => Dispatcher.BeginInvoke(new Action(UpdateDirtyState));
 
-    private void SaveChanges_Click(object sender, RoutedEventArgs e)
+    private void SaveChanges_Click(object sender, RoutedEventArgs e) => SavePendingChanges();
+
+    internal void SavePendingChanges()
     {
         if (_loadedTable == null) return;
         _preview.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -735,5 +740,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         return discard;
     }
 
-    public void Dispose() => _session.Dispose();
+    public void Dispose()
+    {
+        DirtyStateChanged = null;
+        _session.Dispose();
+    }
 }
