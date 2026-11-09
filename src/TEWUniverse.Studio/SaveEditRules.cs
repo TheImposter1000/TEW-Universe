@@ -100,7 +100,8 @@ internal static class SaveTableBrowserRules
         => !string.IsNullOrWhiteSpace(name)
             && !name.StartsWith("MSys", StringComparison.OrdinalIgnoreCase)
             && !name.StartsWith("USys", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(type, "TABLE", StringComparison.OrdinalIgnoreCase);
+            && (string.Equals(type, "TABLE", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("tbl", StringComparison.OrdinalIgnoreCase));
 
     internal static string Category(string table)
     {
