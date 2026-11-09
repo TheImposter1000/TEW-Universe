@@ -1030,6 +1030,17 @@ public partial class MainWindow : Window
             _lastSaved = null;
             SearchBox.Text = "";
             FilterWorkers();
+
+            // An active save opens on an actual worker, not an empty detail card.
+            // The list still contains every worker and remains searchable.
+            if (opened.IsSaveGame && _allWorkers.Count > 0)
+            {
+                var first = _allWorkers.OrderBy(w => w.Name,
+                    StringComparer.OrdinalIgnoreCase).First();
+                LoadWorker(first);
+                FilterWorkers(first.Id);
+            }
+
             if (_activeModule == "Relationships")
             {
                 _relationWorker1.ItemsSource = _allWorkers;
@@ -1047,7 +1058,9 @@ public partial class MainWindow : Window
             else if (_activeModule != "Workers") LoadExistingCatalog();
             RefreshDirty();
             SetStatus(opened.IsSaveGame
-                ? $"Save Studio: {list.Count:N0} workers and detailed editing modules ready"
+                ? list.Count > 0
+                    ? $"Save Studio: {list.Count:N0} worker records loaded. Select a profile or All Save Tables."
+                    : "This save reports zero worker records in tblWorker. Check the actual save and its worker tables."
                 : $"Loaded {list.Count:N0} existing workers");
             if (_settings.RememberDatabasePassword)
             {

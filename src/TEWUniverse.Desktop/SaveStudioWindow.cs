@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using TEWUniverse.Studio;
 
 namespace TEWUniverse.Desktop;
 
@@ -60,8 +61,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
     {
         _session = SaveGameSession.Attach(activeSave);
         _tables = _session.TableNames
-            .Select(name => new SaveTableEntry(name, CategoryFor(name)))
-            .OrderBy(item => item.Category, StringComparer.OrdinalIgnoreCase)
+            .Select(name => new SaveTableEntry(name, SaveTableBrowserRules.Category(name)))
+            .OrderBy(item => SaveTableBrowserRules.CategoryOrder(item.Category))
+            .ThenBy(item => SaveTableBrowserRules.WorkerOrder(item.Name))
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
         Background = Brush("#091322");
@@ -157,32 +159,6 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         return new(172);
     }
 
-    private static string CategoryFor(string name)
-    {
-        if (name.StartsWith("MSys", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("USys", StringComparison.OrdinalIgnoreCase))
-            return "Access internal";
-        if (name.Contains("History", StringComparison.OrdinalIgnoreCase) ||
-            name.EndsWith("Log", StringComparison.OrdinalIgnoreCase) ||
-            name.Contains("LogCompetitor", StringComparison.OrdinalIgnoreCase))
-            return "History and results";
-        if (name.StartsWith("tblGame", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblPlayer", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblUser", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblPending", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblAI", StringComparison.OrdinalIgnoreCase) ||
-            name.Contains("Booking", StringComparison.OrdinalIgnoreCase))
-            return "Game and booking state";
-        if (name.StartsWith("tblWorker", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblFed", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblBelt", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblContract", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblStoryline", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("tblTeam", StringComparison.OrdinalIgnoreCase))
-            return "Current universe";
-        return "Other save tables";
-    }
-
     private UIElement BuildContent()
     {
         var layout = new Grid();
@@ -195,12 +171,12 @@ internal sealed class SaveTablesView : UserControl, IDisposable
             Text = "Save Tables", FontSize = 26, FontWeight = FontWeights.Bold
         });
         header.Children.Add(new TextBlock {
-            Text = "Browse all discovered Access objects. Core workers, companies and titles have detailed editors in the left navigation.",
+            Text = "Workers and related records appear first. Use the Workers navigation for detailed individual profiles.",
             FontSize = 12, Foreground = Brush("#F5C96A"), Margin = new Thickness(0, 4, 0, 5)
         });
         header.Children.Add(new TextBlock {
             Text = System.IO.Path.GetFileName(_session.OriginalPath) +
-                "  |  " + _tables.Count + " Access objects (including nonstandard names and internal objects)",
+                "  |  " + _tables.Count + " actual TEW data tables",
             FontSize = 12, Foreground = Brush("#A6BFDA")
         });
         Grid.SetRow(header, 0);
@@ -215,7 +191,7 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         };
         var picker = new StackPanel { Margin = new Thickness(14, 13, 14, 12) };
         picker.Children.Add(new TextBlock {
-            Text = "ALL ACCESS OBJECTS", FontSize = 13, FontWeight = FontWeights.Bold,
+            Text = "SAVE DATA TABLES", FontSize = 13, FontWeight = FontWeights.Bold,
             Foreground = Brush("#AFCEF1"), Margin = new Thickness(0, 0, 0, 9)
         });
         picker.Children.Add(new TextBlock {
@@ -245,11 +221,12 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _categoryFilter.BorderBrush = Brush("#3C638B");
         _categoryFilter.Margin = new Thickness(0, 0, 0, 0);
         foreach (var category in new[] {
-            "All categories", "Current universe", "History and results",
-            "Game and booking state", "Other save tables", "Access internal"
+            "Workers", "All categories", "Current universe", "History and results",
+            "Game and booking state", "Other save tables"
         })
             _categoryFilter.Items.Add(category);
-        _categoryFilter.SelectedIndex = 0;
+        // Start on real worker records rather than tblBelt or MSys internals.
+        _categoryFilter.SelectedIndex = _tables.Any(t => t.Category == "Workers") ? 0 : 1;
         _categoryFilter.SelectionChanged += (_, _) => RefreshTables();
         picker.Children.Add(_categoryFilter);
         DockPanel.SetDock(picker, Dock.Top);
@@ -433,9 +410,12 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _tableList.ItemsSource = filtered;
         _tableList.SelectedItem = filtered.FirstOrDefault(item =>
             string.Equals(item.Name, previous, StringComparison.OrdinalIgnoreCase))
+            ?? filtered.FirstOrDefault(item =>
+                item.Name.Equals("tblWorker", StringComparison.OrdinalIgnoreCase))
             ?? filtered.FirstOrDefault();
+        var workerTables = _tables.Count(t => t.Category == "Workers");
         _status.Text = filtered.Count + " of " + _tables.Count +
-            " tables  |  Direct edits require explicit Save Changes.";
+            " TEW tables  |  " + workerTables + " worker-related tables  |  Direct edits require Save Changes.";
     }
 
     private void LoadSelected() => LoadSelected(force: false);
