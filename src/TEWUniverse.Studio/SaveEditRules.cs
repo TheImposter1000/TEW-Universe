@@ -143,3 +143,50 @@ internal static class SaveTableBrowserRules
         table.Equals("tblWorkerPhysical", StringComparison.OrdinalIgnoreCase) ? 3 :
         table.Equals("tblWorkerBio", StringComparison.OrdinalIgnoreCase) ? 4 : 5;
 }
+
+
+/// <summary>
+/// Build a DataView search expression only from the selected DataTable's
+/// discovered columns. Filtering is presentation-only and cannot alter MDB
+/// records or bypass edit validation.
+/// </summary>
+internal static class SaveTableRecordFilter
+{
+    internal const string AllColumns = "All fields";
+
+    internal static string Build(DataTable table, string? column, string? search)
+    {
+        var query = search?.Trim() ?? "";
+        if (query.Length == 0) return "";
+
+        IEnumerable<DataColumn> columns;
+        if (string.IsNullOrWhiteSpace(column) || column == AllColumns)
+            columns = table.Columns.Cast<DataColumn>();
+        else
+        {
+            if (!table.Columns.Contains(column))
+                throw new ArgumentException("The selected record field is not in this table.",
+                    nameof(column));
+            columns = new[] { table.Columns[column]! };
+        }
+
+        var text = query
+            .Replace("'", "''", StringComparison.Ordinal)
+            .Replace("[", "[[]", StringComparison.Ordinal)
+            .Replace("]", "[]]", StringComparison.Ordinal)
+            .Replace("%", "[%]", StringComparison.Ordinal)
+            .Replace("*", "[*]", StringComparison.Ordinal);
+
+        return string.Join(" OR ", columns.Where(col =>
+                SaveEditRules.IsSupportedScalarType(col.DataType))
+            .Select(col =>
+            {
+                var quoted = "[" + col.ColumnName
+                    .Replace("\\", "\\\\", StringComparison.Ordinal)
+                    .Replace("]", "\\]", StringComparison.Ordinal) + "]";
+                var expression = col.DataType == typeof(string) ? quoted :
+                    "Convert(" + quoted + ", 'System.String')";
+                return expression + " LIKE '%" + text + "%'";
+            }));
+    }
+}
