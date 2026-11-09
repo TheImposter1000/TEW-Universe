@@ -138,5 +138,47 @@ Equal(0, SaveTableBrowserRules.CategoryOrder("Workers"));
 Equal(0, SaveTableBrowserRules.WorkerOrder("tblWorker"));
 Equal(1, SaveTableBrowserRules.WorkerOrder("tblWorkerSkill"));
 
-Console.WriteLine("Passed naming, direct save editing, and prioritized TEW worker table discovery checks.");
+// Verify Save Studio uses the original editor's code enumerations.
+var coded = new System.Data.DataTable("tblWorker");
+coded.Columns.Add("Gender", typeof(int));
+Equal(true, SaveEditRules.IsValidValue("tblWorker", coded.Columns["Gender"]!, 5));
+Equal(false, SaveEditRules.IsValidValue("tblWorker", coded.Columns["Gender"]!, 999));
+Equal(true, TewCodeLabels.TryGetLabel("tblWorker", "Gender", "5", out var label));
+Equal("Female", label);
+
+// A search must match real record values and numerics, not only table names.
+var records = new System.Data.DataTable("tblWorker");
+records.Columns.Add("Name", typeof(string));
+records.Columns.Add("Popularity", typeof(int));
+records.Rows.Add("O'Brien", 85);
+records.Rows.Add("Alex", 51);
+var filtered = records.DefaultView;
+filtered.RowFilter = SaveTableRecordFilter.Build(records, "Name", "O'B");
+Equal(1, filtered.Count);
+filtered.RowFilter = SaveTableRecordFilter.Build(records, "Popularity", "51");
+Equal(1, filtered.Count);
+filtered.RowFilter = SaveTableRecordFilter.Build(records, SaveTableRecordFilter.AllColumns, "Alex");
+Equal(1, filtered.Count);
+filtered.RowFilter = SaveTableRecordFilter.Build(records, "Name", "");
+Equal(2, filtered.Count);
+
+// Save configuration and remembered password choice are independent from
+// the scenario MDB configuration and survive a settings clone.
+var config = new AppSettings {
+    ActiveDatabasePath = Path.Combine(Path.GetTempPath(), "scenario.mdb"),
+    ActiveSaveGamePath = Path.Combine(Path.GetTempPath(), "game-save.mdb"),
+    RememberDatabasePassword = false,
+    RememberSaveGamePassword = true
+};
+var clone = config.Copy();
+Equal(config.ActiveDatabasePath, clone.ActiveDatabasePath);
+Equal(config.ActiveSaveGamePath, clone.ActiveSaveGamePath);
+Equal(false, clone.RememberDatabasePassword);
+Equal(true, clone.RememberSaveGamePassword);
+clone.NormalizeAndValidate();
+Equal(true, clone.ActiveSaveGamePath.EndsWith(".mdb",
+    StringComparison.OrdinalIgnoreCase));
+
+Console.WriteLine("Passed TEW save field filtering, code labels, and separate save settings.");
+
 
