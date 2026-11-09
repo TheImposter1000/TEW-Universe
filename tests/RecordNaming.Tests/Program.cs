@@ -79,17 +79,49 @@ Equal(TewFileKind.SaveGame, TewFileKindDetector.Detect(new[]
 Equal(TewFileKind.Unknown, TewFileKindDetector.Detect(new[] { "tblWorker", "tblInfo" }));
 
 
-var skills = new System.Data.DataTable("tblWorkerSkill");
-skills.Columns.Add("WorkerUID", typeof(int));
-skills.Columns.Add("Brawling", typeof(int));
-skills.Columns.Add("NotASkill", typeof(int));
-Equal(true, SaveEditRules.CanEdit("tblWorkerSkill", skills.Columns["Brawling"]!));
-Equal(false, SaveEditRules.CanEdit("tblWorkerSkill", skills.Columns["WorkerUID"]!));
-Equal(false, SaveEditRules.CanEdit("tblWorkerSkill", skills.Columns["NotASkill"]!));
-Equal(false, SaveEditRules.CanEdit("tblGameInfo", skills.Columns["Brawling"]!));
-Equal(true, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", 100));
-Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", -1));
-Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", 101));
-Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", "Brawling", DBNull.Value));
+var skill = new System.Data.DataTable("tblWorkerSkill");
+skill.Columns.Add("WorkerUID", typeof(int));
+skill.Columns.Add("Brawling", typeof(int));
+skill.Columns.Add("CustomRating", typeof(int));
+var skillKey = new[] { "WorkerUID" };
+Equal(true, SaveEditRules.CanEdit("tblWorkerSkill", skill.Columns["Brawling"]!, skillKey));
+Equal(true, SaveEditRules.CanEdit("tblWorkerSkill", skill.Columns["CustomRating"]!, skillKey));
+Equal(false, SaveEditRules.CanEdit("tblWorkerSkill", skill.Columns["WorkerUID"]!, skillKey));
+Equal(false, SaveEditRules.CanEdit("tblWorkerSkill", skill.Columns["Brawling"]!, Array.Empty<string>()));
+Equal(true, SaveEditRules.IsValidValue("tblWorkerSkill", skill.Columns["Brawling"]!, 100));
+Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", skill.Columns["Brawling"]!, -1));
+Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", skill.Columns["Brawling"]!, 101));
+Equal(false, SaveEditRules.IsValidValue("tblWorkerSkill", skill.Columns["Brawling"]!, DBNull.Value));
 
-Console.WriteLine("Passed naming checks and TEW file-kind and save edit-rule tests.");
+var belts = new System.Data.DataTable("tblBelt");
+belts.Columns.Add("UID", typeof(int));
+belts.Columns.Add("Name", typeof(string));
+belts.Columns.Add("Fed", typeof(int));
+belts.Columns.Add("Picture", typeof(string));
+belts.Columns.Add("Profile", typeof(string));
+belts.Columns.Add("Prestige", typeof(int));
+var beltKey = new[] { "UID" };
+Equal(true, SaveEditRules.CanEdit("tblBelt", belts.Columns["Name"]!, beltKey));
+Equal(true, SaveEditRules.CanEdit("tblBelt", belts.Columns["Picture"]!, beltKey));
+Equal(true, SaveEditRules.CanEdit("tblBelt", belts.Columns["Profile"]!, beltKey));
+Equal(true, SaveEditRules.CanEdit("tblBelt", belts.Columns["Prestige"]!, beltKey));
+Equal(false, SaveEditRules.CanEdit("tblBelt", belts.Columns["UID"]!, beltKey));
+Equal(false, SaveEditRules.CanEdit("tblBelt", belts.Columns["Fed"]!, beltKey));
+Equal(true, SaveEditRules.IsValidValue("tblBelt", belts.Columns["Prestige"]!, 75));
+
+var companies = new System.Data.DataTable("tblFed");
+companies.Columns.Add("UID", typeof(int));
+companies.Columns.Add("Name", typeof(string));
+companies.Columns.Add("Money", typeof(long));
+Equal(true, SaveEditRules.CanEdit("tblFed", companies.Columns["Money"]!, beltKey));
+Equal(true, SaveEditRules.CanEdit("tblFed", companies.Columns["Name"]!, beltKey));
+Equal(true, SaveEditRules.IsValidValue("tblFed", companies.Columns["Money"]!, 500000L));
+
+var game = new System.Data.DataTable("tblGameInfo");
+game.Columns.Add("UID", typeof(int));
+game.Columns.Add("CurrentDate", typeof(DateTime));
+Equal(true, SaveEditRules.CanEdit("tblGameInfo", game.Columns["CurrentDate"]!, beltKey));
+Equal(false, SaveEditRules.CanEdit("randomTable", game.Columns["CurrentDate"]!, beltKey));
+
+Console.WriteLine("Passed naming checks and broad record-editing rules for Save Studio.");
+
