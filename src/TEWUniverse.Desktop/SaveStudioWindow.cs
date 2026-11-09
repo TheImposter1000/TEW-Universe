@@ -488,8 +488,15 @@ internal sealed class SaveTablesView : UserControl, IDisposable
         _tableList.IsEnabled = count == 0;
         _tableSearch.IsEnabled = count == 0;
         _categoryFilter.IsEnabled = count == 0;
-        _previousPageButton.IsEnabled = count == 0 && _pageIndex > 0;
-        _nextPageButton.IsEnabled = count == 0 && (_pageIndex + 1) * PageSize < _totalRows;
+        _pageSizePicker.IsEnabled = count == 0;
+        _recordFieldPicker.IsEnabled = count == 0;
+        _recordSearch.IsEnabled = count == 0;
+        _applyRecordFilter.IsEnabled = count == 0;
+        _clearRecordFilter.IsEnabled = count == 0;
+        _previousPageButton.IsEnabled = count == 0 &&
+            _pageSize != 0 && _pageIndex > 0;
+        _nextPageButton.IsEnabled = count == 0 && _pageSize != 0 &&
+            (_pageIndex + 1) * _pageSize < _totalRows;
         if (count > 0)
             _status.Text = count + " pending field changes. Save or discard before switching tables.";
     }
@@ -520,10 +527,79 @@ internal sealed class SaveTablesView : UserControl, IDisposable
 
     private void LoadSelected() => LoadSelected(force: false);
 
+    private void ChangePageSize()
+    {
+        if (PendingChanges > 0) return;
+        var choice = _pageSizePicker.SelectedItem as string ?? "250";
+        var selected = choice == "All Records" ? 0 :
+            int.TryParse(choice, out var size) ? size : DefaultPageSize;
+        if (_pageSize == selected) return;
+        _pageSize = selected;
+        _pageIndex = 0;
+        if (_pageSize != 0) _recordSearch.Text = "";
+        LoadSelected(force: false);
+    }
+
+    private void ApplyRecordFilter()
+    {
+        if (_loadedTable == null || PendingChanges > 0) return;
+        if (_recordSearch.Text.Trim().Length > 0 && _pageSize != 0)
+        {
+            // Always search the whole save table. Never silently search
+            // only the currently visible 250 records.
+            _pageSizePicker.SelectedItem = "All Records";
+            return; // ChangePageSize performs the complete reload and filter.
+        }
+        ApplyFilterToView();
+    }
+
+    private void ClearRecordFilter()
+    {
+        if (_loadedTable == null || PendingChanges > 0) return;
+        _recordSearch.Text = "";
+        _recordFieldPicker.SelectedIndex = 0;
+        _loadedTable.DefaultView.RowFilter = "";
+        _recordFilterSummary.Text = "Showing " + _loadedTable.DefaultView.Count.ToString("N0") +
+            " records. Search all fields or select a specific field.";
+    }
+
+    private void RebuildRecordFieldChoices(DataTable data)
+    {
+        _recordFieldPicker.Items.Clear();
+        _recordFieldPicker.Items.Add(SaveTableRecordFilter.AllColumns);
+        foreach (DataColumn column in data.Columns)
+            if (SaveEditRules.IsSupportedScalarType(column.DataType))
+                _recordFieldPicker.Items.Add(column.ColumnName);
+        _recordFieldPicker.SelectedIndex = 0;
+    }
+
+    private void ApplyFilterToView()
+    {
+        if (_loadedTable == null) return;
+        try
+        {
+            var column = _recordFieldPicker.SelectedItem as string ??
+                SaveTableRecordFilter.AllColumns;
+            _loadedTable.DefaultView.RowFilter = SaveTableRecordFilter.Build(
+                _loadedTable, column, _recordSearch.Text);
+            _recordFilterSummary.Text = "Matching " +
+                _loadedTable.DefaultView.Count.ToString("N0") + " of " +
+                _totalRows.ToString("N0") + " records in " +
+                _loadedTable.TableName + ".";
+        }
+        catch (Exception ex) when (ex is EvaluateException or SyntaxErrorException
+            or ArgumentException or InvalidOperationException)
+        {
+            _loadedTable.DefaultView.RowFilter = "";
+            _recordFilterSummary.Text = "Filter cannot be applied: " + ex.Message;
+        }
+    }
+
     private void ChangePage(int delta)
     {
         if (PendingChanges > 0 || _loadedTable == null) return;
-        var pages = Math.Max(1, (_totalRows + PageSize - 1) / PageSize);
+        var pages = _pageSize == 0 ? 1 :
+            Math.Max(1, (_totalRows + _pageSize - 1) / _pageSize);
         var next = Math.Clamp(_pageIndex + delta, 0, pages - 1);
         if (next == _pageIndex) return;
         _pageIndex = next;
@@ -551,25 +627,37 @@ internal sealed class SaveTablesView : UserControl, IDisposable
 
         try
         {
-            if (_loadedTable == null ||
-                !_loadedTable.TableName.Equals(item.Name, StringComparison.OrdinalIgnoreCase))
+            var changingTable = _loadedTable == null ||
+                !_loadedTable.TableName.Equals(item.Name, StringComparison.OrdinalIgnoreCase);
+            if (changingTable)
+            {
                 _pageIndex = 0;
+                _recordSearch.Text = "";
+            }
 
             _totalRows = _session.CountRows(item.Name);
-            var maxPage = Math.Max(0, (_totalRows - 1) / PageSize);
+            var maxPage = _pageSize == 0 ? 0 :
+                Math.Max(0, (_totalRows - 1) / _pageSize);
             _pageIndex = Math.Min(_pageIndex, maxPage);
 
-            var data = _session.Preview(item.Name, _pageIndex, PageSize);
+            var data = _session.Preview(item.Name, _pageIndex, _pageSize);
             if (_loadedTable != null) _loadedTable.RowChanged -= LoadedTable_RowChanged;
             _loadedTable = data;
             _loadedTable.RowChanged += LoadedTable_RowChanged;
             _preview.ItemsSource = data.DefaultView;
+            if (changingTable)
+                RebuildRecordFieldChoices(data);
+            ApplyFilterToView();
             var editable = data.Columns.Cast<DataColumn>()
                 .Count(column => SaveGameSession.CanEdit(data, column));
-            var first = _totalRows == 0 ? 0 : _pageIndex * PageSize + 1;
-            var last = Math.Min((_pageIndex + 1) * PageSize, _totalRows);
-            _pageLabel.Text = first.ToString("N0") + " to " +
-                last.ToString("N0") + " of " + _totalRows.ToString("N0");
+            var first = _totalRows == 0 ? 0 :
+                _pageSize == 0 ? 1 : _pageIndex * _pageSize + 1;
+            var last = _pageSize == 0 ? _totalRows :
+                Math.Min((_pageIndex + 1) * _pageSize, _totalRows);
+            _pageLabel.Text = _pageSize == 0
+                ? "All " + _totalRows.ToString("N0") + " records"
+                : first.ToString("N0") + " to " +
+                    last.ToString("N0") + " of " + _totalRows.ToString("N0");
 
             _tableDetails.Text = item.Name + "  |  " + _session.TableType(item.Name) +
                 "  |  " + item.Category + "  |  " +
@@ -578,8 +666,9 @@ internal sealed class SaveTablesView : UserControl, IDisposable
                     ? editable + " editable fields (marked with a pen)"
                     : "Read-only: no unique record key or editable scalar fields");
             _status.Text = editable > 0
-                ? "Editing the selected save directly. Change a pen-marked field and choose Save Changes."
-                : "This Access object is available to inspect; its record identity or field type cannot safely be edited.";
+                ? (_pageSize == 0 ? "All records loaded. " : "") +
+                    "Change a pen-marked field and choose Save Changes to update the save."
+                : "This table is view-only because its field types or row identity are not verified.";
             UpdateDirtyState();
         }
         catch (Exception ex)
