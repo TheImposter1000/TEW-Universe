@@ -6,9 +6,10 @@ using TEWUniverse.Studio;
 namespace TEWUniverse.Desktop;
 
 /// <summary>
-/// Opens the user's actual TEW IX save MDB and commits approved, validated
-/// edits in-place. No working copy, snapshot or mandatory backup is created.
-/// Unknown game-state tables remain read-only.
+/// Edits existing scalar fields in the selected TEW IX save MDB in place.
+/// A table must expose a stable key, and each write verifies record identity
+/// and the original field value inside the same Access transaction.
+/// No working copy or mandatory backup is created.
 /// </summary>
 internal sealed class SaveGameSession : IDisposable
 {
@@ -126,31 +127,103 @@ internal sealed class SaveGameSession : IDisposable
             .ToList();
     }
 
-    /// <summary>
-    /// Preview existing table data. The DataTable tracks pending grid edits
-    /// in memory until Save Changes is explicitly confirmed by the user.
-    /// </summary>
-    internal DataTable Preview(string tableName, int limit = 250)
+    internal int CountRows(string tableName)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("The table was not discovered in this save.");
-        if (limit < 1 || limit > 250)
-            throw new ArgumentOutOfRangeException(nameof(limit));
+
+        using var command = new OleDbCommand(
+            "SELECT COUNT(*) FROM " + QuoteName(tableName), _connection);
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Load one page of actual saved records. Sort by Access primary key
+    /// when available, so paging does not depend on physical table order.
+    /// </summary>
+    internal DataTable Preview(string tableName, int pageIndex = 0, int pageSize = 250)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The table was not discovered in this save.");
+        if (pageIndex < 0 || pageSize < 1 || pageSize > 1000)
+            throw new ArgumentOutOfRangeException(nameof(pageSize));
+        if (pageIndex > int.MaxValue / pageSize)
+            throw new ArgumentOutOfRangeException(nameof(pageIndex));
 
         var quoted = QuoteName(tableName);
-        using var command = new OleDbCommand(
-            "SELECT TOP " + limit.ToString(CultureInfo.InvariantCulture) +
-            " * FROM " + quoted, _connection);
-        using var adapter = new OleDbDataAdapter(command);
-        var table = new DataTable(tableName);
-        adapter.Fill(table);
+        // A zero-row result reveals the actual column schema without loading
+        // thousands of records to discover the correct identity fields.
+        using var schemaCommand = new OleDbCommand(
+            "SELECT * FROM " + quoted + " WHERE 1 = 0", _connection);
+        using var schemaAdapter = new OleDbDataAdapter(schemaCommand);
+        var schema = new DataTable(tableName);
+        schemaAdapter.Fill(schema);
+        var keys = ResolveRecordKeys(schema);
+
+        var sql = "SELECT * FROM " + quoted +
+            (keys.Length == 0 ? "" : " ORDER BY " +
+                string.Join(", ", keys.Select(QuoteName)));
+        using var pageCommand = new OleDbCommand(sql, _connection);
+        using var pageAdapter = new OleDbDataAdapter(pageCommand);
+        var dataset = new DataSet();
+        pageAdapter.Fill(dataset, pageIndex * pageSize, pageSize, tableName);
+        var table = dataset.Tables.Contains(tableName)
+            ? dataset.Tables[tableName]!
+            : new DataTable(tableName);
+        table.ExtendedProperties["SaveRecordKeys"] = keys;
         return table;
     }
 
+    private string[] ResolveRecordKeys(DataTable table)
+    {
+        // Prefer the actual Access primary key. Composite keys are supported.
+        // Provider versions that do not expose this schema can fall back to
+        // conventional record keys, but uniqueness is checked at commit time.
+        try
+        {
+            var schema = _connection.GetOleDbSchemaTable(
+                OleDbSchemaGuid.Primary_Keys, new object?[] { null, null, table.TableName });
+            if (schema != null && schema.Columns.Contains("COLUMN_NAME"))
+            {
+                var keyRows = schema.Rows.Cast<DataRow>();
+                if (schema.Columns.Contains("KEY_SEQ"))
+                    keyRows = keyRows.OrderBy(row =>
+                        Convert.ToInt32(row["KEY_SEQ"], CultureInfo.InvariantCulture));
+                else if (schema.Columns.Contains("ORDINAL"))
+                    keyRows = keyRows.OrderBy(row =>
+                        Convert.ToInt32(row["ORDINAL"], CultureInfo.InvariantCulture));
+                var keys = keyRows
+                    .Select(row => Convert.ToString(row["COLUMN_NAME"], CultureInfo.InvariantCulture) ?? "")
+                    .Where(name => table.Columns.Contains(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                if (keys.Length > 0) return keys;
+            }
+        }
+        catch (OleDbException)
+        {
+            // Some installed ACE versions do not expose the primary-key rowset.
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        foreach (var candidate in new[] {
+            "UID", "WorkerUID", "FedUID", "BeltUID", "TeamUID",
+            "ContractUID", "RecordID", "ID"
+        })
+            if (table.Columns.Contains(candidate))
+                return new[] { table.Columns[candidate]!.ColumnName };
+
+        return Array.Empty<string>();
+    }
+
+    internal static IReadOnlyList<string> RecordKeys(DataTable table)
+        => table.ExtendedProperties["SaveRecordKeys"] as string[] ?? Array.Empty<string>();
+
     internal static bool CanEdit(DataTable table, DataColumn column)
-        => SaveEditRules.CanEdit(table.TableName, column)
-            && table.Columns.Contains(SaveEditRules.IdentityColumn(table.TableName) ?? "");
+        => SaveEditRules.CanEdit(table.TableName, column, RecordKeys(table));
 
     internal int CountPendingEdits(DataTable table)
     {
@@ -162,30 +235,42 @@ internal sealed class SaveGameSession : IDisposable
             : 0);
     }
 
+    private sealed record PendingField(
+        object[] RecordKeyValues, DataColumn Column, object OldValue, object NewValue);
+
     /// <summary>
-    /// Apply only explicitly allowlisted scalar changes. Validate all pending
-    /// edits and the current database identity before any SQL is issued;
-    /// rollback the whole batch on a missing, duplicated or stale record.
+    /// Commit validated changes to the exact MDB selected by the user.
+    /// Fields with unsupported Access types and relationship keys are locked.
+    /// The full batch is atomic and stale or ambiguous rows are rejected.
     /// </summary>
     internal int SaveChanges(DataTable table)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!TableNames.Contains(table.TableName, StringComparer.OrdinalIgnoreCase))
             throw new InvalidOperationException("The table was not found in this save.");
-        var identityName = SaveEditRules.IdentityColumn(table.TableName);
-        if (identityName == null || !table.Columns.Contains(identityName))
-            throw new InvalidOperationException("This table is read-only.");
 
-        var identity = table.Columns[identityName]!;
-        var pending = new List<(object Id, DataColumn Column, object Before, object After)>();
+        var keyNames = RecordKeys(table);
+        if (keyNames.Count == 0)
+            throw new InvalidOperationException(
+                "This table has no discoverable record identity. It cannot be safely edited.");
+        if (keyNames.Any(key => !table.Columns.Contains(key)))
+            throw new InvalidOperationException("The table's record keys are missing.");
+
+        var pending = new List<PendingField>();
         foreach (DataRow row in table.Rows)
         {
             if (row.RowState is DataRowState.Added or DataRowState.Deleted)
-                throw new InvalidOperationException("Inserting and deleting records is not supported.");
+                throw new InvalidOperationException(
+                    "Adding and deleting save records requires dedicated relationship validation.");
             if (row.RowState != DataRowState.Modified) continue;
-            var id = row[identity, DataRowVersion.Original];
-            if (id is DBNull || !Equals(id, row[identity, DataRowVersion.Current]))
-                throw new InvalidOperationException("Record identity cannot be edited.");
+
+            var keys = keyNames.Select(name =>
+                row[name, DataRowVersion.Original]).ToArray();
+            if (keys.Any(value => value is DBNull))
+                throw new InvalidOperationException("A save record has a missing identity value.");
+            for (var i = 0; i < keyNames.Count; i++)
+                if (!Equals(keys[i], row[keyNames[i], DataRowVersion.Current]))
+                    throw new InvalidOperationException("Record identity columns cannot be edited.");
 
             foreach (DataColumn column in table.Columns)
             {
@@ -193,47 +278,69 @@ internal sealed class SaveGameSession : IDisposable
                 var after = row[column, DataRowVersion.Current];
                 if (Equals(before, after)) continue;
                 if (!CanEdit(table, column) ||
-                    !SaveEditRules.IsValidValue(table.TableName, column.ColumnName, after))
+                    !SaveEditRules.IsValidValue(table.TableName, column, after))
                     throw new InvalidOperationException(
-                        "Unsupported save edit: " + table.TableName + "." +
-                        column.ColumnName + ". Only verified skill values from 0 to 100 can be updated.");
-                pending.Add((id, column, before, after));
+                        "Unsupported or invalid save field: " +
+                        table.TableName + "." + column.ColumnName +
+                        ". Identifiers, relationship keys and unsupported data types are protected.");
+                pending.Add(new PendingField(keys, column, before, after));
             }
         }
+
         if (pending.Count == 0) return 0;
         EnsureUnchanged();
+
+        var tableSql = QuoteName(table.TableName);
+        var keyPredicate = string.Join(" AND ", keyNames.Select(k => QuoteName(k) + " = ?"));
 
         using var transaction = _connection.BeginTransaction();
         try
         {
-            foreach (var id in pending.Select(x => x.Id).Distinct())
-            {
-                using var count = new OleDbCommand(
-                    "SELECT COUNT(*) FROM " + QuoteName(table.TableName) +
-                    " WHERE " + QuoteName(identityName) + " = ?", _connection, transaction);
-                count.Parameters.AddWithValue("id", id);
-                if (Convert.ToInt32(count.ExecuteScalar(), CultureInfo.InvariantCulture) != 1)
-                    throw new InvalidOperationException(
-                        "The save contains a missing or ambiguous worker skill record. " +
-                        "No changes will be saved.");
-            }
             foreach (var edit in pending)
             {
-                var sql = "UPDATE " + QuoteName(table.TableName) +
-                    " SET " + QuoteName(edit.Column.ColumnName) + " = ? WHERE " +
-                    QuoteName(identityName) + " = ? AND " +
-                    QuoteName(edit.Column.ColumnName) +
-                    (edit.Before is DBNull ? " IS NULL" : " = ?");
-                using var command = new OleDbCommand(sql, _connection, transaction);
-                command.Parameters.AddWithValue("newValue", edit.After);
-                command.Parameters.AddWithValue("id", edit.Id);
-                if (edit.Before is not DBNull)
-                    command.Parameters.AddWithValue("oldValue", edit.Before);
-                if (command.ExecuteNonQuery() != 1)
+                var fieldSql = QuoteName(edit.Column.ColumnName);
+
+                // Compare values in .NET rather than using SQL equality against
+                // Access Memo/LongText columns, which cannot be compared with =.
+                using (var select = new OleDbCommand(
+                    "SELECT " + fieldSql + " FROM " + tableSql +
+                    " WHERE " + keyPredicate, _connection, transaction))
+                {
+                    for (int k = 0; k < edit.RecordKeyValues.Length; k++)
+                        select.Parameters.AddWithValue("key" + k, edit.RecordKeyValues[k]);
+
+                    using var reader = select.ExecuteReader();
+                    if (reader == null || !reader.Read())
+                        throw new InvalidOperationException(
+                            "The save record could not be found. No changes were saved.");
+                    var current = reader.GetValue(0);
+                    if (reader.Read())
+                        throw new InvalidOperationException(
+                            "More than one save record matches these keys. No changes were saved.");
+                    if (!Equals(current, edit.OldValue))
+                        throw new InvalidOperationException(
+                            "A save field was modified outside Studio. " +
+                            "No changes were saved. Reopen the save to refresh.");
+                }
+
+                using var update = new OleDbCommand(
+                    "UPDATE " + tableSql + " SET " + fieldSql + " = ? WHERE " +
+                    keyPredicate, _connection, transaction);
+
+                if (edit.NewValue is string text && text.Length > 255)
+                    update.Parameters.Add("value", OleDbType.LongVarWChar).Value = text;
+                else
+                    update.Parameters.AddWithValue("value", edit.NewValue);
+
+                for (int k = 0; k < edit.RecordKeyValues.Length; k++)
+                    update.Parameters.AddWithValue("key" + k, edit.RecordKeyValues[k]);
+
+                if (update.ExecuteNonQuery() != 1)
                     throw new InvalidOperationException(
-                        "A save value changed outside Save Studio. No edits were saved. " +
-                        "Reopen the save and try again.");
+                        "The save update did not affect exactly one record. " +
+                        "No changes were saved.");
             }
+
             transaction.Commit();
             _lastKnownStamp = GetStamp(OriginalPath);
             table.AcceptChanges();
